@@ -99,7 +99,7 @@ type SCBlock struct {
 	header       *Header
 
 	transactions Transactions
-	receiptions
+	receipts  ContractResults
 
 	// caches
 	hash atomic.Value
@@ -218,7 +218,7 @@ func (b *SCBlock) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header: b.header,
 		Txs:    b.transactions,
-		Uncles: b.uncles,
+		Receipts b.receipts
 	})
 }
 
@@ -228,7 +228,7 @@ func (b *SCStorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions, b.td = sb.Header, sb.Uncles, sb.Txs, sb.TD
+	b.header, b.transactions, b.receipts,b.td = sb.Header,  sb.Txs, sb.receipts,sb.TD
 	return nil
 }
 
@@ -245,7 +245,17 @@ func (b *SCBlock) Transaction(hash common.Hash) *Transaction {
 	}
 	return nil
 }
+func (b *SCBlock) ContractReceipts() ContractResults { return b.receipts }
 
+func (b *SCBlock) ContrcatReceipt(hash common.Hash) *ContractResult {
+	for _, receipt := range b.receipts {
+		if receipt.TxHash == hash {
+			return receipt
+		}
+	}
+	return nil
+}
+func (b *SCBlock) ShardId() byte     { return b.header.ShardId }
 func (b *SCBlock) Number() *big.Int     { return new(big.Int).Set(b.header.Number) }
 func (b *SCBlock) GasLimit() uint64     { return b.header.GasLimit }
 func (b *SCBlock) GasUsed() uint64      { return b.header.GasUsed }
@@ -261,13 +271,13 @@ func (b *SCBlock) Root() common.Hash        { return b.header.Root }
 func (b *SCBlock) ParentHash() common.Hash  { return b.header.ParentHash }
 func (b *SCBlock) TxHash() common.Hash      { return b.header.TxHash }
 func (b *SCBlock) ReceiptHash() common.Hash { return b.header.ReceiptHash }
-func (b *SCBlock) UncleHash() common.Hash   { return b.header.UncleHash }
+//func (b *SCBlock) UncleHash() common.Hash   { return b.header.UncleHash }
 func (b *SCBlock) Extra() []byte            { return common.CopyBytes(b.header.Extra) }
 
 func (b *SCBlock) Header() *SCHeader { return CopySCHeader(b.header) }
 
 // Body returns the non-header content of the block.
-func (b *SCBlock) Body() *SCBody { return &SCBody{b.transactions, b.uncles} }
+func (b *SCBlock) Body() *SCBody { return &SCBody{b.transactions, b.receipts} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -294,7 +304,7 @@ func CalcUncleHash(uncles []*Header) common.Hash {
 
 // WithSeal returns a new block with the data from b but the header replaced with
 // the sealed one.
-func (b *Block) WithSeal(header *Header) *Block {
+func (b *Block) WithSeal(header *SCHeader) *Block {
 	cpy := *header
 
 	return &Block{
@@ -305,22 +315,21 @@ func (b *Block) WithSeal(header *Header) *Block {
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, uncles []*Header) *Block {
+func (b *Block) WithBody(transactions []*Transaction, contractReceipts ContractResults) *SCBlock {
 	block := &Block{
 		header:       CopyHeader(b.header),
 		transactions: make([]*Transaction, len(transactions)),
-		uncles:       make([]*Header, len(uncles)),
+		receipts:	  make(ContractResults,len(contractReceipts))
 	}
 	copy(block.transactions, transactions)
-	for i := range uncles {
-		block.uncles[i] = CopyHeader(uncles[i])
-	}
+	copy(block.receipts,contractReceipts)
+
 	return block
 }
 
 // Hash returns the keccak256 hash of b's header.
 // The hash is computed on the first call and cached thereafter.
-func (b *Block) Hash() common.Hash {
+func (b *SCBlock) Hash() common.Hash {
 	if hash := b.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
@@ -343,7 +352,7 @@ func (self BlockBy) Sort(blocks SCBlocks) {
 
 type blockSorter struct {
 	blocks Blocks
-	by     func(b1, b2 *Block) bool
+	by     func(b1, b2 *SCBlock) bool
 }
 
 func (self blockSorter) Len() int { return len(self.blocks) }
@@ -352,4 +361,4 @@ func (self blockSorter) Swap(i, j int) {
 }
 func (self blockSorter) Less(i, j int) bool { return self.by(self.blocks[i], self.blocks[j]) }
 
-func Number(b1, b2 *Block) bool { return b1.header.Number.Cmp(b2.header.Number) < 0 }
+func Number(b1, b2 *SCBlock) bool { return b1.header.Number.Cmp(b2.header.Number) < 0 }

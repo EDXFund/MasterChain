@@ -80,6 +80,7 @@ type ContractResult struct {
 	ContractInst uint64 `json:"contInst"	gencodec:"required"`
 	Receipts	[]*contractReception	`json:"contReceipt" gencodec:"required"`
 }
+type ContractResults  []*ContractResult;
 type txdataMarshaling struct {
 	TxType       byte            //should be always "T"
 	AccountNonce hexutil.Uint64
