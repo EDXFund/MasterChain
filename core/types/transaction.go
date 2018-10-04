@@ -23,10 +23,10 @@ import (
 	"math/big"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/common/hexutil"
+	"github.com/EDXFund/MasterChain/crypto"
+	"github.com/EDXFund/MasterChain/rlp"
 )
 
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
@@ -127,7 +127,7 @@ func newTransaction(nonce uint64,tokenId uint64, to *common.Address, amount *big
 		data = common.CopyBytes(data)
 	}
 	d := txdata{
-		TxType:	      byte("T"),
+		TxType:	      byte('T'),
 		AccountNonce: nonce,
 		Recipient:    to,
 		Payload:      data,
@@ -154,7 +154,7 @@ func newContractTransaction(nonce uint64,tokenId uint64,amount *big.Int, gasLimi
 		data = common.CopyBytes(data)
 	}
 	d := txdata{
-		TxType:       byte("C"),
+		TxType:       byte('C'),
 		AccountNonce: nonce,
 		Payload:      data,
 		Amount:       new(big.Int),
@@ -181,7 +181,7 @@ func (tx *Transaction) ChainId() *big.Int {
 	return deriveChainId(tx.data.V)
 }
 
-func (tx *Transaction) Type() uint64 {
+func (tx *Transaction) Type() byte {
 	return tx.data.TxType;
 }
 

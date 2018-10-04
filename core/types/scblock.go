@@ -28,7 +28,7 @@ import (
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/hexutil"
-	"github.com/EDXFund/MasterChain/crypto/sha3"
+	//"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/rlp"
 )
 
@@ -40,7 +40,7 @@ type SCHeader struct {
 	ShardId		uint16		   `json:"shardId"			gencodec:"required"`
 	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
 	Coinbase    common.Address `json:"miner"            gencodec:"required"`
-	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
+	//Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
@@ -78,12 +78,6 @@ func (h *SCHeader) Size() common.StorageSize {
 	return common.StorageSize(unsafe.Sizeof(*h)) + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen()+h.Time.BitLen())/8)
 }
 
-func rlpHash(x interface{}) (h common.Hash) {
-	hw := sha3.NewKeccak256()
-	rlp.Encode(hw, x)
-	hw.Sum(h[:0])
-	return h
-}
 
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
@@ -91,12 +85,12 @@ type SCBody struct {
 	Transactions []*Transaction
 
 	//receipts
-	Receipts  []*ContractReception
+	Receipts  	ContractResults
 }
 
 // Block represents an entire block in the Ethereum blockchain.
 type SCBlock struct {
-	header       *Header
+	header       *SCHeader
 
 	transactions Transactions
 	receipts  ContractResults
@@ -130,7 +124,7 @@ type SCStorageBlock SCBlock
 
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
-	Header *Header
+	Header *SCHeader
 	Txs    []*Transaction
 	Receipts []*ContractResult
 
@@ -139,7 +133,7 @@ type extblock struct {
 // [deprecated by eth/63]
 // "storage" block encoding. used for database.
 type storageblock struct {
-	Header *Header
+	Header *SCHeader
 	Txs    []*Transaction
 	Receipts []*ContractResult
 	TD     *big.Int
@@ -152,8 +146,8 @@ type storageblock struct {
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewSCBlock(header *Header, txs []*Transaction, receipts []*Receipt) *SCBlock {
-	b := &SCBlock{header: CopyHeader(header), td: new(big.Int)}
+func NewSCBlock(header *SCHeader, txs []*Transaction, receipts []*Receipt) *SCBlock {
+	b := &SCBlock{header: CopySCHeader(header), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -178,7 +172,7 @@ func NewSCBlock(header *Header, txs []*Transaction, receipts []*Receipt) *SCBloc
 // header data is copied, changes to header and to the field values
 // will not affect the block.
 func NewSCBlockWithHeader(header *SCHeader) *SCBlock {
-	return &SCBlock{header: CopyHeader(header)}
+	return &SCBlock{header: CopySCHeader(header)}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
@@ -208,7 +202,7 @@ func (b *SCBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions = eb.Header, eb.Uncles, eb.Txs
+	b.header, b.transactions,b.receipts = eb.Header, eb.Txs,eb.Receipts
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -218,7 +212,7 @@ func (b *SCBlock) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header: b.header,
 		Txs:    b.transactions,
-		Receipts b.receipts
+		Receipts: b.receipts,
 	})
 }
 
@@ -228,7 +222,7 @@ func (b *SCStorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.receipts,b.td = sb.Header,  sb.Txs, sb.receipts,sb.TD
+	b.header, b.transactions, b.receipts,b.td = sb.Header,  sb.Txs, sb.Receipts,sb.TD
 	return nil
 }
 
@@ -249,13 +243,13 @@ func (b *SCBlock) ContractReceipts() ContractResults { return b.receipts }
 
 func (b *SCBlock) ContrcatReceipt(hash common.Hash) *ContractResult {
 	for _, receipt := range b.receipts {
-		if receipt.TxHash == hash {
+		if *receipt.TxHash == hash {
 			return receipt
 		}
 	}
 	return nil
 }
-func (b *SCBlock) ShardId() byte     { return b.header.ShardId }
+func (b *SCBlock) ShardId() uint16     { return b.header.ShardId }
 func (b *SCBlock) Number() *big.Int     { return new(big.Int).Set(b.header.Number) }
 func (b *SCBlock) GasLimit() uint64     { return b.header.GasLimit }
 func (b *SCBlock) GasUsed() uint64      { return b.header.GasUsed }
@@ -267,7 +261,7 @@ func (b *SCBlock) MixDigest() common.Hash   { return b.header.MixDigest }
 func (b *SCBlock) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
 func (b *SCBlock) Bloom() Bloom             { return b.header.Bloom }
 func (b *SCBlock) Coinbase() common.Address { return b.header.Coinbase }
-func (b *SCBlock) Root() common.Hash        { return b.header.Root }
+//func (b *SCBlock) Root() common.Hash        { return b.header.Root }
 func (b *SCBlock) ParentHash() common.Hash  { return b.header.ParentHash }
 func (b *SCBlock) TxHash() common.Hash      { return b.header.TxHash }
 func (b *SCBlock) ReceiptHash() common.Hash { return b.header.ReceiptHash }
@@ -281,7 +275,7 @@ func (b *SCBlock) Body() *SCBody { return &SCBody{b.transactions, b.receipts} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
-func (b *Block) Size() common.StorageSize {
+func (b *SCBlock) Size() common.StorageSize {
 	if size := b.size.Load(); size != nil {
 		return size.(common.StorageSize)
 	}
@@ -291,35 +285,24 @@ func (b *Block) Size() common.StorageSize {
 	return common.StorageSize(c)
 }
 
-type writeCounter common.StorageSize
-
-func (c *writeCounter) Write(b []byte) (int, error) {
-	*c += writeCounter(len(b))
-	return len(b), nil
-}
-
-func CalcUncleHash(uncles []*Header) common.Hash {
-	return rlpHash(uncles)
-}
-
 // WithSeal returns a new block with the data from b but the header replaced with
 // the sealed one.
-func (b *Block) WithSeal(header *SCHeader) *Block {
+func (b *SCBlock) WithSeal(header *SCHeader) *SCBlock {
 	cpy := *header
 
-	return &Block{
+	return &SCBlock{
 		header:       &cpy,
 		transactions: b.transactions,
-		uncles:       b.uncles,
+		receipts:       b.receipts,
 	}
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, contractReceipts ContractResults) *SCBlock {
-	block := &Block{
-		header:       CopyHeader(b.header),
+func (b *SCBlock) WithBody(transactions []*Transaction, contractReceipts ContractResults) *SCBlock {
+	block := &SCBlock{
+		header:       CopySCHeader(b.header),
 		transactions: make([]*Transaction, len(transactions)),
-		receipts:	  make(ContractResults,len(contractReceipts))
+		receipts:	  make(ContractResults,len(contractReceipts)),
 	}
 	copy(block.transactions, transactions)
 	copy(block.receipts,contractReceipts)
@@ -340,25 +323,25 @@ func (b *SCBlock) Hash() common.Hash {
 
 type SCBlocks []*SCBlock
 
-type BlockBy func(b1, b2 *SCBlock) bool
+type SCBlockBy func(b1, b2 *SCBlock) bool
 
-func (self BlockBy) Sort(blocks SCBlocks) {
-	bs := blockSorter{
+func (self SCBlockBy) Sort(blocks SCBlocks) {
+	bs := scblockSorter{
 		blocks: blocks,
 		by:     self,
 	}
 	sort.Sort(bs)
 }
 
-type blockSorter struct {
-	blocks Blocks
+type scblockSorter struct {
+	blocks SCBlocks
 	by     func(b1, b2 *SCBlock) bool
 }
 
-func (self blockSorter) Len() int { return len(self.blocks) }
-func (self blockSorter) Swap(i, j int) {
+func (self scblockSorter) Len() int { return len(self.blocks) }
+func (self scblockSorter) Swap(i, j int) {
 	self.blocks[i], self.blocks[j] = self.blocks[j], self.blocks[i]
 }
-func (self blockSorter) Less(i, j int) bool { return self.by(self.blocks[i], self.blocks[j]) }
+func (self scblockSorter) Less(i, j int) bool { return self.by(self.blocks[i], self.blocks[j]) }
 
-func Number(b1, b2 *SCBlock) bool { return b1.header.Number.Cmp(b2.header.Number) < 0 }
+func SCNumber(b1, b2 *SCBlock) bool { return b1.header.Number.Cmp(b2.header.Number) < 0 }

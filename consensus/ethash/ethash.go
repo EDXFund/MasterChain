@@ -407,8 +407,8 @@ type Config struct {
 
 // sealTask wraps a seal block with relative result channel for remote sealer thread.
 type sealTask struct {
-	block   *types.Block
-	results chan<- *types.Block
+	block   *types.BlockIntf
+	results chan<- *types.BlockIntf
 }
 
 // mineResult wraps the pow solution parameters for the specified block.
@@ -469,7 +469,7 @@ type Ethash struct {
 // New creates a full sized ethash PoW scheme and starts a background thread for
 // remote mining, also optionally notifying a batch of remote services of new work
 // packages.
-func New(config Config, notify []string, noverify bool) *Ethash {
+func New(config Config, notify []string, noverify bool,isMaster bool) *Ethash {
 	if config.CachesInMem <= 0 {
 		log.Warn("One ethash cache must always be in memory", "requested", config.CachesInMem)
 		config.CachesInMem = 1
@@ -495,11 +495,12 @@ func New(config Config, notify []string, noverify bool) *Ethash {
 	}
 	go ethash.remote(notify, noverify)
 	return ethash
+
 }
 
 // NewTester creates a small sized ethash PoW scheme useful only for testing
 // purposes.
-func NewTester(notify []string, noverify bool) *Ethash {
+func NewTester(notify []string, noverify bool,master bool) *Ethash {
 	ethash := &Ethash{
 		config:       Config{PowMode: ModeTest},
 		caches:       newlru("cache", 1, newCache),
@@ -515,6 +516,7 @@ func NewTester(notify []string, noverify bool) *Ethash {
 	}
 	go ethash.remote(notify, noverify)
 	return ethash
+
 }
 
 // NewFaker creates a ethash consensus engine with a fake PoW scheme that accepts

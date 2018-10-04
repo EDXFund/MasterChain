@@ -16,7 +16,7 @@
 
 // Package ethclient provides a client for the Ethereum RPC API.
 package ethclient
-
+/*
 import (
 	"context"
 	"encoding/json"
@@ -509,3 +509,4 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	}
 	return arg
 }
+*/
