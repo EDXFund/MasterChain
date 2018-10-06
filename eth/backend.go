@@ -89,6 +89,7 @@ type Ethereum struct {
 	etherbase common.Address
 
 	networkID     uint64
+	shardId		  uint16
 	netRPCService *ethapi.PublicNetAPI
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
@@ -101,7 +102,8 @@ func (s *Ethereum) AddLesServer(ls LesServer) {
 
 // New creates a new Ethereum object (including the
 // initialisation of the common Ethereum object)
-func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
+// add parameter shardId to this function, enabling change shardId dynamically
+func New(ctx *node.ServiceContext, config *Config, shardId uint16) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
 	if config.SyncMode == downloader.LightSync {
 		return nil, errors.New("can't run eth.Ethereum in light sync mode, use les.LightEthereum")
@@ -125,6 +127,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{
+		shardId:		shardId,	//add shard to node
 		config:         config,
 		chainDb:        chainDb,
 		chainConfig:    chainConfig,
@@ -152,7 +155,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		vmConfig    = vm.Config{EnablePreimageRecording: config.EnablePreimageRecording}
 		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieNodeLimit: config.TrieCache, TrieTimeLimit: config.TrieTimeout}
 	)
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig)
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig, shardId)
 	if err != nil {
 		return nil, err
 	}

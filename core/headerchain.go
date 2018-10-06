@@ -85,7 +85,7 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	hc := &HeaderChain{
 		config:        config,
 		chainDb:       chainDb,
-		shardId:		ShardId,
+		shardId:	   ShardId,
 		headerCache:   headerCache,
 		tdCache:       tdCache,
 		numberCache:   numberCache,
@@ -435,7 +435,7 @@ func (hc *HeaderChain) CurrentHeader() *types.Header {
 
 // SetCurrentHeader sets the current head header of the canonical chain.
 func (hc *HeaderChain) SetCurrentHeader(head *types.Header) {
-	rawdb.WriteHeadHeaderHash(hc.chainDb, head.Hash())
+	rawdb.WriteHeadHeaderHash(hc.chainDb, header.ShardId, head.Hash())
 
 	hc.currentHeader.Store(head)
 	hc.currentHeaderHash = head.Hash()
@@ -467,7 +467,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	}
 	// Roll back the canonical chain numbering
 	for i := height; i > head; i-- {
-		rawdb.DeleteCanonicalHash(batch, i)
+		rawdb.DeleteCanonicalHash(batch,hc.shardId, i)
 	}
 	batch.Write()
 
@@ -481,7 +481,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
 
-	rawdb.WriteHeadHeaderHash(hc.chainDb, hc.currentHeaderHash)
+	rawdb.WriteHeadHeaderHash(hc.chainDb, hc.shardId,hc.currentHeaderHash)
 }
 
 // SetGenesis sets a new genesis block header for the chain

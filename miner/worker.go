@@ -84,13 +84,19 @@ type environment struct {
 	state     *state.StateDB // apply state changes here
 	ancestors mapset.Set     // ancestor set (used for checking uncle parent validity)
 	family    mapset.Set     // family set (used for checking uncle invalidity)
-	uncles    mapset.Set     // uncle set
+	
 	tcount    int            // tx count in cycle
 	gasPool   *core.GasPool  // available gas used to pack transactions
 
+	
 	header   *types.Header
+
+	//exists only when node is in shard chain
 	txs      []*types.Transaction
 	receipts []*types.Receipt
+
+	//exists when node is in master chain
+	shardBlocks    mapset.Set     // shard chain blocks set
 }
 
 // task contains all information for consensus engine sealing and result submitting.

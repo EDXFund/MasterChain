@@ -90,6 +90,7 @@ type BlockChain struct {
 	chainConfig *params.ChainConfig // Chain & network configuration
 	cacheConfig *CacheConfig        // Cache configuration for pruning
 
+	shardId		uint16			//Shard Id of this block chain
 	db     ethdb.Database // Low level persistent database to store final content in
 	triegc *prque.Prque   // Priority queue mapping block numbers to tries to gc
 	gcproc time.Duration  // Accumulates canonical block processing for trie dumping
@@ -134,7 +135,7 @@ type BlockChain struct {
 // NewBlockChain returns a fully initialised block chain using information
 // available in the database. It initialises the default Ethereum Validator and
 // Processor.
-func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config) (*BlockChain, error) {
+func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config,shardId uint16) (*BlockChain, error) {
 	if cacheConfig == nil {
 		cacheConfig = &CacheConfig{
 			TrieNodeLimit: 256 * 1024 * 1024,
@@ -166,7 +167,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine))
 
 	var err error
-	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt)
+	bc.hc, err = NewHeaderChain(db, chainConfig, engine, shardId, bc.getProcInterrupt)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +175,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	if bc.genesisBlock == nil {
 		return nil, ErrNoGenesis
 	}
-	if err := bc.loadLastState(); err != nil {
+
+	if  err := bc.loadLastState(); err != nil {
 		return nil, err
 	}
 	// Check the current state of the block hashes and make sure that we do not have any of the bad blocks in our chain
@@ -216,8 +218,9 @@ func (bc *BlockChain) loadLastState() error {
 		log.Warn("Head block missing, resetting chain", "hash", head)
 		return bc.Reset()
 	}
+	//only master chain can have Root
 	// Make sure the state associated with the block is available
-	if _, err := state.New(currentBlock.Root(), bc.stateCache); err != nil {
+	if bc.ShardId()==types.ShardMaster;  _, err := state.New(currentBlock.Root(), bc.stateCache); err != nil {
 		// Dangling block without a state associated, init from scratch
 		log.Warn("Head state missing, repairing chain", "number", currentBlock.Number(), "hash", currentBlock.Hash())
 		if err := bc.repair(&currentBlock); err != nil {
@@ -229,7 +232,7 @@ func (bc *BlockChain) loadLastState() error {
 
 	// Restore the last known head header
 	currentHeader := currentBlock.Header()
-	if head := rawdb.ReadHeadHeaderHash(bc.db); head != (common.Hash{}) {
+	if head := rawdb.ReadHeadHeaderHash(bc.db,bc.ShardId()); head != (common.Hash{}) {
 		if header := bc.GetHeaderByHash(head); header != nil {
 			currentHeader = header
 		}
@@ -238,7 +241,7 @@ func (bc *BlockChain) loadLastState() error {
 
 	// Restore the last known head fast block
 	bc.currentFastBlock.Store(currentBlock)
-	if head := rawdb.ReadHeadFastBlockHash(bc.db); head != (common.Hash{}) {
+	if head := rawdb.ReadHeadFastBlockHash(bc.db,bc.ShardId()); head != (common.Hash{}) {
 		if block := bc.GetBlockByHash(head); block != nil {
 			bc.currentFastBlock.Store(block)
 		}
@@ -258,7 +261,7 @@ func (bc *BlockChain) loadLastState() error {
 	return nil
 }
 func (bc *BlockChain) ShardId() uint16 {
-	return bc.hc.ShardId
+	return bc.shardId
 }
 
 // SetHead rewinds the local chain to a new head. In the case of headers, everything
@@ -289,11 +292,17 @@ func (bc *BlockChain) SetHead(head uint64) error {
 		bc.currentBlock.Store(bc.GetBlock(currentHeader.Hash(), currentHeader.Number.Uint64()))
 	}
 	if currentBlock := bc.CurrentBlock(); currentBlock != nil {
-		if _, err := state.New(currentBlock.Root(), bc.stateCache); err != nil {
+
+		noneBlock := false;
+		//only master chain node should check Root
+		if bc.ShardId() == types.ShardMaster;_, err := state.New(currentBlock.Root(), bc.stateCache); err != nil {
 			// Rewound state missing, rolled back to before pivot, reset to genesis
-			bc.currentBlock.Store(bc.genesisBlock)
+			noneBlock = true;
 		}
+		if(noneBlock) {
+			bc.currentBlock.Store(bc.genesisBlock)
 	}
+	
 	// Rewind the fast block in a simpleton way to the target head
 	if currentFastBlock := bc.CurrentFastBlock(); currentFastBlock != nil && currentHeader.Number.Uint64() < currentFastBlock.NumberU64() {
 		bc.currentFastBlock.Store(bc.GetBlock(currentHeader.Hash(), currentHeader.Number.Uint64()))
@@ -308,8 +317,8 @@ func (bc *BlockChain) SetHead(head uint64) error {
 	currentBlock := bc.CurrentBlock()
 	currentFastBlock := bc.CurrentFastBlock()
 
-	rawdb.WriteHeadBlockHash(bc.db, currentBlock.Hash())
-	rawdb.WriteHeadFastBlockHash(bc.db, currentFastBlock.Hash())
+	rawdb.WriteHeadBlockHash(bc.db, bc.ShardId(),currentBlock.Hash())
+	rawdb.WriteHeadFastBlockHash(bc.db, bc.ShardId(),currentFastBlock.Hash())
 
 	return bc.loadLastState()
 }
@@ -513,7 +522,7 @@ func (bc *BlockChain) GetBody(hash common.Hash) *types.Body {
 	if number == nil {
 		return nil
 	}
-	body := rawdb.ReadBody(bc.db, hash, *number)
+	body := rawdb.ReadBody(bc.db, bc.ShardId(), hash, *number)
 	if body == nil {
 		return nil
 	}
@@ -533,7 +542,7 @@ func (bc *BlockChain) GetBodyRLP(hash common.Hash) rlp.RawValue {
 	if number == nil {
 		return nil
 	}
-	body := rawdb.ReadBodyRLP(bc.db, hash, *number)
+	body := rawdb.ReadBodyRLP(bc.db,bc.ShardId(), hash, *number)
 	if len(body) == 0 {
 		return nil
 	}
@@ -547,7 +556,7 @@ func (bc *BlockChain) HasBlock(hash common.Hash, number uint64) bool {
 	if bc.blockCache.Contains(hash) {
 		return true
 	}
-	return rawdb.HasBody(bc.db, hash, number)
+	return rawdb.HasBody(bc.db,bc.ShardId(), hash, number)
 }
 
 // HasState checks if state trie is fully present in the database or not.
@@ -574,7 +583,7 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	if block, ok := bc.blockCache.Get(hash); ok {
 		return block.(*types.Block)
 	}
-	block := rawdb.ReadBlock(bc.db, hash, number)
+	block := rawdb.ReadBlock(bc.db, bc.ShardId(),hash, number)
 	if block == nil {
 		return nil
 	}
@@ -632,14 +641,14 @@ func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) (blocks []*type
 
 // GetUnclesInChain retrieves all the uncles from a given block backwards until
 // a specific distance is reached.
-func (bc *BlockChain) GetUnclesInChain(block *types.Block, length int) []*types.Header {
+/*func (bc *BlockChain) GetUnclesInChain(block *types.Block, length int) []*types.Header {
 	uncles := []*types.Header{}
 	for i := 0; block != nil && i < length; i++ {
 		uncles = append(uncles, block.Uncles()...)
 		block = bc.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	}
 	return uncles
-}
+}*/
 
 // TrieNode retrieves a blob of data associated with a trie node (or code hash)
 // either from ephemeral in-memory cache, or from persistent storage.
@@ -730,12 +739,12 @@ func (bc *BlockChain) Rollback(chain []common.Hash) {
 		if currentFastBlock := bc.CurrentFastBlock(); currentFastBlock.Hash() == hash {
 			newFastBlock := bc.GetBlock(currentFastBlock.ParentHash(), currentFastBlock.NumberU64()-1)
 			bc.currentFastBlock.Store(newFastBlock)
-			rawdb.WriteHeadFastBlockHash(bc.db, newFastBlock.Hash())
+			rawdb.WriteHeadFastBlockHash(bc.db, bc.ShardId(),newFastBlock.Hash())
 		}
 		if currentBlock := bc.CurrentBlock(); currentBlock.Hash() == hash {
 			newBlock := bc.GetBlock(currentBlock.ParentHash(), currentBlock.NumberU64()-1)
 			bc.currentBlock.Store(newBlock)
-			rawdb.WriteHeadBlockHash(bc.db, newBlock.Hash())
+			rawdb.WriteHeadBlockHash(bc.db, bc.ShardId(),newBlock.Hash())
 		}
 	}
 }
@@ -820,8 +829,8 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 			return i, fmt.Errorf("failed to set receipts data: %v", err)
 		}
 		// Write all the data out into the database
-		rawdb.WriteBody(batch, block.Hash(), block.NumberU64(), block.Body())
-		rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
+		rawdb.WriteBody(batch, bc.ShardId(),block.Hash(), block.NumberU64(), block.Body())
+		rawdb.WriteReceipts(batch, bc.ShardId(),block.Hash(), block.NumberU64(), receipts)
 		rawdb.WriteTxLookupEntries(batch, block)
 
 		stats.processed++
@@ -847,7 +856,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 	if td := bc.GetTd(head.Hash(), head.NumberU64()); td != nil { // Rewind may have occurred, skip in that case
 		currentFastBlock := bc.CurrentFastBlock()
 		if bc.GetTd(currentFastBlock.Hash(), currentFastBlock.NumberU64()).Cmp(td) < 0 {
-			rawdb.WriteHeadFastBlockHash(bc.db, head.Hash())
+			rawdb.WriteHeadFastBlockHash(bc.db, bc.ShardId(),head.Hash())
 			bc.currentFastBlock.Store(head)
 		}
 	}
@@ -875,11 +884,11 @@ func (bc *BlockChain) WriteBlockWithoutState(block *types.Block, td *big.Int) (e
 	if err := bc.hc.WriteTd(block.Hash(), block.NumberU64(), td); err != nil {
 		return err
 	}
-	rawdb.WriteBlock(bc.db, block)
+	rawdb.WriteBlock(bc.db, bc.ShardId(),block)
 
 	return nil
 }
-
+////MUST TODO: for master chain ShardBlockInfo and rejections should be recorded
 // WriteBlockWithState writes the block and all associated state to the database.
 func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, state *state.StateDB) (status WriteStatus, err error) {
 	bc.wg.Add(1)
@@ -902,7 +911,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 	if err := bc.hc.WriteTd(block.Hash(), block.NumberU64(), externTd); err != nil {
 		return NonStatTy, err
 	}
-	rawdb.WriteBlock(bc.db, block)
+	rawdb.WriteBlock(bc.db, bc.Shard(),block)
 
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
@@ -959,7 +968,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 	// Write other block data using a batch.
 	batch := bc.db.NewBatch()
-	rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
+	rawdb.WriteReceipts(batch, block.ShardId(),block.Hash(), block.NumberU64(), receipts)
 
 	// If the total difficulty is higher than our known, add it to the canonical chain
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
