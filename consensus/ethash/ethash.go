@@ -407,8 +407,8 @@ type Config struct {
 
 // sealTask wraps a seal block with relative result channel for remote sealer thread.
 type sealTask struct {
-	block   *types.BlockIntf
-	results chan<- *types.BlockIntf
+	block   *types.Block
+	results chan<- *types.Block
 }
 
 // mineResult wraps the pow solution parameters for the specified block.
@@ -469,7 +469,7 @@ type Ethash struct {
 // New creates a full sized ethash PoW scheme and starts a background thread for
 // remote mining, also optionally notifying a batch of remote services of new work
 // packages.
-func New(config Config, notify []string, noverify bool,isMaster bool) *Ethash {
+func New(config Config, notify []string, noverify bool) *Ethash {
 	if config.CachesInMem <= 0 {
 		log.Warn("One ethash cache must always be in memory", "requested", config.CachesInMem)
 		config.CachesInMem = 1

@@ -78,7 +78,7 @@ func benchmarkBloomBits(b *testing.B, sectionSize uint64) {
 
 	clearBloomBits(db)
 	fmt.Println("Generating bloombits data...")
-	headNum := rawdb.ReadHeaderNumber(db, head)
+	shardId,headNum := rawdb.ReadHeaderNumber(db, head)
 	if headNum == nil || *headNum < sectionSize+512 {
 		b.Fatalf("not enough blocks for running a benchmark")
 	}
@@ -184,7 +184,7 @@ func BenchmarkNoBloomBits(b *testing.B) {
 	if head == (common.Hash{}) {
 		b.Fatalf("chain data not found at %v", benchDataDir)
 	}
-	headNum := rawdb.ReadHeaderNumber(db, head)
+	shardId,headNum := rawdb.ReadHeaderNumber(db, head)
 
 	clearBloomBits(db)
 

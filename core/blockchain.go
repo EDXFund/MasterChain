@@ -601,11 +601,11 @@ func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
 
 // GetReceiptsByHash retrieves the receipts for all transactions in a given block.
 func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
-	number := rawdb.ReadHeaderNumber(bc.db, hash)
+	shardId,number := rawdb.ReadHeaderNumber(bc.db, hash)
 	if number == nil {
 		return nil
 	}
-	return rawdb.ReadReceipts(bc.db, hash, *number)
+	return rawdb.ReadReceipts(bc.db, shardId,hash, *number)
 }
 
 // GetBlocksFromHash returns the block corresponding to hash and up to n-1 ancestors.

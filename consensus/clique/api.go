@@ -33,7 +33,7 @@ type API struct {
 // GetSnapshot retrieves the state snapshot at a given block.
 func (api *API) GetSnapshot(number *rpc.BlockNumber) (*Snapshot, error) {
 	// Retrieve the requested block number (or current if none requested)
-	var header *types.MCHeader
+	var header *types.Header
 	if number == nil || *number == rpc.LatestBlockNumber {
 		header = api.chain.CurrentHeader()
 	} else {
@@ -58,7 +58,7 @@ func (api *API) MCGetSnapshotAtHash(hash common.Hash) (*Snapshot, error) {
 // GetSigners retrieves the list of authorized signers at the specified block.
 func (api *API) MCGetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	// Retrieve the requested block number (or current if none requested)
-	var header *types.MCHeader
+	var header *types.Header
 	if number == nil || *number == rpc.LatestBlockNumber {
 		header = api.chain.CurrentHeader()
 	} else {
