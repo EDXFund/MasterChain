@@ -20,9 +20,9 @@ import (
 	"context"
 	"sync"
 
-	ethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/rpc"
+	ethereum "github.com/EDXFund/MasterChain"
+	"github.com/EDXFund/MasterChain/event"
+	"github.com/EDXFund/MasterChain/rpc"
 )
 
 // PublicDownloaderAPI provides an API which gives information about the current synchronisation status.

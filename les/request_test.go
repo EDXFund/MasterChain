@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/light"
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core/rawdb"
+	"github.com/EDXFund/MasterChain/crypto"
+	"github.com/EDXFund/MasterChain/ethdb"
+	"github.com/EDXFund/MasterChain/light"
 )
 
 var testBankSecureTrieKey = secAddr(testBankAddress)
@@ -57,8 +57,8 @@ func TestTrieEntryAccessLes1(t *testing.T) { testAccess(t, 1, tfTrieEntryAccess)
 func TestTrieEntryAccessLes2(t *testing.T) { testAccess(t, 2, tfTrieEntryAccess) }
 
 func tfTrieEntryAccess(db ethdb.Database, bhash common.Hash, number uint64) light.OdrRequest {
-	if number := rawdb.ReadHeaderNumber(db, bhash); number != nil {
-		return &light.TrieRequest{Id: light.StateTrieID(rawdb.ReadHeader(db, bhash, *number)), Key: testBankSecureTrieKey}
+	if shardId,number := rawdb.ReadHeaderNumber(db, bhash); number != nil {
+		return &light.TrieRequest{Id: light.StateTrieID(rawdb.ReadHeader(db, shardId,bhash, *number)), Key: testBankSecureTrieKey}
 	}
 	return nil
 }
@@ -68,11 +68,11 @@ func TestCodeAccessLes1(t *testing.T) { testAccess(t, 1, tfCodeAccess) }
 func TestCodeAccessLes2(t *testing.T) { testAccess(t, 2, tfCodeAccess) }
 
 func tfCodeAccess(db ethdb.Database, bhash common.Hash, num uint64) light.OdrRequest {
-	number := rawdb.ReadHeaderNumber(db, bhash)
+	shardId,number := rawdb.ReadHeaderNumber(db, bhash)
 	if number != nil {
 		return nil
 	}
-	header := rawdb.ReadHeader(db, bhash, *number)
+	header := rawdb.ReadHeader(db, shardId,bhash, *number)
 	if header.Number.Uint64() < testContractDeployed {
 		return nil
 	}

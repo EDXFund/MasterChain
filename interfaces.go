@@ -22,8 +22,8 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core/types"
 )
 
 // NotFound is returned by API methods if the requested item does not exist.
@@ -52,10 +52,24 @@ type Subscription interface {
 //
 // The returned error is NotFound if the requested item does not exist.
 type ChainReader interface {
-	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
-	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
-	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	BlockByHash(ctx context.Context, hash common.Hash) (*types.BlockIntf, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.BlockIntf, error)
+	HeaderByHash(ctx context.Context, hash common.Hash) (*types.HeaderIntf, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.HeaderIntf, error)
+	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
+	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error)
+
+	// This method subscribes to notifications about changes of the head block of
+	// the canonical chain.
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.HeaderIntf) (Subscription, error)
+}
+/*
+// The returned error is NotFound if the requested item does not exist.
+type MCChainReader interface {
+	BlockByHash(ctx context.Context, hash common.Hash) (*types.MCBlock, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.MCBlock, error)
+	HeaderByHash(ctx context.Context, hash common.Hash) (*types.MCHeader, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.MCHeader, error)
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error)
 
@@ -63,6 +77,7 @@ type ChainReader interface {
 	// the canonical chain.
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (Subscription, error)
 }
+*/
 
 // TransactionReader provides access to past transactions and their receipts.
 // Implementations may impose arbitrary restrictions on the transactions and receipts that

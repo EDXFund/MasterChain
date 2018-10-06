@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/EDXFund/MasterChain/common"
 )
 
 type keyStorePlain struct {

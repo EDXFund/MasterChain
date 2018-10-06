@@ -19,9 +19,10 @@ package rawdb
 
 import (
 	"encoding/binary"
+	"strconv"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/metrics"
 )
 
 // The fields below define the low level database schema prefixing.
@@ -42,13 +43,13 @@ var (
 	fastTrieProgressKey = []byte("TrieSync")
 
 	// Data item prefixes (use single byte to avoid mixing data types, avoid `i`, used for indexes).
-	headerPrefix       = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
-	headerTDSuffix     = []byte("t") // headerPrefix + num (uint64 big endian) + hash + headerTDSuffix -> td
-	headerHashSuffix   = []byte("n") // headerPrefix + num (uint64 big endian) + headerHashSuffix -> hash
-	headerNumberPrefix = []byte("H") // headerNumberPrefix + hash -> num (uint64 big endian)
+	headerPrefix       = []byte("h") // headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash -> header
+	headerTDSuffix     = []byte("t") // headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash + headerTDSuffix -> td
+	headerHashSuffix   = []byte("n") // headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + headerHashSuffix -> hash
+	headerNumberPrefix = []byte("H") // headerNumberPrefix + hash ->  shardId (uint16 big endian) + num (uint64 big endian)
 
-	blockBodyPrefix     = []byte("b") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
-	blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
+	blockBodyPrefix     = []byte("b") // blockBodyPrefix + shardId (uint16 big endian)+  num (uint64 big endian) + hash -> block body
+	blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + shardId (uint16 big endian)+ num (uint64 big endian) + hash -> block receipts
 
 	txLookupPrefix  = []byte("l") // txLookupPrefix + hash -> transaction/receipt lookup metadata
 	bloomBitsPrefix = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits
@@ -66,6 +67,7 @@ var (
 // TxLookupEntry is a positional metadata to help looking up the data content of
 // a transaction or receipt given only its hash.
 type TxLookupEntry struct {
+	ShardId    uint16
 	BlockHash  common.Hash
 	BlockIndex uint64
 	Index      uint64
@@ -77,20 +79,29 @@ func encodeBlockNumber(number uint64) []byte {
 	binary.BigEndian.PutUint64(enc, number)
 	return enc
 }
-
-// headerKey = headerPrefix + num (uint64 big endian) + hash
-func headerKey(number uint64, hash common.Hash) []byte {
-	return append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+// encodeBlockNumber encodes a block number as big endian uint64
+func encodeBlockNumberWithShardId(shardId uint16,number uint64) []byte {
+	enc := make([]byte, 10)
+	binary.BigEndian.PutUint16(enc, shardId)
+	binary.BigEndian.PutUint64(enc[2:], number)
+	return enc
 }
 
-// headerTDKey = headerPrefix + num (uint64 big endian) + hash + headerTDSuffix
-func headerTDKey(number uint64, hash common.Hash) []byte {
-	return append(headerKey(number, hash), headerTDSuffix...)
+// headerKey = headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash
+func headerKey(shardId uint16,number uint64, hash common.Hash) []byte {
+	return append(append(append(headerPrefix,strconv.Itoa(shardId)...), encodeBlockNumber(number)...), hash.Bytes()...)
+}
+
+// headerTDKey = headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash + headerTDSuffix
+func headerTDKey(shardId uint16,number uint64, hash common.Hash) []byte {
+
+	return append(headerKey(shardId,number, hash), headerTDSuffix...)
 }
 
 // headerHashKey = headerPrefix + num (uint64 big endian) + headerHashSuffix
-func headerHashKey(number uint64) []byte {
-	return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
+func headerHashKey(shardId uint16,number uint64) []byte {
+
+	return append(append(append(headerPrefix,strconv.Itoa(shardId)...), encodeBlockNumber(number)...), headerHashSuffix...)
 }
 
 // headerNumberKey = headerNumberPrefix + hash
@@ -99,13 +110,16 @@ func headerNumberKey(hash common.Hash) []byte {
 }
 
 // blockBodyKey = blockBodyPrefix + num (uint64 big endian) + hash
-func blockBodyKey(number uint64, hash common.Hash) []byte {
-	return append(append(blockBodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+func blockBodyKey(sharId uint16,number uint64, hash common.Hash) []byte {
+	enc := make([]byte,2)
+	binary.BigEndian.PutUint16(shardId);
+	return append(append(append(blockBodyPrefix,enc...), encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
 // blockReceiptsKey = blockReceiptsPrefix + num (uint64 big endian) + hash
-func blockReceiptsKey(number uint64, hash common.Hash) []byte {
-	return append(append(blockReceiptsPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+func blockReceiptsKey(sharId uint16,number uint64, hash common.Hash) []byte {
+
+	return append(append(append(blockReceiptsPrefix,strconv.Itoa(shardId)...), encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
 // txLookupKey = txLookupPrefix + hash
