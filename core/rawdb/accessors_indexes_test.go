@@ -38,7 +38,7 @@ func TestLookupStorage(t *testing.T) {
 
 	// Check that no transactions entries are in a pristine database
 	for i, tx := range txs {
-		if txn, _, _, _ := ReadTransaction(db, tx.Hash()); txn != nil {
+		if txn, _, _, _ , _ := ReadTransaction(db, tx.Hash()); txn != nil {
 			t.Fatalf("tx #%d [%x]: non existent transaction returned: %v", i, tx.Hash(), txn)
 		}
 	}
@@ -47,7 +47,7 @@ func TestLookupStorage(t *testing.T) {
 	WriteTxLookupEntries(db, block)
 
 	for i, tx := range txs {
-		if txn, hash, number, index := ReadTransaction(db, tx.Hash()); txn == nil {
+		if txn, shardId,hash, number, index := ReadTransaction(db, tx.Hash()); txn == nil {
 			t.Fatalf("tx #%d [%x]: transaction not found", i, tx.Hash())
 		} else {
 			if hash != block.Hash() || number != block.NumberU64() || index != uint64(i) {
@@ -61,7 +61,7 @@ func TestLookupStorage(t *testing.T) {
 	// Delete the transactions and check purge
 	for i, tx := range txs {
 		DeleteTxLookupEntry(db, tx.Hash())
-		if txn, _, _, _ := ReadTransaction(db, tx.Hash()); txn != nil {
+		if txn, _, _, _ , _ := ReadTransaction(db, tx.Hash()); txn != nil {
 			t.Fatalf("tx #%d [%x]: deleted transaction returned: %v", i, tx.Hash(), txn)
 		}
 	}

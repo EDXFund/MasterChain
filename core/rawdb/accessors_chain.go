@@ -40,7 +40,7 @@ func ReadCanonicalHash(db DatabaseReader, shardId uint16,number uint64) common.H
 	return common.BytesToHash(data)
 }
 
-// WriteCanonicalHash stores the hash assigned to a canonical block number.
+// WriteCanonicalHash stores the hash assigned to a canonical block number of geive shardId.
 func WriteCanonicalHash(db DatabaseWriter,shardId uint16, hash common.Hash, number uint64) {
 	if err := db.Put(headerHashKey(shardId,number), hash.Bytes()); err != nil {
 		log.Crit("Failed to store number to hash mapping", "err", err)
@@ -125,8 +125,8 @@ func ReadFastTrieProgress(db DatabaseReader,shardId uint16) uint64 {
 
 // WriteFastTrieProgress stores the fast sync trie process counter to support
 // retrieving it across restarts.
-func WriteFastTrieProgress(db DatabaseWriter, shardId uint16,count uint64) {
-	if err := db.Put(append(fastTrieProgressKey,strconv.FormatInt((int64)(shardId),16)...), new(big.Int).SetUint64(count).Bytes()); err != nil {
+func WriteFastTrieProgress(db DatabaseWriter, count uint64) {
+	if err := db.Put(fastTrieProgressKey, new(big.Int).SetUint64(count).Bytes()); err != nil {
 		log.Crit("Failed to store fast sync trie progress", "err", err)
 	}
 }
@@ -138,7 +138,7 @@ func ReadHeaderRLP(db DatabaseReader, shardId uint16,hash common.Hash, number ui
 }
 
 // HasHeader verifies the existence of a block header corresponding to the hash.
-func HasHeader(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) bool {
+func HasHeader(db DatabaseReader, hash common.Hash, number uint64) bool {
 	if has, err := db.Has(headerKey(shardId,number, hash)); !has || err != nil {
 		return false
 	}
@@ -344,7 +344,7 @@ func ReadBlock(db DatabaseReader, shardId uint16,hash common.Hash, number uint64
 	if body == nil {
 		return nil
 	}
-	return types.NewBlockWithHeader(header).WithBody(body.Transactions, body.Receipts,body.BlockInfos,body.RejecInfos)
+	return types.NewBlockWithHeader(header).WithBody(body.Transactions, body.Receipts,body.BlockInfos,body.RejectInfos)
 }
 
 // WriteBlock serializes a block into the database, header and body separately.
