@@ -11,10 +11,11 @@ fi
 workspace="$PWD/build/_workspace"
 root="$PWD"
 ethdir="$workspace/src/github.com/EDXFund"
+rm -fr "$ethdir/MasterChain"
 if [ ! -L "$ethdir/MasterChain" ]; then
     mkdir -p "$ethdir"
     cd "$ethdir"
-    ln -s ../../../../../. MasterChain
+    ln -svf ../../../../../. MasterChain
     cd "$root"
 fi
 
@@ -23,6 +24,7 @@ GOPATH="$workspace"
 export GOPATH
 
 # Run the command inside the workspace.
+echo "$ethdir/MasterChain"
 cd "$ethdir/MasterChain"
 PWD="$ethdir/MasterChain"
 

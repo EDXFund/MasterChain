@@ -104,6 +104,7 @@ type ShardBlockPool interface {
 	// NewTxsEvent and send events to the given channel.
 	SubscribeNewBlockEvent(chan<- core.NewMinedBlockEvent) event.Subscription
 }
+
 type txPool interface {
 	// AddRemotes should add the given transactions to the pool.
 	AddRemotes([]*types.Transaction) []error

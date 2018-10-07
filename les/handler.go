@@ -69,7 +69,7 @@ func errResp(code errCode, format string, v ...interface{}) error {
 
 type BlockChain interface {
 	Config() *params.ChainConfig
-	HasHeader(hash common.Hash, number uint64) bool
+	HasHeader(shardId uint16,hash common.Hash, number uint64) bool
 	GetHeader(hash common.Hash, number uint64) *types.Header
 	GetHeaderByHash(hash common.Hash) *types.Header
 	CurrentHeader() *types.Header

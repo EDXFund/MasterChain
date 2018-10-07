@@ -138,7 +138,7 @@ func ReadHeaderRLP(db DatabaseReader, shardId uint16,hash common.Hash, number ui
 }
 
 // HasHeader verifies the existence of a block header corresponding to the hash.
-func HasHeader(db DatabaseReader, hash common.Hash, number uint64) bool {
+func HasHeader(db DatabaseReader, shardId uint16,hash common.Hash, number uint64) bool {
 	if has, err := db.Has(headerKey(shardId,number, hash)); !has || err != nil {
 		return false
 	}
