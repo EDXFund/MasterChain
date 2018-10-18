@@ -148,7 +148,7 @@ func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, num
 		if err := core.SetReceiptsData(config, block, receipts); err != nil {
 			return nil, err
 		}
-		rawdb.WriteReceipts(odr.Database(), hash, number, receipts)
+		rawdb.WriteReceipts(odr.Database(), hash, block.Header().ShardId, number, receipts)
 	}
 	return receipts, nil
 }

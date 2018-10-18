@@ -24,7 +24,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/consensus/misc"
@@ -35,6 +34,7 @@ import (
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/params"
+	mapset "github.com/deckarep/golang-set"
 )
 
 const (
@@ -84,19 +84,18 @@ type environment struct {
 	state     *state.StateDB // apply state changes here
 	ancestors mapset.Set     // ancestor set (used for checking uncle parent validity)
 	family    mapset.Set     // family set (used for checking uncle invalidity)
-	
-	tcount    int            // tx count in cycle
-	gasPool   *core.GasPool  // available gas used to pack transactions
 
-	
-	header   *types.Header
+	tcount  int           // tx count in cycle
+	gasPool *core.GasPool // available gas used to pack transactions
+
+	header *types.Header
 
 	//exists only when node is in shard chain
 	txs      []*types.Transaction
 	receipts []*types.Receipt
 
 	//exists when node is in master chain
-	shardBlocks    mapset.Set     // shard chain blocks set
+	shardBlocks mapset.Set // shard chain blocks set
 }
 
 // task contains all information for consensus engine sealing and result submitting.
@@ -183,14 +182,14 @@ type worker struct {
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64) *worker {
 	worker := &worker{
-		config:             config,
-		engine:             engine,
-		eth:                eth,
-		mux:                mux,
-		chain:              eth.BlockChain(),
-		gasFloor:           gasFloor,
-		gasCeil:            gasCeil,
-		possibleUncles:     make(map[common.Hash]*types.Block),
+		config:   config,
+		engine:   engine,
+		eth:      eth,
+		mux:      mux,
+		chain:    eth.BlockChain(),
+		gasFloor: gasFloor,
+		gasCeil:  gasCeil,
+		//possibleUncles:     make(map[common.Hash]*types.Block),
 		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
 		pendingTasks:       make(map[common.Hash]*task),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),

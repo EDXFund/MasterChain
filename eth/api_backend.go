@@ -107,18 +107,18 @@ func (b *EthAPIBackend) GetBlock(ctx context.Context, hash common.Hash) (*types.
 }
 
 func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	if shardId,number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
-		return rawdb.ReadReceipts(b.eth.chainDb, shardId,hash, *number), nil
+	if shardId, number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
+		return rawdb.ReadReceipts(b.eth.chainDb, hash, shardId, *number), nil
 	}
 	return nil, nil
 }
 
 func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
-	shardId,number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash)
+	shardId, number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash)
 	if number == nil {
 		return nil, nil
 	}
-	receipts := rawdb.ReadReceipts(b.eth.chainDb, shardId,hash, *number)
+	receipts := rawdb.ReadReceipts(b.eth.chainDb, hash, shardId, *number)
 	if receipts == nil {
 		return nil, nil
 	}

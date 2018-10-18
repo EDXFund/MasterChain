@@ -46,3 +46,14 @@ type ChainSideEvent struct {
 }
 
 type ChainHeadEvent struct{ Block *types.Block }
+type PoolChainEvent uint16
+
+var (
+	PoolEventChain        PoolChainEvent = 1
+	PoolEventChainTimeout PoolChainEvent = 2
+)
+
+type ShardPoolEvent struct {
+	Event PoolChainEvent
+	Block *types.Block
+}

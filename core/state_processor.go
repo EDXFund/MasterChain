@@ -65,18 +65,40 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
 	}
+
+	//this should only happen in master chain
+
 	// Iterate over and process the individual transactions
-	for i, tx := range block.Transactions() {
-		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
-		if err != nil {
-			return nil, nil, 0, err
+
+	rejections := make([]*types.RejectInfo, 1)
+
+	for _, blkinfo := range block.BlockInfos() {
+		////MUST TODO get block detail from shard pool
+		//bc.shardPool.getBlockInfo(blkInfo)
+		_ = (blkinfo)
+		for i, tx := range block.Transactions() {
+			statedb.Prepare(tx.Hash(), block.Hash(), i)
+			receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
+			if err != nil {
+				//return nil, nil, 0, err
+				rejections = append(rejections, &types.RejectInfo{TxHash: tx.Hash(), Reason: 1})
+			}
+			receipts = append(receipts, receipt)
+			allLogs = append(allLogs, receipt.Logs...)
 		}
-		receipts = append(receipts, receipt)
-		allLogs = append(allLogs, receipt.Logs...)
+		////MUST TODO process contract Results
+
+		////Create result
+
+		///add Rejections
+
 	}
+
+	//if master chain process blcokinfos and rejections
+
+	///// MUST TODO  blockInfos has already been included in block
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)
+	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), receipts, block.BlockInfos(), rejections)
 
 	return receipts, allLogs, *usedGas, nil
 }

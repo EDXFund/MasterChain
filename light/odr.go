@@ -111,27 +111,29 @@ func (req *CodeRequest) StoreResult(db ethdb.Database) {
 // BlockRequest is the ODR request type for retrieving block bodies
 type BlockRequest struct {
 	OdrRequest
-	Hash   common.Hash
-	Number uint64
-	Rlp    []byte
+	Hash    common.Hash
+	ShardId uint16
+	Number  uint64
+	Rlp     []byte
 }
 
 // StoreResult stores the retrieved data in local database
 func (req *BlockRequest) StoreResult(db ethdb.Database) {
-	rawdb.WriteBodyRLP(db, req.Hash, req.Number, req.Rlp)
+	rawdb.WriteBodyRLP(db, req.Hash, req.ShardId, req.Number, req.Rlp)
 }
 
 // ReceiptsRequest is the ODR request type for retrieving block bodies
 type ReceiptsRequest struct {
 	OdrRequest
 	Hash     common.Hash
+	ShardId  uint16
 	Number   uint64
 	Receipts types.Receipts
 }
 
 // StoreResult stores the retrieved data in local database
 func (req *ReceiptsRequest) StoreResult(db ethdb.Database) {
-	rawdb.WriteReceipts(db, req.Hash, req.Number, req.Receipts)
+	rawdb.WriteReceipts(db, req.Hash, req.ShardId, req.Number, req.Receipts)
 }
 
 // ChtRequest is the ODR request type for state/storage trie entries
@@ -147,17 +149,18 @@ type ChtRequest struct {
 
 // StoreResult stores the retrieved data in local database
 func (req *ChtRequest) StoreResult(db ethdb.Database) {
-	hash, num := req.Header.Hash(), req.Header.Number.Uint64()
+	hash, shardId, num := req.Header.Hash(), req.Header.ShardId, req.Header.Number.Uint64()
 
 	rawdb.WriteHeader(db, req.Header)
-	rawdb.WriteTd(db, hash, num, req.Td)
-	rawdb.WriteCanonicalHash(db, hash, num)
+	rawdb.WriteTd(db, hash, req.Header.ShardId, num, req.Td)
+	rawdb.WriteCanonicalHash(db, hash, shardId, num)
 }
 
 // BloomRequest is the ODR request type for retrieving bloom filters from a CHT structure
 type BloomRequest struct {
 	OdrRequest
 	Config         *IndexerConfig
+	ShardId        uint16
 	BloomTrieNum   uint64
 	BitIdx         uint
 	SectionIdxList []uint64
@@ -169,7 +172,7 @@ type BloomRequest struct {
 // StoreResult stores the retrieved data in local database
 func (req *BloomRequest) StoreResult(db ethdb.Database) {
 	for i, sectionIdx := range req.SectionIdxList {
-		sectionHead := rawdb.ReadCanonicalHash(db, (sectionIdx+1)*req.Config.BloomTrieSize-1)
+		sectionHead := rawdb.ReadCanonicalHash(db, req.ShardId, (sectionIdx+1)*req.Config.BloomTrieSize-1)
 		// if we don't have the canonical hash stored for this section head number, we'll still store it under
 		// a key with a zero sectionHead. GetBloomBits will look there too if we still don't have the canonical
 		// hash. In the unlikely case we've retrieved the section head hash since then, we'll just retrieve the

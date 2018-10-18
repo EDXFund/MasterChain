@@ -171,7 +171,7 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 		Alloc:  GenesisAlloc{benchRootAddr: {Balance: benchRootFunds}},
 	}
 	genesis := gspec.MustCommit(db)
-	chain, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, b.N, gen)
+	chain, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, b.N, gen, 0xFFFF)
 
 	// Time the insertion of the new chain.
 	// State and blocks are stored in the same DB.
@@ -238,13 +238,13 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 		hash = header.Hash()
 
 		rawdb.WriteHeader(db, header)
-		rawdb.WriteCanonicalHash(db, hash, n)
+		rawdb.WriteCanonicalHash(db, hash, header.ShardId, n)
 		rawdb.WriteTd(db, hash, n, big.NewInt(int64(n+1)))
 
 		if full || n == 0 {
 			block := types.NewBlockWithHeader(header)
-			rawdb.WriteBody(db, hash, n, block.Body())
-			rawdb.WriteReceipts(db, hash, n, nil)
+			rawdb.WriteBody(db, hash, header.ShardId, n, block.Body())
+			rawdb.WriteReceipts(db, hash, header.ShardId, n, nil)
 		}
 	}
 }
@@ -297,7 +297,7 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 			if full {
 				hash := header.Hash()
 				rawdb.ReadBody(db, hash, n)
-				rawdb.ReadReceipts(db, hash, n)
+				rawdb.ReadReceipts(db, hash, header.ShardId(), n)
 			}
 		}
 		chain.Stop()

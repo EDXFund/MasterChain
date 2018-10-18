@@ -1,9 +1,9 @@
 package types
 
 import (
+	"encoding/binary"
 	"io"
 	"math/big"
-	"encoding/binary"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -17,16 +17,20 @@ import (
 )
 
 var (
-	EmptyRootHash  = DeriveSha(Transactions{})
+	EmptyRootHash = DeriveSha(Transactions{})
+
 //	EmptyUncleHash = CalcUncleHash(nil)
 )
 
+type ShardStatus uint16
+
 var (
-	ShardMaster = 0xFFFF
+	ShardMaster ShardStatus = 0xFFFF
 )
 var (
 	ShardEnableLen = 32
 )
+
 // A BlockNonce is a 64-bit hash which proves (combined with the
 // mix-hash) that a sufficient amount of computation has been carried
 // out on a block.
@@ -61,139 +65,134 @@ func rlpHash(x interface{}) (h common.Hash) {
 	return h
 }
 
-
 type writeCounter common.StorageSize
+
 func (c *writeCounter) Write(b []byte) (int, error) {
 	*c += writeCounter(len(b))
 	return len(b), nil
 }
 
-type HeaderIntf interface{
+type HeaderIntf interface {
 	ShardId() uint16
-	Time() *big.Int 
+	Time() *big.Int
 	ParentHash() common.Hash
-	Coinbase()   common.Address
+	Coinbase() common.Address
 	Difficulty() *big.Int
-	Number()     *big.Int
-	Extra()      []byte
-	Nonce()      BlockNonce
-	MixDigest()    common.Hash
+	Number() *big.Int
+	Extra() []byte
+	Nonce() BlockNonce
+	MixDigest() common.Hash
 }
 
-
-type BlockIntf interface{
-	EncodeRLP( io.Writer)
-	Transactions() Transactions 
+type BlockIntf interface {
+	EncodeRLP(io.Writer)
+	Transactions() Transactions
 	Transaction(hash common.Hash) *Transaction
-	 Number() *big.Int  
-	GasLimit() uint64     
-	GasUsed() uint64      
-	Difficulty() *big.Int 
-	Time() *big.Int      
+	Number() *big.Int
+	GasLimit() uint64
+	GasUsed() uint64
+	Difficulty() *big.Int
+	Time() *big.Int
 
-	NumberU64() uint64       
-	MixDigest() common.Hash   
-	Nonce() uint64            
-	Bloom() Bloom             
-	Coinbase() common.Address 
-	Root() common.Hash       
-	ParentHash() common.Hash  
-	TxHash() common.Hash     
-	ReceiptHash() common.Hash 
+	NumberU64() uint64
+	MixDigest() common.Hash
+	Nonce() uint64
+	Bloom() Bloom
+	Coinbase() common.Address
+	Root() common.Hash
+	ParentHash() common.Hash
+	TxHash() common.Hash
+	ReceiptHash() common.Hash
 
-	Extra() []byte           
+	Extra() []byte
 
-	Header() *HeaderIntf 
+	Header() *HeaderIntf
 
-
-
-// Size returns the true RLP encoded storage size of the block, either by encoding
-// and returning it, or returning a previsouly cached value.
- Size() common.StorageSize
+	// Size returns the true RLP encoded storage size of the block, either by encoding
+	// and returning it, or returning a previsouly cached value.
+	Size() common.StorageSize
 }
-
 
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
-	ShardId		uint16		   `json:"shardId"			gencodec:"required"`
-	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
+	ShardId    uint16      `json:"shardId"			gencodec:"required"`
+	ParentHash common.Hash `json:"parentHash"       gencodec:"required"`
 	//hash of all  lastest blocks of shards
-	ShardHash   common.Hash    `json:"shardHash,omitempty"       	gencodec:"nil"`  
-	ShardMask   uint16			`json:"shardMask,omitempty"		gencodec:"nil"`
-	ShardEnabled []byte			`json:"shardEnabled,omitempty"		gencodec:"nil"`
-	
-	Coinbase    common.Address `json:"miner"            gencodec:"required"`
-	Root        common.Hash    `json:"stateRoot,omitempty"        gencodec:"nil"`
-	TxHash      common.Hash    `json:"transactionsRoot,omitempty" gencodec:"nil"`
+	ShardHash    common.Hash `json:"shardHash,omitempty"       	gencodec:"nil"`
+	ShardMask    uint16      `json:"shardMask,omitempty"		gencodec:"nil"`
+	ShardEnabled []byte      `json:"shardEnabled,omitempty"		gencodec:"nil"`
+
+	Coinbase common.Address `json:"miner"            gencodec:"required"`
+	Root     common.Hash    `json:"stateRoot,omitempty"        gencodec:"nil"`
+	TxHash   common.Hash    `json:"transactionsRoot,omitempty" gencodec:"nil"`
 	// hash of shard block included in this master block
-	BkHash      common.Hash    `json:"blocksRoot,omitempty" 		gencodec:"nil"`
-	RjHash 		common.Hash    `json:"rejectRoot,omitempty"     	gencodec:"nil"`
-	ReceiptHash common.Hash    `json:"receiptsRoot,omitempty"     gencodec:"nil"`
-	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
-	Number      *big.Int       `json:"number"           gencodec:"required"`
-	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
-	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
-	Time        *big.Int       `json:"timestamp"        gencodec:"required"`
-	Extra       []byte         `json:"extraData"        gencodec:"required"`
-	MixDigest   common.Hash    `json:"mixHash"          gencodec:"required"`
-	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
+	BkHash      common.Hash `json:"blocksRoot,omitempty" 		gencodec:"nil"`
+	RjHash      common.Hash `json:"rejectRoot,omitempty"     	gencodec:"nil"`
+	ReceiptHash common.Hash `json:"receiptsRoot,omitempty"     gencodec:"nil"`
+	Bloom       Bloom       `json:"logsBloom"        gencodec:"required"`
+	Difficulty  *big.Int    `json:"difficulty"       gencodec:"required"`
+	Number      *big.Int    `json:"number"           gencodec:"required"`
+	GasLimit    uint64      `json:"gasLimit"         gencodec:"required"`
+	GasUsed     uint64      `json:"gasUsed"          gencodec:"required"`
+	Time        *big.Int    `json:"timestamp"        gencodec:"required"`
+	Extra       []byte      `json:"extraData"        gencodec:"required"`
+	MixDigest   common.Hash `json:"mixHash"          gencodec:"required"`
+	Nonce       BlockNonce  `json:"nonce"            gencodec:"required"`
 }
 
 type HeaderMarshal struct {
-	ShardId		uint16		   `json:"shardId"			gencodec:"required"`
-	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
+	ShardId    uint16      `json:"shardId"			gencodec:"required"`
+	ParentHash common.Hash `json:"parentHash"       gencodec:"required"`
 	//hash of most lasted blocks of shards
-	ShardHash   common.Hash    `json:"shardHash"       	gencodec:"required"`
-	ShardMask   uint16			`json:"shardMask"		gencodec:"required"`
-	ShardEnabled hexutil.Bytes		`json:"shardEnabled"		gencodec:"required"`
-	Coinbase    common.Address `json:"miner"            gencodec:"required"`
-	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
-	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ShardHash    common.Hash    `json:"shardHash"       	gencodec:"required"`
+	ShardMask    uint16         `json:"shardMask"		gencodec:"required"`
+	ShardEnabled hexutil.Bytes  `json:"shardEnabled"		gencodec:"required"`
+	Coinbase     common.Address `json:"miner"            gencodec:"required"`
+	Root         common.Hash    `json:"stateRoot"        gencodec:"required"`
+	TxHash       common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	// hash of shard block included in this master block
 	BkHash      common.Hash    `json:"blocksRoot" 		gencodec:"required"`
-	RjHash 		common.Hash    `json:"rejectRoot"     	gencodec:"required"`
+	RjHash      common.Hash    `json:"rejectRoot"     	gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-	Difficulty  *hexutil.Big       `json:"difficulty"       gencodec:"required"`
-	Number      *hexutil.Big       `json:"number"           gencodec:"required"`
-	GasLimit    hexutil.Uint64        `json:"gasLimit"         gencodec:"required"`
-	GasUsed     hexutil.Uint64         `json:"gasUsed"          gencodec:"required"`
-	Time        *hexutil.Big       `json:"timestamp"        gencodec:"required"`
-	Extra       hexutil.Bytes         `json:"extraData"        gencodec:"required"`
+	Difficulty  *hexutil.Big   `json:"difficulty"       gencodec:"required"`
+	Number      *hexutil.Big   `json:"number"           gencodec:"required"`
+	GasLimit    hexutil.Uint64 `json:"gasLimit"         gencodec:"required"`
+	GasUsed     hexutil.Uint64 `json:"gasUsed"          gencodec:"required"`
+	Time        *hexutil.Big   `json:"timestamp"        gencodec:"required"`
+	Extra       hexutil.Bytes  `json:"extraData"        gencodec:"required"`
 	MixDigest   common.Hash    `json:"mixHash"          gencodec:"required"`
 	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
 	Hash        common.Hash    `json:"hash"`
-	
 }
 type HeaderUnmarshal struct {
-	ShardId		uint16		   `json:"shardId"			gencodec:"required"`
-	ParentHash  *common.Hash    `json:"parentHash"       gencodec:"required"`
+	ShardId    uint16       `json:"shardId"			gencodec:"required"`
+	ParentHash *common.Hash `json:"parentHash"       gencodec:"required"`
 	//hash of most lasted blocks of shards
-	ShardHash   *common.Hash    `json:"shardHash"       	gencodec:"required"`
-	ShardMask   uint16			`json:"shardMask"		gencodec:"required"`
-	ShardEnabled *hexutil.Bytes		`json:"shardEnabled"		gencodec:"required"`
-	Coinbase    *common.Address `json:"miner"            gencodec:"required"`
-	Root        *common.Hash    `json:"stateRoot"        gencodec:"required"`
-	TxHash      *common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ShardHash    *common.Hash    `json:"shardHash"       	gencodec:"required"`
+	ShardMask    uint16          `json:"shardMask"		gencodec:"required"`
+	ShardEnabled *hexutil.Bytes  `json:"shardEnabled"		gencodec:"required"`
+	Coinbase     *common.Address `json:"miner"            gencodec:"required"`
+	Root         *common.Hash    `json:"stateRoot"        gencodec:"required"`
+	TxHash       *common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	// hash of shard block included in this master block
 	BkHash      *common.Hash    `json:"blocksRoot" 		gencodec:"required"`
-	RjHash 		*common.Hash    `json:"rejectRoot"     	gencodec:"required"`
+	RjHash      *common.Hash    `json:"rejectRoot"     	gencodec:"required"`
 	ReceiptHash *common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       *Bloom          `json:"logsBloom"        gencodec:"required"`
-	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
-	Number      *big.Int       `json:"number"           gencodec:"required"`
-	GasLimit    *hexutil.Uint64         `json:"gasLimit"         gencodec:"required"`
-	GasUsed     *hexutil.Uint64         `json:"gasUsed"          gencodec:"required"`
-	Time        *big.Int       `json:"timestamp"        gencodec:"required"`
-	Extra       *hexutil.Bytes         `json:"extraData"        gencodec:"required"`
+	Difficulty  *big.Int        `json:"difficulty"       gencodec:"required"`
+	Number      *big.Int        `json:"number"           gencodec:"required"`
+	GasLimit    *hexutil.Uint64 `json:"gasLimit"         gencodec:"required"`
+	GasUsed     *hexutil.Uint64 `json:"gasUsed"          gencodec:"required"`
+	Time        *big.Int        `json:"timestamp"        gencodec:"required"`
+	Extra       *hexutil.Bytes  `json:"extraData"        gencodec:"required"`
 	MixDigest   *common.Hash    `json:"mixHash"          gencodec:"required"`
 	Nonce       *BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
 // field type overrides for gencodec
 type scheaderMarshaling struct {
-	ShardId   hexutil.Uint64
+	ShardId    hexutil.Uint64
 	Difficulty *hexutil.Big
 	Number     *hexutil.Big
 	GasLimit   hexutil.Uint64
@@ -215,10 +214,9 @@ func (h *Header) Size() common.StorageSize {
 	return common.StorageSize(unsafe.Sizeof(*h)) + common.StorageSize(len(h.ShardEnabled)+len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen()+h.Time.BitLen())/8)
 }
 
-
 type RejectInfo struct {
-	TxHash   *common.Hash
-	Reason	 uint16
+	TxHash common.Hash
+	Reason uint16
 }
 type RejectInfos []*RejectInfo
 
@@ -233,52 +231,50 @@ func (s RejectInfos) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
 }
+
 type ShardBlockInfo struct {
-	ShardId  uint16
-	Number   *big.Int
-	Hash     common.Hash
+	ShardId uint16
+	Number  *big.Int
+	Hash    common.Hash
 }
 
-type ShardBlockInfos  []*ShardBlockInfo;
+type ShardBlockInfos []*ShardBlockInfo
 
 // Len returns the length of s.
 func (s ShardBlockInfos) Len() int { return len(s) }
 
 // Swap swaps the i'th and the j'th element in s.
 func (s ShardBlockInfos) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
 // GetRlp implements Rlpable and returns the i'th element of s in rlp.
 func (s ShardBlockInfos) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
 }
+
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
 	Transactions []*Transaction
 
 	//receipts
-	Receipts  	ContractResults
-
+	Receipts ContractResults
 
 	//this is for master chain
-	BlockInfos   []*ShardBlockInfo
-
+	BlockInfos []*ShardBlockInfo
 
 	RejectInfos []*RejectInfo
-
-
-	
 }
 
 // Block represents an entire block in the Ethereum blockchain.
 type Block struct {
-	header       *Header
+	header *Header
 
 	transactions Transactions
-	receipts  ContractResults
+	receipts     ContractResults
 
-	blockinfos   ShardBlockInfos
-	rejections   RejectInfos
+	blockinfos ShardBlockInfos
+	rejections RejectInfos
 	// caches
 	hash atomic.Value
 	size atomic.Value
@@ -293,6 +289,7 @@ type Block struct {
 	ReceivedFrom interface{}
 }
 type Blocks []*Block
+
 // DeprecatedTd is an old relic for extracting the TD of a block. It is in the
 // code solely to facilitate upgrading the database from the old format to the
 // new, after which it should be deleted. Do not use!
@@ -308,19 +305,18 @@ type StorageBlock Block
 
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
-	Header *Header
-	Txs    []*Transaction
+	Header   *Header
+	Txs      []*Transaction
 	Receipts []*ContractResult
-
 }
 
 // [deprecated by eth/63]
 // "storage" block encoding. used for database.
 type storageblock struct {
-	Header *Header
-	Txs    []*Transaction
+	Header   *Header
+	Txs      []*Transaction
 	Receipts []*ContractResult
-	TD     *big.Int
+	TD       *big.Int
 }
 
 // NewBlock creates a new block. The input data is copied,
@@ -350,18 +346,18 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, blks []*S
 	}
 
 	// MUST TODO
-	if len(blks) == 0  {
+	if len(blks) == 0 {
 		b.header.BkHash = EmptyRootHash
-	}else {
-		b.blockinfos = make(ShardBlockInfos,len(blks))
-		copy(b.blockinfos,blks)
+	} else {
+		b.blockinfos = make(ShardBlockInfos, len(blks))
+		copy(b.blockinfos, blks)
 	}
 
 	if len(rejections) == 0 {
 		b.header.RjHash = EmptyRootHash
-	}else{
-		b.rejections = make(RejectInfos,len(rejections))
-		copy(b.rejections,rejections)
+	} else {
+		b.rejections = make(RejectInfos, len(rejections))
+		copy(b.rejections, rejections)
 	}
 
 	return b
@@ -401,7 +397,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.transactions,b.receipts = eb.Header, eb.Txs,eb.Receipts
+	b.header, b.transactions, b.receipts = eb.Header, eb.Txs, eb.Receipts
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -409,8 +405,8 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 // EncodeRLP serializes b into the Ethereum RLP block format.
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
-		Header: b.header,
-		Txs:    b.transactions,
+		Header:   b.header,
+		Txs:      b.transactions,
 		Receipts: b.receipts,
 	})
 }
@@ -421,7 +417,7 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.receipts,b.td = sb.Header,  sb.Txs, sb.Receipts,sb.TD
+	b.header, b.transactions, b.receipts, b.td = sb.Header, sb.Txs, sb.Receipts, sb.TD
 	return nil
 }
 
@@ -448,7 +444,7 @@ func (b *Block) ContrcatReceipt(hash common.Hash) *ContractResult {
 	}
 	return nil
 }
-func (b *Block) ShardId() uint16     { return b.header.ShardId }
+func (b *Block) ShardId() uint16      { return b.header.ShardId }
 func (b *Block) Number() *big.Int     { return new(big.Int).Set(b.header.Number) }
 func (b *Block) GasLimit() uint64     { return b.header.GasLimit }
 func (b *Block) GasUsed() uint64      { return b.header.GasUsed }
@@ -464,13 +460,15 @@ func (b *Block) Root() common.Hash        { return b.header.Root }
 func (b *Block) ParentHash() common.Hash  { return b.header.ParentHash }
 func (b *Block) TxHash() common.Hash      { return b.header.TxHash }
 func (b *Block) ReceiptHash() common.Hash { return b.header.ReceiptHash }
-//func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
-func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Extra) }
 
-func (b *Block) Header() *Header { return CopyHeader(b.header) }
+//func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
+func (b *Block) Extra() []byte                 { return common.CopyBytes(b.header.Extra) }
+func (b *Block) BlockInfos() []*ShardBlockInfo { return b.blockinfos }
+func (b *Block) RejectInfos() []*RejectInfo    { return b.rejections }
+func (b *Block) Header() *Header               { return CopyHeader(b.header) }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.receipts,b.blockinfos,b.rejections} }
+func (b *Block) Body() *Body { return &Body{b.transactions, b.receipts, b.blockinfos, b.rejections} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -492,32 +490,29 @@ func (b *Block) WithSeal(header *Header) *Block {
 	return &Block{
 		header:       &cpy,
 		transactions: b.transactions,
-		receipts:       b.receipts,
+		receipts:     b.receipts,
 	}
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, contractReceipts ContractResults,shardBlock []*ShardBlockInfo,rejectInfos RejectInfos) *Block {
+func (b *Block) WithBody(transactions []*Transaction, contractReceipts ContractResults, shardBlock []*ShardBlockInfo, rejectInfos RejectInfos) *Block {
 	block := &Block{
-		header:       CopyHeader(b.header),
-
+		header: CopyHeader(b.header),
 	}
-	if b.header.ShardId == (uint16)(ShardMaster){
-		
+	if b.header.ShardId == (uint16)(ShardMaster) {
+
 		block.blockinfos = make(ShardBlockInfos, len(shardBlock))
-		block.rejections = make(RejectInfos,len(rejectInfos))
+		block.rejections = make(RejectInfos, len(rejectInfos))
 		copy(block.blockinfos, shardBlock)
-		copy(block.rejections,rejectInfos)
-	}else{
-		
+		copy(block.rejections, rejectInfos)
+	} else {
 
 		block.transactions = make([]*Transaction, len(transactions))
-		block.receipts = make(ContractResults,len(contractReceipts))
-		
-		copy(block.transactions, transactions)
-		copy(block.receipts,contractReceipts)
-	}
+		block.receipts = make(ContractResults, len(contractReceipts))
 
+		copy(block.transactions, transactions)
+		copy(block.receipts, contractReceipts)
+	}
 
 	return block
 }
@@ -532,8 +527,6 @@ func (b *Block) Hash() common.Hash {
 	b.hash.Store(v)
 	return v
 }
-
-
 
 type BlockBy func(b1, b2 *Block) bool
 

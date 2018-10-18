@@ -85,10 +85,11 @@ func BenchmarkFilters(b *testing.B) {
 		}
 	})
 	for i, block := range chain {
+		shardId := block.Header().ShardId
 		rawdb.WriteBlock(db, block)
-		rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
-		rawdb.WriteHeadBlockHash(db, block.Hash())
-		rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), receipts[i])
+		rawdb.WriteCanonicalHash(db, block.Hash(), shardId, block.NumberU64())
+		rawdb.WriteHeadBlockHash(db, block.Hash(), shardId)
+		rawdb.WriteReceipts(db, block.Hash(), shardId, block.NumberU64(), receipts[i])
 	}
 	b.ResetTimer()
 
@@ -169,10 +170,11 @@ func TestFilters(t *testing.T) {
 		}
 	})
 	for i, block := range chain {
+		shardId := block.Header().ShardId
 		rawdb.WriteBlock(db, block)
-		rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
-		rawdb.WriteHeadBlockHash(db, block.Hash())
-		rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), receipts[i])
+		rawdb.WriteCanonicalHash(db, block.Hash(), shardId, block.NumberU64())
+		rawdb.WriteHeadBlockHash(db, block.Hash(), shardId)
+		rawdb.WriteReceipts(db, block.Hash(), shardId, block.NumberU64(), receipts[i])
 	}
 
 	filter := NewRangeFilter(backend, 0, -1, []common.Address{addr}, [][]common.Hash{{hash1, hash2, hash3, hash4}})

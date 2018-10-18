@@ -79,8 +79,9 @@ func encodeBlockNumber(number uint64) []byte {
 	binary.BigEndian.PutUint64(enc, number)
 	return enc
 }
+
 // encodeBlockNumber encodes a block number as big endian uint64
-func encodeBlockNumberWithShardId(shardId uint16,number uint64) []byte {
+func encodeBlockNumberWithShardId(shardId uint16, number uint64) []byte {
 	enc := make([]byte, 10)
 	binary.BigEndian.PutUint16(enc, shardId)
 	binary.BigEndian.PutUint64(enc[2:], number)
@@ -88,20 +89,20 @@ func encodeBlockNumberWithShardId(shardId uint16,number uint64) []byte {
 }
 
 // headerKey = headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash
-func headerKey(shardId uint16,number uint64, hash common.Hash) []byte {
-	return append(append(append(headerPrefix,strconv.Itoa(shardId)...), encodeBlockNumber(number)...), hash.Bytes()...)
+func headerKey(shardId uint16, number uint64, hash common.Hash) []byte {
+	return append(append(append(headerPrefix, strconv.FormatUint(uint64(shardId), 16)...), encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
 // headerTDKey = headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash + headerTDSuffix
-func headerTDKey(shardId uint16,number uint64, hash common.Hash) []byte {
+func headerTDKey(shardId uint16, number uint64, hash common.Hash) []byte {
 
-	return append(headerKey(shardId,number, hash), headerTDSuffix...)
+	return append(headerKey(shardId, number, hash), headerTDSuffix...)
 }
 
 // headerHashKey = headerPrefix + num (uint64 big endian) + headerHashSuffix
-func headerHashKey(shardId uint16,number uint64) []byte {
+func headerHashKey(shardId uint16, number uint64) []byte {
 
-	return append(append(append(headerPrefix,strconv.Itoa(shardId)...), encodeBlockNumber(number)...), headerHashSuffix...)
+	return append(append(append(headerPrefix, strconv.FormatUint(uint64(shardId), 16)...), encodeBlockNumber(number)...), headerHashSuffix...)
 }
 
 // headerNumberKey = headerNumberPrefix + hash
@@ -110,16 +111,16 @@ func headerNumberKey(hash common.Hash) []byte {
 }
 
 // blockBodyKey = blockBodyPrefix + num (uint64 big endian) + hash
-func blockBodyKey(sharId uint16,number uint64, hash common.Hash) []byte {
-	enc := make([]byte,2)
-	binary.BigEndian.PutUint16(shardId);
-	return append(append(append(blockBodyPrefix,enc...), encodeBlockNumber(number)...), hash.Bytes()...)
+func blockBodyKey(shardId uint16, number uint64, hash common.Hash) []byte {
+	enc := make([]byte, 2)
+	binary.BigEndian.PutUint16(enc, shardId)
+	return append(append(append(blockBodyPrefix, enc...), encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
 // blockReceiptsKey = blockReceiptsPrefix + num (uint64 big endian) + hash
-func blockReceiptsKey(sharId uint16,number uint64, hash common.Hash) []byte {
+func blockReceiptsKey(shardId uint16, number uint64, hash common.Hash) []byte {
 
-	return append(append(append(blockReceiptsPrefix,strconv.Itoa(shardId)...), encodeBlockNumber(number)...), hash.Bytes()...)
+	return append(append(append(blockReceiptsPrefix, strconv.FormatUint(uint64(shardId), 16)...), encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
 // txLookupKey = txLookupPrefix + hash
