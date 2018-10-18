@@ -98,7 +98,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	///// MUST TODO  blockInfos has already been included in block
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
+<<<<<<< HEAD
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), receipts, block.BlockInfos(), rejections)
+=======
+	////MUST TODO
+	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts)
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 
 	return receipts, allLogs, *usedGas, nil
 }

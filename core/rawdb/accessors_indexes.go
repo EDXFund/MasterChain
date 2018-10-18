@@ -25,17 +25,30 @@ import (
 
 // ReadTxLookupEntry retrieves the positional metadata associated with a transaction
 // hash to allow retrieving the transaction or receipt by hash.
+<<<<<<< HEAD
 func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (common.Hash, uint16, uint64, uint64) {
 	data, _ := db.Get(txLookupKey(hash))
 	if len(data) == 0 {
 		return common.Hash{}, 0, 0, 0
+=======
+func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash, uint64, uint64) {
+	data, _ := db.Get(txLookupKey(hash))
+	if len(data) == 0 {
+		return 0, common.Hash{}, 0, 0
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 	}
 	var entry TxLookupEntry
 	if err := rlp.DecodeBytes(data, &entry); err != nil {
 		log.Error("Invalid transaction lookup entry RLP", "hash", hash, "err", err)
+<<<<<<< HEAD
 		return common.Hash{}, 0, 0, 0
 	}
 	return entry.BlockHash, entry.ShardId, entry.BlockIndex, entry.Index
+=======
+		return 0, common.Hash{}, 0, 0
+	}
+	return entry.ShardId, entry.BlockHash, entry.BlockIndex, entry.Index
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // WriteTxLookupEntries stores a positional metadata for every transaction from
@@ -44,7 +57,11 @@ func WriteTxLookupEntries(db DatabaseWriter, block *types.Block) {
 	//// MUST TODO, check this function effect
 	for i, tx := range block.Transactions() {
 		entry := TxLookupEntry{
+<<<<<<< HEAD
 			ShardId:    block.ShardId(),
+=======
+			ShardId:    block.shardId,
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 			BlockHash:  block.Hash(),
 			BlockIndex: block.NumberU64(),
 			Index:      uint64(i),
@@ -66,6 +83,7 @@ func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
+<<<<<<< HEAD
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint16, uint64, uint64) {
 	blockHash, shardId, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
@@ -77,10 +95,24 @@ func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, c
 		return nil, common.Hash{}, 0, 0, 0
 	}
 	return body.Transactions[txIndex], blockHash, shardId, blockNumber, txIndex
+=======
+func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, uint16, common.Hash, uint64, uint64) {
+	shardId, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
+	if blockHash == (common.Hash{}) {
+		return nil, shardId, common.Hash{}, 0, 0
+	}
+	body := ReadBody(db, shardId, blockHash, blockNumber)
+	if body == nil || len(body.Transactions) <= int(txIndex) {
+		log.Error("Transaction referenced missing", "number", blockNumber, "hash", blockHash, "index", txIndex)
+		return nil, shardId, common.Hash{}, 0, 0
+	}
+	return body.Transactions[txIndex], shardId, blockHash, blockNumber, txIndex
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // ReadReceipt retrieves a specific transaction receipt from the database, along with
 // its added positional metadata.
+<<<<<<< HEAD
 func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, common.Hash, uint16, uint64, uint64) {
 	blockHash, shardId, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
@@ -92,6 +124,19 @@ func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, common.Ha
 		return nil, common.Hash{}, 0, 0, 0
 	}
 	return receipts[receiptIndex], blockHash, shardId, blockNumber, receiptIndex
+=======
+func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, uint16, common.Hash, uint64, uint64) {
+	shardId, blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
+	if blockHash == (common.Hash{}) {
+		return nil, 0, common.Hash{}, 0, 0
+	}
+	receipts := ReadReceipts(db, shardId, blockHash, blockNumber)
+	if len(receipts) <= int(receiptIndex) {
+		log.Error("Receipt refereced missing", "number", blockNumber, "hash", blockHash, "index", receiptIndex)
+		return nil, 0, common.Hash{}, 0, 0
+	}
+	return receipts[receiptIndex], shardId, blockHash, blockNumber, receiptIndex
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // ReadBloomBits retrieves the compressed bloom bit vector belonging to the given

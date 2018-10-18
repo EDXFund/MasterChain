@@ -90,7 +90,11 @@ func encodeBlockNumberWithShardId(shardId uint16, number uint64) []byte {
 
 // headerKey = headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash
 func headerKey(shardId uint16, number uint64, hash common.Hash) []byte {
+<<<<<<< HEAD
 	return append(append(append(headerPrefix, strconv.FormatUint(uint64(shardId), 16)...), encodeBlockNumber(number)...), hash.Bytes()...)
+=======
+	return append(append(append(headerPrefix, strconv.FormatInt((int64)(shardId), 16)...), encodeBlockNumber(number)...), hash.Bytes()...)
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // headerTDKey = headerPrefix + shardId (uint16 big endian) + num (uint64 big endian) + hash + headerTDSuffix
@@ -102,7 +106,11 @@ func headerTDKey(shardId uint16, number uint64, hash common.Hash) []byte {
 // headerHashKey = headerPrefix + num (uint64 big endian) + headerHashSuffix
 func headerHashKey(shardId uint16, number uint64) []byte {
 
+<<<<<<< HEAD
 	return append(append(append(headerPrefix, strconv.FormatUint(uint64(shardId), 16)...), encodeBlockNumber(number)...), headerHashSuffix...)
+=======
+	return append(append(append(headerPrefix, strconv.FormatInt((int64)(shardId), 16)...), encodeBlockNumber(number)...), headerHashSuffix...)
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // headerNumberKey = headerNumberPrefix + hash
@@ -113,14 +121,22 @@ func headerNumberKey(hash common.Hash) []byte {
 // blockBodyKey = blockBodyPrefix + num (uint64 big endian) + hash
 func blockBodyKey(shardId uint16, number uint64, hash common.Hash) []byte {
 	enc := make([]byte, 2)
+<<<<<<< HEAD
 	binary.BigEndian.PutUint16(enc, shardId)
+=======
+	binary.BigEndian.PutUint16(shardId)
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 	return append(append(append(blockBodyPrefix, enc...), encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
 // blockReceiptsKey = blockReceiptsPrefix + num (uint64 big endian) + hash
 func blockReceiptsKey(shardId uint16, number uint64, hash common.Hash) []byte {
 
+<<<<<<< HEAD
 	return append(append(append(blockReceiptsPrefix, strconv.FormatUint(uint64(shardId), 16)...), encodeBlockNumber(number)...), hash.Bytes()...)
+=======
+	return append(append(append(blockReceiptsPrefix, strconv.FormatInt((int64)(shardId), 16)...), encodeBlockNumber(number)...), hash.Bytes()...)
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // txLookupKey = txLookupPrefix + hash

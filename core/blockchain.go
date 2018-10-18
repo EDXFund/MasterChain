@@ -1541,7 +1541,7 @@ func (bc *BlockChain) GetHeaderByHash(hash common.Hash) *types.Header {
 // HasHeader checks if a block header is present in the database or not, caching
 // it if present.
 func (bc *BlockChain) HasHeader(hash common.Hash, number uint64) bool {
-	return bc.hc.HasHeader(hash, number)
+	return bc.hc.HasHeader(bc.shardId,hash, number)
 }
 
 // GetBlockHashesFromHash retrieves a number of block hashes starting at a given

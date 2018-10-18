@@ -44,11 +44,12 @@ type Transaction struct {
 }
 
 type txdata struct {
-	//"T" is common transaction   "C" means contract creation  
+	//"T" is common transaction   "C" means contract processing and "D" means Token Manager  
 	TxType       byte            `json:"txType" gencodec:"required"`
 	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
 	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
 	GasLimit     uint64          `json:"gas"      gencodec:"required"`
+	TokenId      uint64			 `json:"tokenId"  rlp:"nil"` // nil means master token
 	//Recipient means "to"  and exists only when TxType is "T"
 	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract transaction
 
@@ -59,7 +60,7 @@ type txdata struct {
 	ContractId	 uint64			 `json:"cId" rlp:"nil"`
 	ContractInst uint64			 `json:"cId" rlp:"nil"`	
 	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	TokenId      uint64			 `json:"tokenId"  rlp:"nil"` // nil means master token
+	
 	Payload      []byte          `json:"input"    gencodec:"required"`
 
 	// Signature values

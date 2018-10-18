@@ -276,7 +276,7 @@ func (hc *HeaderChain) InsertHeaderChain(chain []*types.Header, writeHeader WhCa
 			return i, errors.New("aborted")
 		}
 		// If the header's already known, skip it, otherwise store
-		if hc.HasHeader(header.Hash(), header.Number.Uint64()) {
+		if hc.HasHeader(header.shardId,header.Hash(), header.Number.Uint64()) {
 			stats.ignored++
 			continue
 		}
@@ -418,7 +418,11 @@ func (hc *HeaderChain) HasHeader(hash common.Hash, number uint64) bool {
 	if hc.numberCache.Contains(hash) || hc.headerCache.Contains(hash) {
 		return true
 	}
+<<<<<<< HEAD
 	return rawdb.HasHeader(hc.chainDb, hash, hc.shardId, number)
+=======
+	return rawdb.HasHeader(hc.chainDb,hc.shardId, hash, number)
+>>>>>>> 8bcab3d0bd32ec56f062e40ed3a814fa3e6d40e8
 }
 
 // GetHeaderByNumber retrieves a block header from the database by number,
