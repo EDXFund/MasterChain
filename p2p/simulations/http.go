@@ -29,11 +29,19 @@ import (
 	"strings"
 	"sync"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/p2p/simulations/adapters"
 	"github.com/EDXFund/MasterChain/rpc"
+=======
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
+	"github.com/ethereum/go-ethereum/rpc"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/websocket"
 )
@@ -709,8 +717,9 @@ func (s *Server) wrapHandler(handler http.HandlerFunc) httprouter.Handle {
 		ctx := context.Background()
 
 		if id := params.ByName("nodeid"); id != "" {
+			var nodeID enode.ID
 			var node *Node
-			if nodeID, err := discover.HexID(id); err == nil {
+			if nodeID.UnmarshalText([]byte(id)) == nil {
 				node = s.network.GetNode(nodeID)
 			} else {
 				node = s.network.GetNodeByName(id)
@@ -723,8 +732,9 @@ func (s *Server) wrapHandler(handler http.HandlerFunc) httprouter.Handle {
 		}
 
 		if id := params.ByName("peerid"); id != "" {
+			var peerID enode.ID
 			var peer *Node
-			if peerID, err := discover.HexID(id); err == nil {
+			if peerID.UnmarshalText([]byte(id)) == nil {
 				peer = s.network.GetNode(peerID)
 			} else {
 				peer = s.network.GetNodeByName(id)

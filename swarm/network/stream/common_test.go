@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	p2ptest "github.com/EDXFund/MasterChain/p2p/testing"
@@ -40,6 +41,17 @@ import (
 	"github.com/EDXFund/MasterChain/swarm/state"
 	"github.com/EDXFund/MasterChain/swarm/storage"
 	mockdb "github.com/EDXFund/MasterChain/swarm/storage/mock/db"
+=======
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	p2ptest "github.com/ethereum/go-ethereum/p2p/testing"
+	"github.com/ethereum/go-ethereum/swarm/network"
+	"github.com/ethereum/go-ethereum/swarm/network/simulation"
+	"github.com/ethereum/go-ethereum/swarm/pot"
+	"github.com/ethereum/go-ethereum/swarm/state"
+	"github.com/ethereum/go-ethereum/swarm/storage"
+	mockdb "github.com/ethereum/go-ethereum/swarm/storage/mock/db"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	colorable "github.com/mattn/go-colorable"
 )
 
@@ -84,7 +96,7 @@ func createGlobalStore() (string, *mockdb.GlobalStore, error) {
 	return globalStoreDir, globalStore, nil
 }
 
-func newStreamerTester(t *testing.T) (*p2ptest.ProtocolTester, *Registry, *storage.LocalStore, func(), error) {
+func newStreamerTester(t *testing.T, registryOptions *RegistryOptions) (*p2ptest.ProtocolTester, *Registry, *storage.LocalStore, func(), error) {
 	// setup
 	addr := network.RandomAddr() // tested peers peer address
 	to := network.NewKademlia(addr.OAddr, network.NewKadParams())
@@ -107,14 +119,19 @@ func newStreamerTester(t *testing.T) (*p2ptest.ProtocolTester, *Registry, *stora
 		return nil, nil, nil, removeDataDir, err
 	}
 
-	db := storage.NewDBAPI(localStore)
-	delivery := NewDelivery(to, db)
-	streamer := NewRegistry(addr, delivery, db, state.NewInmemoryStore(), nil)
+	netStore, err := storage.NewNetStore(localStore, nil)
+	if err != nil {
+		return nil, nil, nil, removeDataDir, err
+	}
+
+	delivery := NewDelivery(to, netStore)
+	netStore.NewNetFetcherFunc = network.NewFetcherFactory(delivery.RequestFromPeers, true).New
+	streamer := NewRegistry(addr.ID(), delivery, netStore, state.NewInmemoryStore(), registryOptions)
 	teardown := func() {
 		streamer.Close()
 		removeDataDir()
 	}
-	protocolTester := p2ptest.NewProtocolTester(t, network.NewNodeIDFromAddr(addr), 1, streamer.runProtocol)
+	protocolTester := p2ptest.NewProtocolTester(t, addr.ID(), 1, streamer.runProtocol)
 
 	err = waitForPeers(streamer, 1*time.Second, 1)
 	if err != nil {
@@ -150,14 +167,14 @@ func newRoundRobinStore(stores ...storage.ChunkStore) *roundRobinStore {
 	}
 }
 
-func (rrs *roundRobinStore) Get(ctx context.Context, addr storage.Address) (*storage.Chunk, error) {
+func (rrs *roundRobinStore) Get(ctx context.Context, addr storage.Address) (storage.Chunk, error) {
 	return nil, errors.New("get not well defined on round robin store")
 }
 
-func (rrs *roundRobinStore) Put(ctx context.Context, chunk *storage.Chunk) {
+func (rrs *roundRobinStore) Put(ctx context.Context, chunk storage.Chunk) error {
 	i := atomic.AddUint32(&rrs.index, 1)
 	idx := int(i) % len(rrs.stores)
-	rrs.stores[idx].Put(ctx, chunk)
+	return rrs.stores[idx].Put(ctx, chunk)
 }
 
 func (rrs *roundRobinStore) Close() {
@@ -235,7 +252,7 @@ func generateRandomFile() (string, error) {
 }
 
 //create a local store for the given node
-func createTestLocalStorageForID(id discover.NodeID, addr *network.BzzAddr) (storage.ChunkStore, string, error) {
+func createTestLocalStorageForID(id enode.ID, addr *network.BzzAddr) (storage.ChunkStore, string, error) {
 	var datadir string
 	var err error
 	datadir, err = ioutil.TempDir("", fmt.Sprintf("syncer-test-%s", id.TerminalString()))

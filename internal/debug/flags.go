@@ -24,12 +24,19 @@ import (
 	"os"
 	"runtime"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/log/term"
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/metrics/exp"
+=======
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/metrics/exp"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"github.com/fjl/memsize/memsizeui"
 	colorable "github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -101,7 +108,7 @@ var (
 )
 
 func init() {
-	usecolor := term.IsTty(os.Stderr.Fd()) && os.Getenv("TERM") != "dumb"
+	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
 	output := io.Writer(os.Stderr)
 	if usecolor {
 		output = colorable.NewColorableStderr()

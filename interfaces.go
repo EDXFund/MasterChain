@@ -52,16 +52,16 @@ type Subscription interface {
 //
 // The returned error is NotFound if the requested item does not exist.
 type ChainReader interface {
-	BlockByHash(ctx context.Context, hash common.Hash) (*types.BlockIntf, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.BlockIntf, error)
-	HeaderByHash(ctx context.Context, hash common.Hash) (*types.HeaderIntf, error)
-	HeaderByNumber(ctx context.Context, number *big.Int) (*types.HeaderIntf, error)
+	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
 	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error)
 
 	// This method subscribes to notifications about changes of the head block of
 	// the canonical chain.
-	SubscribeNewHead(ctx context.Context, ch chan<- *types.HeaderIntf) (Subscription, error)
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (Subscription, error)
 }
 /*
 // The returned error is NotFound if the requested item does not exist.

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core"
@@ -40,6 +41,22 @@ import (
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/params"
+=======
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/les/flowcontrol"
+	"github.com/ethereum/go-ethereum/light"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var (
@@ -164,7 +181,7 @@ func newTestProtocolManager(lightSync bool, blocks int, generator func(int, *cor
 	if lightSync {
 		chain, _ = light.NewLightChain(odr, gspec.Config, engine)
 	} else {
-		blockchain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{})
+		blockchain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 		gchain, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, blocks, generator)
 		if _, err := blockchain.InsertChain(gchain); err != nil {
 			panic(err)
@@ -221,7 +238,7 @@ func newTestPeer(t *testing.T, name string, version int, pm *ProtocolManager, sh
 	app, net := p2p.MsgPipe()
 
 	// Generate a random id and create the peer
-	var id discover.NodeID
+	var id enode.ID
 	rand.Read(id[:])
 
 	peer := pm.newPeer(version, NetworkId, p2p.NewPeer(id, name, nil), net)
@@ -258,7 +275,7 @@ func newTestPeerPair(name string, version int, pm, pm2 *ProtocolManager) (*peer,
 	app, net := p2p.MsgPipe()
 
 	// Generate a random id and create the peer
-	var id discover.NodeID
+	var id enode.ID
 	rand.Read(id[:])
 
 	peer := pm.newPeer(version, NetworkId, p2p.NewPeer(id, name, nil), net)

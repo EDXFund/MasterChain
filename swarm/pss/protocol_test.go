@@ -25,10 +25,17 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/swarm/log"
+=======
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/swarm/log"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 type protoCtrl struct {
@@ -111,8 +118,7 @@ func testProtocol(t *testing.T) {
 	}
 
 	// add right peer's public key as protocol peer on left
-	nid, _ := discover.HexID("0x00") // this hack is needed to satisfy the p2p method
-	p := p2p.NewPeer(nid, fmt.Sprintf("%x", common.FromHex(loaddrhex)), []p2p.Cap{})
+	p := p2p.NewPeer(enode.ID{}, fmt.Sprintf("%x", common.FromHex(loaddrhex)), []p2p.Cap{})
 	_, err = pssprotocols[lnodeinfo.ID].protocol.AddPeer(p, PingTopic, true, rpubkey)
 	if err != nil {
 		t.Fatal(err)

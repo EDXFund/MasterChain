@@ -20,23 +20,28 @@ import (
 	"fmt"
 	"sync"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/p2p/discover"
+=======
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 type TestPeer interface {
-	ID() discover.NodeID
+	ID() enode.ID
 	Drop(error)
 }
 
 // TestPeerPool is an example peerPool to demonstrate registration of peer connections
 type TestPeerPool struct {
 	lock  sync.Mutex
-	peers map[discover.NodeID]TestPeer
+	peers map[enode.ID]TestPeer
 }
 
 func NewTestPeerPool() *TestPeerPool {
-	return &TestPeerPool{peers: make(map[discover.NodeID]TestPeer)}
+	return &TestPeerPool{peers: make(map[enode.ID]TestPeer)}
 }
 
 func (p *TestPeerPool) Add(peer TestPeer) {
@@ -53,14 +58,14 @@ func (p *TestPeerPool) Remove(peer TestPeer) {
 	delete(p.peers, peer.ID())
 }
 
-func (p *TestPeerPool) Has(id discover.NodeID) bool {
+func (p *TestPeerPool) Has(id enode.ID) bool {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	_, ok := p.peers[id]
 	return ok
 }
 
-func (p *TestPeerPool) Get(id discover.NodeID) TestPeer {
+func (p *TestPeerPool) Get(id enode.ID) TestPeer {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	return p.peers[id]

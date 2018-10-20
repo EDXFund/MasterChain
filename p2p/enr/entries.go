@@ -17,13 +17,16 @@
 package enr
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"net"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/rlp"
+=======
+	"github.com/ethereum/go-ethereum/rlp"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // Entry is implemented by known node record entry types.
@@ -95,30 +98,6 @@ func (v *IP) DecodeRLP(s *rlp.Stream) error {
 	if len(*v) != 4 && len(*v) != 16 {
 		return fmt.Errorf("invalid IP address, want 4 or 16 bytes: %v", *v)
 	}
-	return nil
-}
-
-// Secp256k1 is the "secp256k1" key, which holds a public key.
-type Secp256k1 ecdsa.PublicKey
-
-func (v Secp256k1) ENRKey() string { return "secp256k1" }
-
-// EncodeRLP implements rlp.Encoder.
-func (v Secp256k1) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, crypto.CompressPubkey((*ecdsa.PublicKey)(&v)))
-}
-
-// DecodeRLP implements rlp.Decoder.
-func (v *Secp256k1) DecodeRLP(s *rlp.Stream) error {
-	buf, err := s.Bytes()
-	if err != nil {
-		return err
-	}
-	pk, err := crypto.DecompressPubkey(buf)
-	if err != nil {
-		return err
-	}
-	*v = (Secp256k1)(*pk)
 	return nil
 }
 

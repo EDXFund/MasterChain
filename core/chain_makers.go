@@ -70,6 +70,11 @@ func (b *BlockGen) SetExtra(data []byte) {
 	b.header.Extra = data
 }
 
+// SetNonce sets the nonce field of the generated block.
+func (b *BlockGen) SetNonce(nonce types.BlockNonce) {
+	b.header.Nonce = nonce
+}
+
 // AddTx adds a transaction to the generated block. If no coinbase has
 // been set, the block's coinbase is set to the zero address.
 //
@@ -175,7 +180,11 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	genblock := func(i int, parent *types.Block, statedb *state.StateDB) (*types.Block, types.Receipts) {
 		// TODO(karalabe): This is needed for clique, which depends on multiple blocks.
 		// It's nonetheless ugly to spin up a blockchain here. Get rid of this somehow.
+<<<<<<< HEAD
 		blockchain, _ := NewBlockChain(db, nil, config, engine, vm.Config{}, shardId)
+=======
+		blockchain, _ := NewBlockChain(db, nil, config, engine, vm.Config{}, nil)
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 		defer blockchain.Stop()
 
 		b := &BlockGen{i: i, parent: parent, chain: blocks, chainReader: blockchain, statedb: statedb, config: config, engine: engine}
@@ -193,13 +202,18 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		if config.DAOForkSupport && config.DAOForkBlock != nil && config.DAOForkBlock.Cmp(b.header.Number) == 0 {
 			misc.ApplyDAOHardFork(statedb)
 		}
-		// Execute any user modifications to the block and finalize it
+		// Execute any user modifications to the block
 		if gen != nil {
 			gen(i, b)
 		}
-
 		if b.engine != nil {
+<<<<<<< HEAD
 			block, _ := b.engine.Finalize(b.chainReader, b.header, statedb, b.txs, b.receipts, b.blocksInfo, b.rejections)
+=======
+			// Finalize and seal the block
+			block, _ := b.engine.Finalize(b.chainReader, b.header, statedb, b.txs, b.uncles, b.receipts)
+
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
 			if err != nil {

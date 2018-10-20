@@ -16,6 +16,7 @@
 
 package vm
 
+<<<<<<< HEAD
 import (
 	"math/big"
 
@@ -44,6 +45,8 @@ func (d destinations) has(codehash common.Hash, code []byte, dest *big.Int) bool
 	return OpCode(code[udest]) == JUMPDEST && m.codeSegment(udest)
 }
 
+=======
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 // bitvec is a bit vector which maps bytes in a program.
 // An unset bit means the byte is an opcode, a set bit means
 // it's data (i.e. argument of PUSHxx).

@@ -21,11 +21,19 @@ import (
 	"sync/atomic"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/eth/downloader"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/p2p/discover"
+=======
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 const (
@@ -64,7 +72,7 @@ func (pm *ProtocolManager) syncTransactions(p *peer) {
 // the transactions in small packs to one peer at a time.
 func (pm *ProtocolManager) txsyncLoop() {
 	var (
-		pending = make(map[discover.NodeID]*txsync)
+		pending = make(map[enode.ID]*txsync)
 		sending = false               // whether a send is active
 		pack    = new(txsync)         // the pack that is being sent
 		done    = make(chan error, 1) // result of the send

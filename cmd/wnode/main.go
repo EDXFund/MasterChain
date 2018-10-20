@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/cmd/utils"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/console"
@@ -45,6 +46,18 @@ import (
 	"github.com/EDXFund/MasterChain/p2p/nat"
 	"github.com/EDXFund/MasterChain/whisper/mailserver"
 	whisper "github.com/EDXFund/MasterChain/whisper/whisperv6"
+=======
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/console"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
+	"github.com/ethereum/go-ethereum/whisper/mailserver"
+	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"golang.org/x/crypto/pbkdf2"
 )
 
@@ -175,7 +188,7 @@ func initialize() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*argVerbosity), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 
 	done = make(chan struct{})
-	var peers []*discover.Node
+	var peers []*enode.Node
 	var err error
 
 	if *generateKey {
@@ -203,7 +216,7 @@ func initialize() {
 		if len(*argEnode) == 0 {
 			argEnode = scanLineA("Please enter the peer's enode: ")
 		}
-		peer := discover.MustParseNode(*argEnode)
+		peer := enode.MustParseV4(*argEnode)
 		peers = append(peers, peer)
 	}
 
@@ -747,11 +760,11 @@ func requestExpiredMessagesLoop() {
 }
 
 func extractIDFromEnode(s string) []byte {
-	n, err := discover.ParseNode(s)
+	n, err := enode.ParseV4(s)
 	if err != nil {
 		utils.Fatalf("Failed to parse enode: %s", err)
 	}
-	return n.ID[:]
+	return n.ID().Bytes()
 }
 
 // obfuscateBloom adds 16 random bits to the bloom

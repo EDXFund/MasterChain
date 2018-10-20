@@ -17,14 +17,20 @@
 package simulation
 
 import (
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/node"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/p2p/simulations/adapters"
+=======
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // Service returns a single Service by name on a particular node
 // with provided id.
-func (s *Simulation) Service(name string, id discover.NodeID) node.Service {
+func (s *Simulation) Service(name string, id enode.ID) node.Service {
 	simNode, ok := s.Net.GetNode(id).Node.(*adapters.SimNode)
 	if !ok {
 		return nil
@@ -48,9 +54,9 @@ func (s *Simulation) RandomService(name string) node.Service {
 
 // Services returns all services with a provided name
 // from nodes that are up.
-func (s *Simulation) Services(name string) (services map[discover.NodeID]node.Service) {
+func (s *Simulation) Services(name string) (services map[enode.ID]node.Service) {
 	nodes := s.Net.GetNodes()
-	services = make(map[discover.NodeID]node.Service)
+	services = make(map[enode.ID]node.Service)
 	for _, node := range nodes {
 		if !node.Up {
 			continue

@@ -22,8 +22,13 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/p2p/simulations/adapters"
+=======
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // TestNetworkSimulation creates a multi-node simulation network with each node
@@ -39,7 +44,7 @@ func TestNetworkSimulation(t *testing.T) {
 	})
 	defer network.Shutdown()
 	nodeCount := 20
-	ids := make([]discover.NodeID, nodeCount)
+	ids := make([]enode.ID, nodeCount)
 	for i := 0; i < nodeCount; i++ {
 		conf := adapters.RandomNodeConfig()
 		node, err := network.NewNodeWithConfig(conf)
@@ -64,7 +69,7 @@ func TestNetworkSimulation(t *testing.T) {
 		}
 		return nil
 	}
-	check := func(ctx context.Context, id discover.NodeID) (bool, error) {
+	check := func(ctx context.Context, id enode.ID) (bool, error) {
 		// check we haven't run out of time
 		select {
 		case <-ctx.Done():
@@ -102,7 +107,7 @@ func TestNetworkSimulation(t *testing.T) {
 	defer cancel()
 
 	// trigger a check every 100ms
-	trigger := make(chan discover.NodeID)
+	trigger := make(chan enode.ID)
 	go triggerChecks(ctx, ids, trigger, 100*time.Millisecond)
 
 	result := NewSimulation(network).Run(ctx, &Step{
@@ -140,7 +145,7 @@ func TestNetworkSimulation(t *testing.T) {
 	}
 }
 
-func triggerChecks(ctx context.Context, ids []discover.NodeID, trigger chan discover.NodeID, interval time.Duration) {
+func triggerChecks(ctx context.Context, ids []enode.ID, trigger chan enode.ID, interval time.Duration) {
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
 	for {

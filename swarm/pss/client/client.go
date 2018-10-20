@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/discover"
@@ -33,6 +34,16 @@ import (
 	"github.com/EDXFund/MasterChain/rpc"
 	"github.com/EDXFund/MasterChain/swarm/log"
 	"github.com/EDXFund/MasterChain/swarm/pss"
+=======
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/protocols"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/swarm/log"
+	"github.com/ethereum/go-ethereum/swarm/pss"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 const (
@@ -283,8 +294,7 @@ func (c *Client) RunProtocol(ctx context.Context, proto *p2p.Protocol) error {
 						break
 					}
 					c.peerPool[topicobj][pubkeyid] = rw
-					nid, _ := discover.HexID("0x00")
-					p := p2p.NewPeer(nid, fmt.Sprintf("%v", addr), []p2p.Cap{})
+					p := p2p.NewPeer(enode.ID{}, fmt.Sprintf("%v", addr), []p2p.Cap{})
 					go proto.Run(p, c.peerPool[topicobj][pubkeyid])
 				}
 				go func() {
@@ -334,8 +344,7 @@ func (c *Client) AddPssPeer(pubkeyid string, addr []byte, spec *protocols.Spec) 
 		c.poolMu.Lock()
 		c.peerPool[topic][pubkeyid] = rw
 		c.poolMu.Unlock()
-		nid, _ := discover.HexID("0x00")
-		p := p2p.NewPeer(nid, fmt.Sprintf("%v", addr), []p2p.Cap{})
+		p := p2p.NewPeer(enode.ID{}, fmt.Sprintf("%v", addr), []p2p.Cap{})
 		go c.protos[topic].Run(p, c.peerPool[topic][pubkeyid])
 	}
 	return nil

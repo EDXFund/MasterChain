@@ -21,21 +21,36 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/swarm/api"
 	swarm "github.com/EDXFund/MasterChain/swarm/api/client"
+=======
+	"github.com/ethereum/go-ethereum/swarm/api"
+	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
+	"github.com/ethereum/go-ethereum/swarm/testutil"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // TestManifestChange tests manifest add, update and remove
 // cli commands without encryption.
 func TestManifestChange(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	testManifestChange(t, false)
 }
 
 // TestManifestChange tests manifest add, update and remove
 // cli commands with encryption enabled.
 func TestManifestChangeEncrypted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	testManifestChange(t, true)
 }
 
@@ -48,8 +63,8 @@ func TestManifestChangeEncrypted(t *testing.T) {
 // Argument encrypt controls whether to use encryption or not.
 func testManifestChange(t *testing.T, encrypt bool) {
 	t.Parallel()
-	cluster := newTestCluster(t, 1)
-	defer cluster.Shutdown()
+	srv := testutil.NewTestSwarmServer(t, serverFunc, nil)
+	defer srv.Close()
 
 	tmp, err := ioutil.TempDir("", "swarm-manifest-test")
 	if err != nil {
@@ -85,7 +100,7 @@ func testManifestChange(t *testing.T, encrypt bool) {
 
 	args := []string{
 		"--bzzapi",
-		cluster.Nodes[0].URL,
+		srv.URL,
 		"--recursive",
 		"--defaultpath",
 		indexDataFilename,
@@ -100,7 +115,7 @@ func testManifestChange(t *testing.T, encrypt bool) {
 
 	checkHashLength(t, origManifestHash, encrypt)
 
-	client := swarm.NewClient(cluster.Nodes[0].URL)
+	client := swarm.NewClient(srv.URL)
 
 	// upload a new file and use its manifest to add it the original manifest.
 	t.Run("add", func(t *testing.T) {
@@ -113,14 +128,14 @@ func testManifestChange(t *testing.T, encrypt bool) {
 
 		humansManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"up",
 			humansDataFilename,
 		)
 
 		newManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"manifest",
 			"add",
 			origManifestHash,
@@ -168,14 +183,14 @@ func testManifestChange(t *testing.T, encrypt bool) {
 
 		robotsManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"up",
 			robotsDataFilename,
 		)
 
 		newManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"manifest",
 			"add",
 			origManifestHash,
@@ -228,14 +243,14 @@ func testManifestChange(t *testing.T, encrypt bool) {
 
 		indexManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"up",
 			indexDataFilename,
 		)
 
 		newManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"manifest",
 			"update",
 			origManifestHash,
@@ -286,14 +301,14 @@ func testManifestChange(t *testing.T, encrypt bool) {
 
 		humansManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"up",
 			robotsDataFilename,
 		)
 
 		newManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"manifest",
 			"update",
 			origManifestHash,
@@ -339,7 +354,7 @@ func testManifestChange(t *testing.T, encrypt bool) {
 	t.Run("remove", func(t *testing.T) {
 		newManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"manifest",
 			"remove",
 			origManifestHash,
@@ -367,7 +382,7 @@ func testManifestChange(t *testing.T, encrypt bool) {
 	t.Run("remove nested", func(t *testing.T) {
 		newManifestHash := runSwarmExpectHash(t,
 			"--bzzapi",
-			cluster.Nodes[0].URL,
+			srv.URL,
 			"manifest",
 			"remove",
 			origManifestHash,
@@ -400,6 +415,10 @@ func testManifestChange(t *testing.T, encrypt bool) {
 // TestNestedDefaultEntryUpdate tests if the default entry is updated
 // if the file in nested manifest used for it is also updated.
 func TestNestedDefaultEntryUpdate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	testNestedDefaultEntryUpdate(t, false)
 }
 
@@ -407,13 +426,17 @@ func TestNestedDefaultEntryUpdate(t *testing.T) {
 // of encrypted upload is updated if the file in nested manifest
 // used for it is also updated.
 func TestNestedDefaultEntryUpdateEncrypted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	testNestedDefaultEntryUpdate(t, true)
 }
 
 func testNestedDefaultEntryUpdate(t *testing.T, encrypt bool) {
 	t.Parallel()
-	cluster := newTestCluster(t, 1)
-	defer cluster.Shutdown()
+	srv := testutil.NewTestSwarmServer(t, serverFunc, nil)
+	defer srv.Close()
 
 	tmp, err := ioutil.TempDir("", "swarm-manifest-test")
 	if err != nil {
@@ -441,7 +464,7 @@ func testNestedDefaultEntryUpdate(t *testing.T, encrypt bool) {
 
 	args := []string{
 		"--bzzapi",
-		cluster.Nodes[0].URL,
+		srv.URL,
 		"--recursive",
 		"--defaultpath",
 		indexDataFilename,
@@ -456,7 +479,7 @@ func testNestedDefaultEntryUpdate(t *testing.T, encrypt bool) {
 
 	checkHashLength(t, origManifestHash, encrypt)
 
-	client := swarm.NewClient(cluster.Nodes[0].URL)
+	client := swarm.NewClient(srv.URL)
 
 	newIndexData := []byte("<h1>Ethereum Swarm</h1>")
 	newIndexDataFilename := filepath.Join(tmp, "index.html")
@@ -467,14 +490,14 @@ func testNestedDefaultEntryUpdate(t *testing.T, encrypt bool) {
 
 	newIndexManifestHash := runSwarmExpectHash(t,
 		"--bzzapi",
-		cluster.Nodes[0].URL,
+		srv.URL,
 		"up",
 		newIndexDataFilename,
 	)
 
 	newManifestHash := runSwarmExpectHash(t,
 		"--bzzapi",
-		cluster.Nodes[0].URL,
+		srv.URL,
 		"manifest",
 		"update",
 		origManifestHash,

@@ -35,13 +35,17 @@ type StateDB interface {
 	SetNonce(common.Address, uint64)
 
 	GetCodeHash(common.Address) common.Hash
+	GetProof(common.Address) (ProofList, error)
+	GetStorageProof(common.Address, common.Hash) (ProofList, error)
 	GetCode(common.Address) []byte
 	SetCode(common.Address, []byte)
 	GetCodeSize(common.Address) int
 
 	AddRefund(uint64)
+	SubRefund(uint64)
 	GetRefund() uint64
 
+	GetCommittedState(common.Address, common.Hash) common.Hash
 	GetState(common.Address, common.Hash) common.Hash
 	SetState(common.Address, common.Hash, common.Hash)
 
@@ -64,7 +68,7 @@ type StateDB interface {
 	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool)
 }
 
-// CallContext provides a basic interface for the EVM calling conventions. The EVM EVM
+// CallContext provides a basic interface for the EVM calling conventions. The EVM
 // depends on this context being implemented for doing subcalls and initialising new EVM contracts.
 type CallContext interface {
 	// Call another contract
@@ -75,4 +79,12 @@ type CallContext interface {
 	DelegateCall(env *EVM, me ContractRef, addr common.Address, data []byte, gas *big.Int) ([]byte, error)
 	// Create a new contract
 	Create(env *EVM, me ContractRef, data []byte, gas, value *big.Int) ([]byte, common.Address, error)
+}
+
+// MerkleProof
+type ProofList [][]byte
+
+func (n *ProofList) Put(key []byte, value []byte) error {
+	*n = append(*n, value)
+	return nil
 }

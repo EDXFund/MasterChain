@@ -24,12 +24,21 @@ import (
 	"sync"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/rpc"
+=======
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rpc"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var (
@@ -96,12 +105,12 @@ func (api *PublicWhisperAPI) SetMinPoW(ctx context.Context, pow float64) (bool, 
 
 // MarkTrustedPeer marks a peer trusted. , which will allow it to send historic (expired) messages.
 // Note: This function is not adding new nodes, the node needs to exists as a peer.
-func (api *PublicWhisperAPI) MarkTrustedPeer(ctx context.Context, enode string) (bool, error) {
-	n, err := discover.ParseNode(enode)
+func (api *PublicWhisperAPI) MarkTrustedPeer(ctx context.Context, url string) (bool, error) {
+	n, err := enode.ParseV4(url)
 	if err != nil {
 		return false, err
 	}
-	return true, api.w.AllowP2PMessagesFromPeer(n.ID[:])
+	return true, api.w.AllowP2PMessagesFromPeer(n.ID().Bytes())
 }
 
 // NewKeyPair generates a new public and private key pair for message decryption and encryption.
@@ -270,11 +279,11 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (bool, er
 
 	// send to specific node (skip PoW check)
 	if len(req.TargetPeer) > 0 {
-		n, err := discover.ParseNode(req.TargetPeer)
+		n, err := enode.ParseV4(req.TargetPeer)
 		if err != nil {
 			return false, fmt.Errorf("failed to parse target peer: %s", err)
 		}
-		return true, api.w.SendP2PMessage(n.ID[:], env)
+		return true, api.w.SendP2PMessage(n.ID().Bytes(), env)
 	}
 
 	// ensure that the message PoW meets the node's minimum accepted PoW

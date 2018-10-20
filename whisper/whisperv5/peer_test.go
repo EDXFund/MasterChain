@@ -24,11 +24,19 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/p2p/nat"
+=======
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var keys = []string{
@@ -146,8 +154,7 @@ func initialize(t *testing.T) {
 			peerNodeId := nodes[j].id
 			address, _ := net.ResolveTCPAddr("tcp", nodes[j].server.ListenAddr)
 			peerPort := uint16(address.Port)
-			peerNode := discover.PubkeyID(&peerNodeId.PublicKey)
-			peer := discover.NewNode(peerNode, address.IP, peerPort, peerPort)
+			peer := enode.NewV4(&peerNodeId.PublicKey, address.IP, int(peerPort), int(peerPort))
 			node.server.AddPeer(peer)
 		}
 

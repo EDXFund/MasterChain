@@ -21,11 +21,18 @@ import (
 	"encoding/hex"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/p2p/discover"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/swarm/network"
+=======
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/swarm/network"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // BucketKeyKademlia is the key to be used for storing the kademlia
@@ -34,7 +41,7 @@ var BucketKeyKademlia BucketKey = "kademlia"
 
 // WaitTillHealthy is blocking until the health of all kademlias is true.
 // If error is not nil, a map of kademlia that was found not healthy is returned.
-func (s *Simulation) WaitTillHealthy(ctx context.Context, kadMinProxSize int) (ill map[discover.NodeID]*network.Kademlia, err error) {
+func (s *Simulation) WaitTillHealthy(ctx context.Context, kadMinProxSize int) (ill map[enode.ID]*network.Kademlia, err error) {
 	// Prepare PeerPot map for checking Kademlia health
 	var ppmap map[string]*network.PeerPot
 	kademlias := s.kademlias()
@@ -48,7 +55,7 @@ func (s *Simulation) WaitTillHealthy(ctx context.Context, kadMinProxSize int) (i
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
-	ill = make(map[discover.NodeID]*network.Kademlia)
+	ill = make(map[enode.ID]*network.Kademlia)
 	for {
 		select {
 		case <-ctx.Done():
@@ -82,9 +89,9 @@ func (s *Simulation) WaitTillHealthy(ctx context.Context, kadMinProxSize int) (i
 
 // kademlias returns all Kademlia instances that are set
 // in simulation bucket.
-func (s *Simulation) kademlias() (ks map[discover.NodeID]*network.Kademlia) {
+func (s *Simulation) kademlias() (ks map[enode.ID]*network.Kademlia) {
 	items := s.UpNodesItems(BucketKeyKademlia)
-	ks = make(map[discover.NodeID]*network.Kademlia, len(items))
+	ks = make(map[enode.ID]*network.Kademlia, len(items))
 	for id, v := range items {
 		k, ok := v.(*network.Kademlia)
 		if !ok {

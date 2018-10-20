@@ -26,9 +26,15 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/p2p/simulations"
 	"github.com/EDXFund/MasterChain/swarm/log"
+=======
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/simulations"
+	"github.com/ethereum/go-ethereum/swarm/log"
+>>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var (
@@ -86,7 +92,7 @@ func TestOverlaySim(t *testing.T) {
 
 	//variables needed to wait for nodes being up
 	var upCount int
-	trigger := make(chan discover.NodeID)
+	trigger := make(chan enode.ID)
 
 	//wait for all nodes to be up
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -169,7 +175,7 @@ LOOP:
 }
 
 //watch for events so we know when all nodes are up
-func watchSimEvents(net *simulations.Network, ctx context.Context, trigger chan discover.NodeID) {
+func watchSimEvents(net *simulations.Network, ctx context.Context, trigger chan enode.ID) {
 	events := make(chan *simulations.Event)
 	sub := net.Events().Subscribe(events)
 	defer sub.Unsubscribe()
