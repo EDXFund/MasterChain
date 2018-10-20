@@ -69,7 +69,7 @@ func errResp(code errCode, format string, v ...interface{}) error {
 
 type BlockChain interface {
 	Config() *params.ChainConfig
-	HasHeader(shardId uint16,hash common.Hash, number uint64) bool
+	HasHeader(hash common.Hash, number uint64) bool
 	GetHeader(hash common.Hash, number uint64) *types.Header
 	GetHeaderByHash(hash common.Hash) *types.Header
 	CurrentHeader() *types.Header
@@ -594,7 +594,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		for _, req := range req.Reqs {
 			// Retrieve the requested state entry, stopping if enough was found
-			if shardId,number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
+			if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
 				if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
 					statedb, err := pm.blockchain.State()
 					if err != nil {

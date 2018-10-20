@@ -25,15 +25,11 @@ import (
 	"sync/atomic"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/metrics"
-=======
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/event"
+	"github.com/EDXFund/MasterChain/log"
+	"github.com/EDXFund/MasterChain/metrics"
 )
 
 const (

@@ -28,14 +28,9 @@ import (
 	"path/filepath"
 	"strings"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/cmd/utils"
 	swarm "github.com/EDXFund/MasterChain/swarm/api/client"
-=======
-	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/cmd/utils"
 	"gopkg.in/urfave/cli.v1"
 )
 

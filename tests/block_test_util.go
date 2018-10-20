@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"math/big"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/common/math"
+	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/state"
@@ -36,20 +36,6 @@ import (
 	"github.com/EDXFund/MasterChain/ethdb"
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rlp"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // A BlockTest checks handling of entire blocks.

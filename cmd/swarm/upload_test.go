@@ -30,16 +30,10 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
 	swarm "github.com/EDXFund/MasterChain/swarm/api/client"
-	colorable "github.com/mattn/go-colorable"
-=======
-	"github.com/ethereum/go-ethereum/log"
-	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
-	"github.com/ethereum/go-ethereum/swarm/testutil"
+	"github.com/EDXFund/MasterChain/swarm/testutil"
 	"github.com/mattn/go-colorable"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 func init() {

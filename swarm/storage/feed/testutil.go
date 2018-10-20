@@ -22,12 +22,8 @@ import (
 	"path/filepath"
 	"sync"
 
-<<<<<<< HEAD:swarm/storage/mru/testutil.go
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-=======
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/swarm/storage"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48:swarm/storage/feed/testutil.go
 )
 
 const (

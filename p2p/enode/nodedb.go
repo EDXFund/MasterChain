@@ -25,14 +25,8 @@ import (
 	"sync"
 	"time"
 
-<<<<<<< HEAD:p2p/discover/database.go
-	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/rlp"
-=======
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48:p2p/enode/nodedb.go
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/iterator"

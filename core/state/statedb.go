@@ -24,22 +24,13 @@ import (
 	"sort"
 	"sync"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
+	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/rlp"
 	"github.com/EDXFund/MasterChain/trie"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/trie"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 type revision struct {

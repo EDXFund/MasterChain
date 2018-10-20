@@ -19,12 +19,8 @@ package p2p
 import (
 	"fmt"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/p2p/discover"
-=======
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/p2p/enode"
+	"github.com/EDXFund/MasterChain/p2p/enr"
 )
 
 // Protocol represents a P2P subprotocol implementation.

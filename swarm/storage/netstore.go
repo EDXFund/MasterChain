@@ -24,15 +24,9 @@ import (
 	"sync/atomic"
 	"time"
 
-<<<<<<< HEAD
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/swarm/log"
-	"github.com/EDXFund/MasterChain/swarm/spancontext"
-	opentracing "github.com/opentracing/opentracing-go"
-=======
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/swarm/log"
 	lru "github.com/hashicorp/golang-lru"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 type (

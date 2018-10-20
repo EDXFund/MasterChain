@@ -70,14 +70,13 @@ type LightChain struct {
 	procInterrupt int32 // interrupt signaler for block processing
 	wg            sync.WaitGroup
 
-	shardId uint16
-	engine  consensus.Engine
+	engine consensus.Engine
 }
 
 // NewLightChain returns a fully initialised light chain using information
 // available in the database. It initialises the default Ethereum header
 // validator.
-func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine, shardId uint16) (*LightChain, error) {
+func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine) (*LightChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
@@ -91,10 +90,9 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		bodyRLPCache:  bodyRLPCache,
 		blockCache:    blockCache,
 		engine:        engine,
-		shardId:       shardId,
 	}
 	var err error
-	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, shardId, bc.getProcInterrupt)
+	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +116,6 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	}
 	return bc, nil
 }
-func (self *LightChain) ShardId() uint16 { return self.shardId }
 
 // addTrustedCheckpoint adds a trusted checkpoint to the blockchain
 func (self *LightChain) addTrustedCheckpoint(cp *params.TrustedCheckpoint) {
@@ -148,7 +145,7 @@ func (self *LightChain) Odr() OdrBackend {
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (self *LightChain) loadLastState() error {
-	if head := rawdb.ReadHeadHeaderHash(self.chainDb, self.shardId); head == (common.Hash{}) {
+	if head := rawdb.ReadHeadHeaderHash(self.chainDb); head == (common.Hash{}) {
 		// Corrupt or empty database, init from scratch
 		self.Reset()
 	} else {
@@ -195,7 +192,7 @@ func (bc *LightChain) ResetWithGenesisBlock(genesis *types.Block) {
 	defer bc.mu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	rawdb.WriteTd(bc.chainDb, genesis.Hash(), bc.shardId, genesis.NumberU64(), genesis.Difficulty())
+	rawdb.WriteTd(bc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
 	rawdb.WriteBlock(bc.chainDb, genesis)
 
 	bc.genesisBlock = genesis
@@ -429,7 +426,7 @@ func (self *LightChain) GetHeaderByHash(hash common.Hash) *types.Header {
 // HasHeader checks if a block header is present in the database or not, caching
 // it if present.
 func (bc *LightChain) HasHeader(hash common.Hash, number uint64) bool {
-	return bc.hc.HasHeader(bc.ShardId,hash, number)
+	return bc.hc.HasHeader(hash, number)
 }
 
 // GetBlockHashesFromHash retrieves a number of block hashes starting at a given

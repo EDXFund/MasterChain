@@ -24,33 +24,17 @@ import (
 	"sync"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/p2p"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/p2p/protocols"
 	"github.com/EDXFund/MasterChain/rpc"
 	"github.com/EDXFund/MasterChain/swarm/log"
 	"github.com/EDXFund/MasterChain/swarm/network"
 	"github.com/EDXFund/MasterChain/swarm/network/stream/intervals"
 	"github.com/EDXFund/MasterChain/swarm/pot"
-	"github.com/EDXFund/MasterChain/swarm/spancontext"
 	"github.com/EDXFund/MasterChain/swarm/state"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-	opentracing "github.com/opentracing/opentracing-go"
-=======
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/protocols"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	"github.com/ethereum/go-ethereum/swarm/network"
-	"github.com/ethereum/go-ethereum/swarm/network/stream/intervals"
-	"github.com/ethereum/go-ethereum/swarm/pot"
-	"github.com/ethereum/go-ethereum/swarm/state"
-	"github.com/ethereum/go-ethereum/swarm/storage"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 const (

@@ -21,14 +21,9 @@ import (
 	"hash"
 	"sync/atomic"
 
-<<<<<<< HEAD
+	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/math"
 	"github.com/EDXFund/MasterChain/params"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/params"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // Config are the configuration options for the Interpreter

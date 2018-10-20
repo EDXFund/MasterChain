@@ -25,15 +25,9 @@ import (
 	"sync"
 
 	"github.com/davecgh/go-spew/spew"
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/internal/ethapi"
 	"github.com/EDXFund/MasterChain/log"
-=======
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"golang.org/x/crypto/ssh/terminal"
 )
 

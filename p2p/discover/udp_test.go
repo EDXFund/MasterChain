@@ -34,16 +34,10 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/crypto"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/rlp"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rlp"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 func init() {

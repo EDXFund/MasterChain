@@ -35,9 +35,10 @@ import (
 	"runtime"
 	"strings"
 
-<<<<<<< HEAD
+	"github.com/EDXFund/MasterChain/accounts/keystore"
 	"github.com/EDXFund/MasterChain/cmd/utils"
 	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/console"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
@@ -45,19 +46,6 @@ import (
 	"github.com/EDXFund/MasterChain/signer/core"
 	"github.com/EDXFund/MasterChain/signer/rules"
 	"github.com/EDXFund/MasterChain/signer/storage"
-=======
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/signer/core"
-	"github.com/ethereum/go-ethereum/signer/rules"
-	"github.com/ethereum/go-ethereum/signer/storage"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"gopkg.in/urfave/cli.v1"
 )
 

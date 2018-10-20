@@ -95,16 +95,6 @@ var errorToString = map[int]string{
 	ErrSuspendedPeer:           "Suspended peer",
 }
 
-//ShardBlockPool only exists in master chain node
-type ShardBlockPool interface {
-	init()
-	AddShardBlock(shardId uint16, newBlock *type.Block)
-	
-	// SubscribeNewBlockEvent should return an event subscription of
-	// NewTxsEvent and send events to the given channel.
-	SubscribeNewBlockEvent(chan<- core.NewMinedBlockEvent) event.Subscription
-}
-
 type txPool interface {
 	// AddRemotes should add the given transactions to the pool.
 	AddRemotes([]*types.Transaction) []error

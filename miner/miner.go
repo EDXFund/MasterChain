@@ -37,8 +37,6 @@ import (
 type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
-	/////MUST TODO  shardChainPool
-	ShardBlockPool() *core.ShardBlockPool
 }
 
 // Miner creates blocks and searches for proof-of-work values.

@@ -20,25 +20,14 @@ import (
 	"context"
 	"errors"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/common"
+	"fmt"
+
 	"github.com/EDXFund/MasterChain/metrics"
-	"github.com/EDXFund/MasterChain/p2p/discover"
-	cp "github.com/EDXFund/MasterChain/swarm/chunk"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/swarm/log"
 	"github.com/EDXFund/MasterChain/swarm/network"
 	"github.com/EDXFund/MasterChain/swarm/spancontext"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-=======
-	"fmt"
-
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	"github.com/ethereum/go-ethereum/swarm/network"
-	"github.com/ethereum/go-ethereum/swarm/spancontext"
-	"github.com/ethereum/go-ethereum/swarm/storage"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	opentracing "github.com/opentracing/opentracing-go"
 )
 

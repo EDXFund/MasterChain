@@ -34,13 +34,8 @@ import (
 	"strconv"
 	"strings"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/swarm/api"
-	"github.com/EDXFund/MasterChain/swarm/storage/mru"
-=======
-	"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/swarm/storage/feed"
 )
 
 var (

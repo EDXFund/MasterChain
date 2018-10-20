@@ -20,12 +20,7 @@ import (
 	"os"
 	"sort"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
-	colorable "github.com/mattn/go-colorable"
-=======
-	"github.com/ethereum/go-ethereum/log"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 
 	cli "gopkg.in/urfave/cli.v1"
 )

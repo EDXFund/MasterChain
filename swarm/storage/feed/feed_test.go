@@ -16,14 +16,7 @@
 package feed
 
 import (
-<<<<<<< HEAD:swarm/storage/common.go
-	"context"
-	"sync"
-
-	"github.com/EDXFund/MasterChain/swarm/log"
-=======
 	"testing"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48:swarm/storage/feed/feed_test.go
 )
 
 func getTestFeed() *Feed {

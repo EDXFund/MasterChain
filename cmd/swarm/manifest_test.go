@@ -24,14 +24,9 @@ import (
 	"runtime"
 	"testing"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/swarm/api"
 	swarm "github.com/EDXFund/MasterChain/swarm/api/client"
-=======
-	"github.com/ethereum/go-ethereum/swarm/api"
-	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
-	"github.com/ethereum/go-ethereum/swarm/testutil"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/swarm/testutil"
 )
 
 // TestManifestChange tests manifest add, update and remove

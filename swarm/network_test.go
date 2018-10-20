@@ -28,26 +28,14 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/p2p/simulations/adapters"
 	"github.com/EDXFund/MasterChain/swarm/api"
-	"github.com/EDXFund/MasterChain/swarm/network"
 	"github.com/EDXFund/MasterChain/swarm/network/simulation"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-=======
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarm/network/simulation"
-	"github.com/ethereum/go-ethereum/swarm/storage"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	colorable "github.com/mattn/go-colorable"
 )
 

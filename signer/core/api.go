@@ -548,35 +548,6 @@ func (api *SignerAPI) Sign(ctx context.Context, addr common.MixedcaseAddress, da
 	return signature, nil
 }
 
-<<<<<<< HEAD
-// EcRecover returns the address for the Account that was used to create the signature.
-// Note, this function is compatible with eth_sign and personal_sign. As such it recovers
-// the address of:
-// hash = keccak256("\x19Ethereum Signed Message:\n"${message length}${message})
-// addr = ecrecover(hash, signature)
-//
-// Note, the signature must conform to the secp256k1 curve R, S and V values, where
-// the V value must be be 27 or 28 for legacy reasons.
-//
-// https://github.com/EDXFund/MasterChain/wiki/Management-APIs#personal_ecRecover
-func (api *SignerAPI) EcRecover(ctx context.Context, data, sig hexutil.Bytes) (common.Address, error) {
-	if len(sig) != 65 {
-		return common.Address{}, fmt.Errorf("signature must be 65 bytes long")
-	}
-	if sig[64] != 27 && sig[64] != 28 {
-		return common.Address{}, fmt.Errorf("invalid Ethereum signature (V is not 27 or 28)")
-	}
-	sig[64] -= 27 // Transform yellow paper V from 27/28 to 0/1
-	hash, _ := SignHash(data)
-	rpk, err := crypto.SigToPub(hash, sig)
-	if err != nil {
-		return common.Address{}, err
-	}
-	return crypto.PubkeyToAddress(*rpk), nil
-}
-
-=======
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 // SignHash is a helper function that calculates a hash for the given message that can be
 // safely used to calculate a signature from.
 //

@@ -22,11 +22,7 @@ import (
 	"os"
 	"testing"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/swarm/chunk"
-=======
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	ch "github.com/EDXFund/MasterChain/swarm/chunk"
 )
 
 var (

@@ -20,13 +20,8 @@ import (
 	"fmt"
 	"sync"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
-	"github.com/EDXFund/MasterChain/p2p/discover"
-=======
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/p2p/enode"
 )
 
 type TestPeer interface {

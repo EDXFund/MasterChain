@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core"
@@ -39,24 +38,8 @@ import (
 	"github.com/EDXFund/MasterChain/les/flowcontrol"
 	"github.com/EDXFund/MasterChain/light"
 	"github.com/EDXFund/MasterChain/p2p"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/params"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/les/flowcontrol"
-	"github.com/ethereum/go-ethereum/light"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/params"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var (

@@ -34,18 +34,10 @@ import (
 	"io/ioutil"
 	"sync"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/rlp"
-	"github.com/EDXFund/MasterChain/swarm/chunk"
 	"github.com/EDXFund/MasterChain/swarm/log"
 	"github.com/EDXFund/MasterChain/swarm/storage/mock"
-=======
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	"github.com/ethereum/go-ethereum/swarm/storage/mock"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )

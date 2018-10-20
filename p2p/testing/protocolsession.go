@@ -22,17 +22,10 @@ import (
 	"sync"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/p2p"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/p2p/simulations/adapters"
-=======
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var errTimedOut = errors.New("timed out")

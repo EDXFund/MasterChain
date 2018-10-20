@@ -44,23 +44,11 @@ type Transaction struct {
 }
 
 type txdata struct {
-	//"T" is common transaction   "C" means contract processing and "D" means Token Manager  
-	TxType       byte            `json:"txType" gencodec:"required"`
 	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
 	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
 	GasLimit     uint64          `json:"gas"      gencodec:"required"`
-	TokenId      uint64			 `json:"tokenId"  rlp:"nil"` // nil means master token
-	//Recipient means "to"  and exists only when TxType is "T"
-	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract transaction
-
-	//contractId and contractInst exist when TxType is "C"
-	//ContractId exists and ContractInst is nil means create a contract
-	//ContractId and ContractInst exist both means call a contract method which:
-	///// if Payload exists call function of payload else call init function
-	ContractId	 uint64			 `json:"cId" rlp:"nil"`
-	ContractInst uint64			 `json:"cId" rlp:"nil"`	
+	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
 	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	
 	Payload      []byte          `json:"input"    gencodec:"required"`
 
 	// Signature values
@@ -71,70 +59,36 @@ type txdata struct {
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `json:"hash" rlp:"-"`
 }
-type contractReception struct {
-	key 	uint64			`json:"key"  	gencodec:"required"`
-	value   []byte			`json:"value" 	gencodec:"required"`
-}
-type ContractResult struct {
-	TxHash *common.Hash `json:"txHash" 		gencodec:"required"`
-	ContractId  uint64  `json:"contId"		gencodec:"required"`
-	ContractInst uint64 `json:"contInst"	gencodec:"required"`
-	Receipts	[]*contractReception	`json:"contReceipt" gencodec:"required"`
-}
-type ContractResults  []*ContractResult;
+
 type txdataMarshaling struct {
-	TxType       byte            //should be always "T"
 	AccountNonce hexutil.Uint64
 	Price        *hexutil.Big
 	GasLimit     hexutil.Uint64
 	Amount       *hexutil.Big
-	TokenId		 hexutil.Uint64
 	Payload      hexutil.Bytes
 	V            *hexutil.Big
 	R            *hexutil.Big
 	S            *hexutil.Big
 }
-type contractMarshaling struct {
-		// "C" means contract creation  "S" means contract call
-		TxType       byte            `json:"txType" gencodec:"required"`
-		AccountNonce uint64          `json:"nonce"    gencodec:"required"`
-		Price        *big.Int        `json:"gasPrice" gencodec:"required"`
-		GasLimit     uint64          `json:"gas"      gencodec:"required"`
-		//Recipient means "to" when TxType is "T",   contractIS when "C"  contractInst when "S"
-		ContractId	 uint64			 `json:"cId" rlp:"nil"`
-		ContractInst uint64			 `json:"cInst" rlp:"nil"` //nil means only create contract template	
-		Amount       *big.Int        `json:"value"    gencodec:"required"`
-		TokenId      uint64			 `json:"tokenId"  rlp:"nil"` // nil means master token
-		Payload      []byte          `json:"input"    gencodec:"required"`
-	
-		// Signature values
-		V *big.Int `json:"v" gencodec:"required"`
-		R *big.Int `json:"r" gencodec:"required"`
-		S *big.Int `json:"s" gencodec:"required"`
-	
-		// This is only used when marshaling to JSON.
-		Hash *common.Hash `json:"hash" rlp:"-"`
+
+func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data)
 }
 
-func NewTransaction(nonce uint64,tokenId uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, tokenId,&to, amount, gasLimit, gasPrice, data)
+func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data)
 }
 
-func NewContractCall(nonce uint64, tokenId uint64,amount *big.Int, gasLimit uint64, gasPrice *big.Int, contractId uint64,contractInst uint64,data []byte) *Transaction {
-	return newContractTransaction(nonce, tokenId, amount, gasLimit, gasPrice,contractId,contractInst, data)
-}
-func newTransaction(nonce uint64,tokenId uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
 	if len(data) > 0 {
 		data = common.CopyBytes(data)
 	}
 	d := txdata{
-		TxType:	      byte('T'),
 		AccountNonce: nonce,
 		Recipient:    to,
 		Payload:      data,
 		Amount:       new(big.Int),
 		GasLimit:     gasLimit,
-		TokenId:	  tokenId,
 		Price:        new(big.Int),
 		V:            new(big.Int),
 		R:            new(big.Int),
@@ -149,41 +103,10 @@ func newTransaction(nonce uint64,tokenId uint64, to *common.Address, amount *big
 
 	return &Transaction{data: d}
 }
-//When contractId is nil, th
-func newContractTransaction(nonce uint64,tokenId uint64,amount *big.Int, gasLimit uint64, gasPrice *big.Int, contractId uint64,contractInst uint64,data []byte) *Transaction {
-	if len(data) > 0 {
-		data = common.CopyBytes(data)
-	}
-	d := txdata{
-		TxType:       byte('C'),
-		AccountNonce: nonce,
-		Payload:      data,
-		Amount:       new(big.Int),
-		GasLimit:     gasLimit,
-		ContractId:   contractId,
-		ContractInst: contractInst,
-		TokenId:	  tokenId,
-		Price:        new(big.Int),
-		V:            new(big.Int),
-		R:            new(big.Int),
-		S:            new(big.Int),
-	}
-	if amount != nil {
-		d.Amount.Set(amount)
-	}
-	if gasPrice != nil {
-		d.Price.Set(gasPrice)
-	}
 
-	return &Transaction{data: d}
-}
 // ChainId returns which chain id this transaction was signed for (if at all)
 func (tx *Transaction) ChainId() *big.Int {
 	return deriveChainId(tx.data.V)
-}
-
-func (tx *Transaction) Type() byte {
-	return tx.data.TxType;
 }
 
 // Protected returns whether the transaction is protected from replay protection.

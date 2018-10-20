@@ -21,21 +21,12 @@ import (
 	"fmt"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/swarm/log"
 	bv "github.com/EDXFund/MasterChain/swarm/network/bitvector"
 	"github.com/EDXFund/MasterChain/swarm/spancontext"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-	opentracing "github.com/opentracing/opentracing-go"
-=======
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	bv "github.com/ethereum/go-ethereum/swarm/network/bitvector"
-	"github.com/ethereum/go-ethereum/swarm/spancontext"
-	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/opentracing/opentracing-go"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var syncBatchTimeout = 30 * time.Second

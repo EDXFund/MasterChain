@@ -24,12 +24,7 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/rlp"
-=======
-	"github.com/ethereum/go-ethereum/rlp"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

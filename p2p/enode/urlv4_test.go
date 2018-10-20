@@ -25,13 +25,6 @@ import (
 	"strings"
 	"testing"
 	"testing/quick"
-<<<<<<< HEAD:p2p/discover/node_test.go
-	"time"
-
-	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/crypto"
-=======
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48:p2p/enode/urlv4_test.go
 )
 
 var parseNodeTests = []struct {

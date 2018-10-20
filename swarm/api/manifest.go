@@ -27,17 +27,11 @@ import (
 	"strings"
 	"time"
 
-<<<<<<< HEAD
+	"github.com/EDXFund/MasterChain/swarm/storage/feed"
+
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/swarm/log"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-=======
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	"github.com/ethereum/go-ethereum/swarm/storage"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 const (

@@ -16,37 +16,6 @@
 
 package vm
 
-<<<<<<< HEAD
-import (
-	"math/big"
-
-	"github.com/EDXFund/MasterChain/common"
-)
-
-// destinations stores one map per contract (keyed by hash of code).
-// The maps contain an entry for each location of a JUMPDEST
-// instruction.
-type destinations map[common.Hash]bitvec
-
-// has checks whether code has a JUMPDEST at dest.
-func (d destinations) has(codehash common.Hash, code []byte, dest *big.Int) bool {
-	// PC cannot go beyond len(code) and certainly can't be bigger than 63bits.
-	// Don't bother checking for JUMPDEST in that case.
-	udest := dest.Uint64()
-	if dest.BitLen() >= 63 || udest >= uint64(len(code)) {
-		return false
-	}
-
-	m, analysed := d[codehash]
-	if !analysed {
-		m = codeBitmap(code)
-		d[codehash] = m
-	}
-	return OpCode(code[udest]) == JUMPDEST && m.codeSegment(udest)
-}
-
-=======
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 // bitvec is a bit vector which maps bytes in a program.
 // An unset bit means the byte is an opcode, a set bit means
 // it's data (i.e. argument of PUSHxx).

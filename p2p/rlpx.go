@@ -35,21 +35,12 @@ import (
 	"sync"
 	"time"
 
-<<<<<<< HEAD
+	"github.com/EDXFund/MasterChain/common/bitutil"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/crypto/ecies"
 	"github.com/EDXFund/MasterChain/crypto/secp256k1"
 	"github.com/EDXFund/MasterChain/crypto/sha3"
-	"github.com/EDXFund/MasterChain/p2p/discover"
 	"github.com/EDXFund/MasterChain/rlp"
-=======
-	"github.com/ethereum/go-ethereum/common/bitutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
-	"github.com/ethereum/go-ethereum/rlp"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"github.com/golang/snappy"
 )
 

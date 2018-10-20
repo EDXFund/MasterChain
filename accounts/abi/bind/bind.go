@@ -29,12 +29,7 @@ import (
 	"text/template"
 	"unicode"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/accounts/abi"
-	"golang.org/x/tools/imports"
-=======
-	"github.com/ethereum/go-ethereum/accounts/abi"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // Lang is a target programming language selector to generate bindings for.

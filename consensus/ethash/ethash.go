@@ -33,13 +33,13 @@ import (
 	"time"
 	"unsafe"
 
+	mmap "github.com/edsrzf/mmap-go"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/rpc"
-	mmap "github.com/edsrzf/mmap-go"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
 
@@ -495,7 +495,6 @@ func New(config Config, notify []string, noverify bool) *Ethash {
 	}
 	go ethash.remote(notify, noverify)
 	return ethash
-
 }
 
 // NewTester creates a small sized ethash PoW scheme useful only for testing
@@ -516,7 +515,6 @@ func NewTester(notify []string, noverify bool) *Ethash {
 	}
 	go ethash.remote(notify, noverify)
 	return ethash
-
 }
 
 // NewFaker creates a ethash consensus engine with a fake PoW scheme that accepts

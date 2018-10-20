@@ -20,13 +20,11 @@ import (
 	"context"
 	"math/big"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/accounts"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/math"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/bloombits"
-	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/core/vm"
@@ -36,22 +34,6 @@ import (
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rpc"
-=======
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/bloombits"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // EthAPIBackend implements ethapi.Backend for full nodes
@@ -124,26 +106,11 @@ func (b *EthAPIBackend) GetBlock(ctx context.Context, hash common.Hash) (*types.
 }
 
 func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-<<<<<<< HEAD
-	if shardId, number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
-		return rawdb.ReadReceipts(b.eth.chainDb, hash, shardId, *number), nil
-	}
-	return nil, nil
-}
-
-func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
-	shardId, number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash)
-	if number == nil {
-		return nil, nil
-	}
-	receipts := rawdb.ReadReceipts(b.eth.chainDb, hash, shardId, *number)
-=======
 	return b.eth.blockchain.GetReceiptsByHash(hash), nil
 }
 
 func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
 	receipts := b.eth.blockchain.GetReceiptsByHash(hash)
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	if receipts == nil {
 		return nil, nil
 	}

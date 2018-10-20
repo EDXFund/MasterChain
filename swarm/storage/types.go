@@ -27,17 +27,10 @@ import (
 	"io"
 	"io/ioutil"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/swarm/bmt"
-	"github.com/EDXFund/MasterChain/swarm/chunk"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
-	"github.com/ethereum/go-ethereum/swarm/bmt"
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	ch "github.com/EDXFund/MasterChain/swarm/chunk"
 )
 
 const MaxPO = 16

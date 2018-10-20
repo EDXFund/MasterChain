@@ -24,14 +24,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
+	"github.com/EDXFund/MasterChain/p2p/enr"
 	"github.com/EDXFund/MasterChain/p2p/netutil"
-=======
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/p2p/netutil"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 func init() {

@@ -21,15 +21,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/crypto/sha3"
-	"github.com/EDXFund/MasterChain/swarm/chunk"
+	ch "github.com/EDXFund/MasterChain/swarm/chunk"
 	"github.com/EDXFund/MasterChain/swarm/storage/encryption"
-=======
-	"github.com/ethereum/go-ethereum/crypto/sha3"
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
-	"github.com/ethereum/go-ethereum/swarm/storage/encryption"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 type hasherStore struct {

@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/docker/docker/pkg/reexec"
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/accounts"
 	"github.com/EDXFund/MasterChain/accounts/keystore"
 	"github.com/EDXFund/MasterChain/internal/cmdtest"
@@ -41,18 +40,9 @@ import (
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/rpc"
 	"github.com/EDXFund/MasterChain/swarm"
-=======
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/internal/cmdtest"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/swarm"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	swarmhttp "github.com/ethereum/go-ethereum/swarm/api/http"
-	"github.com/ethereum/go-ethereum/swarm/testutil"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/swarm/api"
+	swarmhttp "github.com/EDXFund/MasterChain/swarm/api/http"
+	"github.com/EDXFund/MasterChain/swarm/testutil"
 )
 
 var loglevel = flag.Int("loglevel", 3, "verbosity of logs")

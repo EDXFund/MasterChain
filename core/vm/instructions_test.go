@@ -21,14 +21,9 @@ import (
 	"math/big"
 	"testing"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/params"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 type twoOperandTest struct {

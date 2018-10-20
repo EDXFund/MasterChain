@@ -25,13 +25,8 @@ import (
 	"sync"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/swarm/chunk"
+	ch "github.com/EDXFund/MasterChain/swarm/chunk"
 	"github.com/EDXFund/MasterChain/swarm/log"
-=======
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
-	"github.com/ethereum/go-ethereum/swarm/log"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 /*

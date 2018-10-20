@@ -29,7 +29,6 @@ import (
 	"time"
 	"unicode"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/accounts/abi/bind"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/contracts/chequebook"
@@ -37,7 +36,7 @@ import (
 	"github.com/EDXFund/MasterChain/ethclient"
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/p2p"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/p2p/protocols"
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rpc"
@@ -50,34 +49,9 @@ import (
 	"github.com/EDXFund/MasterChain/swarm/pss"
 	"github.com/EDXFund/MasterChain/swarm/state"
 	"github.com/EDXFund/MasterChain/swarm/storage"
+	"github.com/EDXFund/MasterChain/swarm/storage/feed"
 	"github.com/EDXFund/MasterChain/swarm/storage/mock"
-	"github.com/EDXFund/MasterChain/swarm/storage/mru"
 	"github.com/EDXFund/MasterChain/swarm/tracing"
-=======
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contracts/chequebook"
-	"github.com/ethereum/go-ethereum/contracts/ens"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/protocols"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
-	"github.com/ethereum/go-ethereum/swarm/fuse"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	"github.com/ethereum/go-ethereum/swarm/network"
-	"github.com/ethereum/go-ethereum/swarm/network/stream"
-	"github.com/ethereum/go-ethereum/swarm/pss"
-	"github.com/ethereum/go-ethereum/swarm/state"
-	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
-	"github.com/ethereum/go-ethereum/swarm/storage/mock"
-	"github.com/ethereum/go-ethereum/swarm/tracing"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 var (

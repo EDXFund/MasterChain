@@ -27,14 +27,9 @@ import (
 	"testing/quick"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/crypto"
-=======
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/p2p/enode"
+	"github.com/EDXFund/MasterChain/p2p/enr"
 )
 
 func TestTable_pingReplace(t *testing.T) {

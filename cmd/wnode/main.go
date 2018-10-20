@@ -35,29 +35,16 @@ import (
 	"strings"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/cmd/utils"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/console"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/p2p"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/p2p/nat"
 	"github.com/EDXFund/MasterChain/whisper/mailserver"
 	whisper "github.com/EDXFund/MasterChain/whisper/whisperv6"
-=======
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/nat"
-	"github.com/ethereum/go-ethereum/whisper/mailserver"
-	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"golang.org/x/crypto/pbkdf2"
 )
 

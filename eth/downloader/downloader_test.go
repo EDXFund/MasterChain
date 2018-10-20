@@ -238,6 +238,7 @@ func (dl *downloadTester) GetHeaderByHash(hash common.Hash) *types.Header {
 func (dl *downloadTester) GetBlockByHash(hash common.Hash) *types.Block {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
+
 	return dl.ownBlocks[hash]
 }
 

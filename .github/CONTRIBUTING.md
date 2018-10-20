@@ -35,7 +35,7 @@ in the right hands. Please check our [Wiki page](https://github.com/EDXFund/Mast
 Before you submit a feature request, please check and make sure that it isn't 
 possible through some other means. The JavaScript-enabled console is a powerful 
 feature in the right hands. Please check our 
-[Wiki page](https://github.com/ethereum/go-ethereum/wiki) for more info
+[Wiki page](https://github.com/EDXFund/MasterChain/wiki) for more info
 >>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 and help.
 
@@ -46,7 +46,7 @@ See [Developers' Guide](https://github.com/EDXFund/MasterChain/wiki/Developers'-
 for more details on configuring your environment, testing, and
 dependency management.
 =======
-Please see the [Developers' Guide](https://github.com/ethereum/go-ethereum/wiki/Developers'-Guide)
+Please see the [Developers' Guide](https://github.com/EDXFund/MasterChain/wiki/Developers'-Guide)
 for more details on configuring your environment, managing project dependencies
 and testing procedures.
 >>>>>>> 66debd91d9268067000c061093a674ce34f18d48

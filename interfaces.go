@@ -63,21 +63,6 @@ type ChainReader interface {
 	// the canonical chain.
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (Subscription, error)
 }
-/*
-// The returned error is NotFound if the requested item does not exist.
-type MCChainReader interface {
-	BlockByHash(ctx context.Context, hash common.Hash) (*types.MCBlock, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.MCBlock, error)
-	HeaderByHash(ctx context.Context, hash common.Hash) (*types.MCHeader, error)
-	HeaderByNumber(ctx context.Context, number *big.Int) (*types.MCHeader, error)
-	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
-	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error)
-
-	// This method subscribes to notifications about changes of the head block of
-	// the canonical chain.
-	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (Subscription, error)
-}
-*/
 
 // TransactionReader provides access to past transactions and their receipts.
 // Implementations may impose arbitrary restrictions on the transactions and receipts that

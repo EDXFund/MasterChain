@@ -20,13 +20,7 @@ package storage
 // no need for queueing/caching
 
 import (
-<<<<<<< HEAD
-	"fmt"
-
 	"github.com/EDXFund/MasterChain/metrics"
-=======
-	"github.com/ethereum/go-ethereum/metrics"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"

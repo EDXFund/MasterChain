@@ -37,7 +37,6 @@ import (
 	"path/filepath"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/contracts/ens"
 	"github.com/EDXFund/MasterChain/core/types"
@@ -46,20 +45,9 @@ import (
 	"github.com/EDXFund/MasterChain/swarm/multihash"
 	"github.com/EDXFund/MasterChain/swarm/spancontext"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-	"github.com/EDXFund/MasterChain/swarm/storage/mru"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contracts/ens"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/swarm/log"
-	"github.com/ethereum/go-ethereum/swarm/multihash"
-	"github.com/ethereum/go-ethereum/swarm/spancontext"
-	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed/lookup"
+	"github.com/EDXFund/MasterChain/swarm/storage/feed"
+	"github.com/EDXFund/MasterChain/swarm/storage/feed/lookup"
 
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	opentracing "github.com/opentracing/opentracing-go"
 )
 

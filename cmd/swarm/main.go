@@ -29,7 +29,6 @@ import (
 	"strings"
 	"syscall"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/accounts"
 	"github.com/EDXFund/MasterChain/accounts/keystore"
 	"github.com/EDXFund/MasterChain/cmd/utils"
@@ -39,29 +38,12 @@ import (
 	"github.com/EDXFund/MasterChain/internal/debug"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
-	"github.com/EDXFund/MasterChain/p2p/discover"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/swarm"
 	bzzapi "github.com/EDXFund/MasterChain/swarm/api"
 	swarmmetrics "github.com/EDXFund/MasterChain/swarm/metrics"
 	"github.com/EDXFund/MasterChain/swarm/tracing"
 	sv "github.com/EDXFund/MasterChain/swarm/version"
-=======
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/swarm"
-	bzzapi "github.com/ethereum/go-ethereum/swarm/api"
-	swarmmetrics "github.com/ethereum/go-ethereum/swarm/metrics"
-	"github.com/ethereum/go-ethereum/swarm/tracing"
-	sv "github.com/ethereum/go-ethereum/swarm/version"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 
 	"gopkg.in/urfave/cli.v1"
 )

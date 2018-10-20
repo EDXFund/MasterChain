@@ -35,8 +35,6 @@ import (
 // ChainIndexerBackend defines the methods needed to process chain segments in
 // the background and write the segment results into the database. These can be
 // used to create filter blooms or CHTs.
-
-// Bloom logs only logged in master chain
 type ChainIndexerBackend interface {
 	// Reset initiates the processing of a new chain segment, potentially terminating
 	// any partially completed operations (in case of a reorg).
@@ -69,7 +67,6 @@ type ChainIndexerChain interface {
 // after an entire section has been finished or in case of rollbacks that might
 // affect already finished sections.
 type ChainIndexer struct {
-	shardId  uint16
 	chainDb  ethdb.Database      // Chain database to index the data from
 	indexDb  ethdb.Database      // Prefixed table-view of the db to write index metadata into
 	backend  ChainIndexerBackend // Background processor generating the index data content
@@ -100,9 +97,8 @@ type ChainIndexer struct {
 // NewChainIndexer creates a new chain indexer to do background processing on
 // chain segments of a given size after certain number of confirmations passed.
 // The throttling parameter might be used to prevent database thrashing.
-func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, shardId uint16, section, confirm uint64, throttling time.Duration, kind string) *ChainIndexer {
+func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string) *ChainIndexer {
 	c := &ChainIndexer{
-		shardId:     shardId,
 		chainDb:     chainDb,
 		indexDb:     indexDb,
 		backend:     backend,
@@ -283,7 +279,7 @@ func (c *ChainIndexer) newHead(head uint64, reorg bool) {
 		if sections > c.knownSections {
 			if c.knownSections < c.checkpointSections {
 				// syncing reached the checkpoint, verify section head
-				syncedHead := rawdb.ReadCanonicalHash(c.chainDb, uint16(types.ShardMaster), c.checkpointSections*c.sectionSize-1)
+				syncedHead := rawdb.ReadCanonicalHash(c.chainDb, c.checkpointSections*c.sectionSize-1)
 				if syncedHead != c.checkpointHead {
 					c.log.Error("Synced chain does not match checkpoint", "number", c.checkpointSections*c.sectionSize-1, "expected", c.checkpointHead, "synced", syncedHead)
 					return
@@ -394,11 +390,11 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 	}
 
 	for number := section * c.sectionSize; number < (section+1)*c.sectionSize; number++ {
-		hash := rawdb.ReadCanonicalHash(c.chainDb, c.shardId, number)
+		hash := rawdb.ReadCanonicalHash(c.chainDb, number)
 		if hash == (common.Hash{}) {
 			return common.Hash{}, fmt.Errorf("canonical block #%d unknown", number)
 		}
-		header := rawdb.ReadHeader(c.chainDb, hash, c.shardId, number)
+		header := rawdb.ReadHeader(c.chainDb, hash, number)
 		if header == nil {
 			return common.Hash{}, fmt.Errorf("block #%d [%x…] not found", number, hash[:4])
 		} else if header.ParentHash != lastHead {

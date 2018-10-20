@@ -21,20 +21,12 @@ import (
 	"strings"
 	"testing"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/accounts/abi"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/ethdb"
-=======
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/params"
 )
 
 func TestDefaults(t *testing.T) {

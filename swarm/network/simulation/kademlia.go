@@ -21,18 +21,10 @@ import (
 	"encoding/hex"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/p2p/discover"
-
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/log"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/EDXFund/MasterChain/swarm/network"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/swarm/network"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 // BucketKeyKademlia is the key to be used for storing the kademlia

@@ -38,7 +38,8 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
+	"github.com/EDXFund/MasterChain/swarm/storage/feed/lookup"
+
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/crypto"
@@ -47,22 +48,8 @@ import (
 	swarm "github.com/EDXFund/MasterChain/swarm/api/client"
 	"github.com/EDXFund/MasterChain/swarm/multihash"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-	"github.com/EDXFund/MasterChain/swarm/storage/mru"
+	"github.com/EDXFund/MasterChain/swarm/storage/feed"
 	"github.com/EDXFund/MasterChain/swarm/testutil"
-=======
-	"github.com/ethereum/go-ethereum/swarm/storage/feed/lookup"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
-	"github.com/ethereum/go-ethereum/swarm/multihash"
-	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
-	"github.com/ethereum/go-ethereum/swarm/testutil"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 )
 
 func init() {

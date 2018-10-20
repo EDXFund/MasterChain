@@ -16,13 +16,7 @@
 
 package simulation
 
-<<<<<<< HEAD
-import (
-	"github.com/EDXFund/MasterChain/p2p/discover"
-)
-=======
-import "github.com/ethereum/go-ethereum/p2p/enode"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+import "github.com/EDXFund/MasterChain/p2p/enode"
 
 // BucketKey is the type that should be used for keys in simulation buckets.
 type BucketKey string

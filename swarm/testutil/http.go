@@ -23,15 +23,9 @@ import (
 	"os"
 	"testing"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/swarm/api"
 	"github.com/EDXFund/MasterChain/swarm/storage"
-	"github.com/EDXFund/MasterChain/swarm/storage/mru"
-=======
-	"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/swarm/storage/feed"
 )
 
 type TestServer interface {

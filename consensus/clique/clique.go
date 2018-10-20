@@ -60,7 +60,7 @@ var (
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
 	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
 
-//	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
 	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
@@ -147,12 +147,12 @@ type SignerFn func(accounts.Account, []byte) ([]byte, error)
 // Note, the method requires the extra data to be at least 65 bytes, otherwise it
 // panics. This is done to avoid accidentally using both forms (signature present
 // or not), which could be abused to produce different hashes for the same header.
-//////////MUST TODO: add defferent type of header to build hash
 func sigHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewKeccak256()
 
 	rlp.Encode(hasher, []interface{}{
 		header.ParentHash,
+		header.UncleHash,
 		header.Coinbase,
 		header.Root,
 		header.TxHash,
@@ -313,7 +313,10 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 	if header.MixDigest != (common.Hash{}) {
 		return errInvalidMixDigest
 	}
-
+	// Ensure that the block doesn't contain any uncles which are meaningless in PoA
+	if header.UncleHash != uncleHash {
+		return errInvalidUncleHash
+	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
 		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
@@ -451,13 +454,12 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 
 // VerifyUncles implements consensus.Engine, always returning an error for any
 // uncles as this consensus mechanism doesn't permit uncles.
-/*func (c *Clique) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
+func (c *Clique) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	if len(block.Uncles()) > 0 {
 		return errors.New("uncles not allowed")
 	}
 	return nil
 }
-*/
 
 // VerifySeal implements consensus.Engine, checking whether the signature contained
 // in the header satisfies the consensus protocol requirements.
@@ -577,12 +579,13 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given, and returns the final block.
-func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, blks []*types.ShardBlockInfo, rejections []*types.RejectInfo) (*types.Block, error) {
+func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, receipts,blks,rejections), nil
+	return types.NewBlock(header, txs, nil, receipts), nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks

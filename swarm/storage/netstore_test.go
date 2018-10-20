@@ -25,13 +25,9 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/swarm/network"
-=======
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/p2p/enode"
+	ch "github.com/EDXFund/MasterChain/swarm/chunk"
 )
 
 var sourcePeerID = enode.HexID("99d8594b52298567d2ca3f4c441a5ba0140ee9245e26460d01102a52773c73b9")

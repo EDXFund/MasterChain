@@ -68,7 +68,6 @@ type Ethereum struct {
 
 	// Handlers
 	txPool          *core.TxPool
-	shardBlockPool  *core.S
 	blockchain      *core.BlockChain
 	protocolManager *ProtocolManager
 	lesServer       LesServer
@@ -90,7 +89,6 @@ type Ethereum struct {
 	etherbase common.Address
 
 	networkID     uint64
-	shardId       uint16
 	netRPCService *ethapi.PublicNetAPI
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
@@ -103,8 +101,7 @@ func (s *Ethereum) AddLesServer(ls LesServer) {
 
 // New creates a new Ethereum object (including the
 // initialisation of the common Ethereum object)
-// add parameter shardId to this function, enabling change shardId dynamically
-func New(ctx *node.ServiceContext, config *Config, shardId uint16) (*Ethereum, error) {
+func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
 	if config.SyncMode == downloader.LightSync {
 		return nil, errors.New("can't run eth.Ethereum in light sync mode, use les.LightEthereum")
@@ -121,14 +118,13 @@ func New(ctx *node.ServiceContext, config *Config, shardId uint16) (*Ethereum, e
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlock(chainDb, config.Genesis, shardId)
+	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlock(chainDb, config.Genesis)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{
-		shardId:        shardId, //add shard to node
 		config:         config,
 		chainDb:        chainDb,
 		chainConfig:    chainConfig,
@@ -140,7 +136,7 @@ func New(ctx *node.ServiceContext, config *Config, shardId uint16) (*Ethereum, e
 		gasPrice:       config.MinerGasPrice,
 		etherbase:      config.Etherbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		bloomIndexer:   NewBloomIndexer(chainDb, shardId, params.BloomBitsBlocks, params.BloomConfirms),
+		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
 	}
 
 	log.Info("Initialising Ethereum protocol", "versions", ProtocolVersions, "network", config.NetworkId)
@@ -160,11 +156,7 @@ func New(ctx *node.ServiceContext, config *Config, shardId uint16) (*Ethereum, e
 		}
 		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieNodeLimit: config.TrieCache, TrieTimeLimit: config.TrieTimeout}
 	)
-<<<<<<< HEAD
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig, shardId)
-=======
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig, eth.shouldPreserve)
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +470,6 @@ func (s *Ethereum) IsListening() bool                  { return true } // Always
 func (s *Ethereum) EthVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
 func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
-func (s *Ethereum) ShardId() uint16                    { return s.shardId }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

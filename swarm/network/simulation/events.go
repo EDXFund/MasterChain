@@ -20,14 +20,8 @@ import (
 	"context"
 	"sync"
 
-<<<<<<< HEAD
-	"github.com/EDXFund/MasterChain/p2p/discover"
-
 	"github.com/EDXFund/MasterChain/p2p"
-=======
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	"github.com/EDXFund/MasterChain/p2p/enode"
 )
 
 // PeerEvent is the type of the channel returned by Simulation.PeerEvents.

@@ -21,18 +21,11 @@ import (
 	"fmt"
 	"io"
 
-<<<<<<< HEAD:p2p/enr/idscheme.go
 	"github.com/EDXFund/MasterChain/common/math"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/crypto/sha3"
+	"github.com/EDXFund/MasterChain/p2p/enr"
 	"github.com/EDXFund/MasterChain/rlp"
-=======
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
-	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48:p2p/enode/idscheme.go
 )
 
 // List of known secure identity schemes.

@@ -29,12 +29,8 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/EDXFund/MasterChain/log"
-=======
-	"github.com/ethereum/go-ethereum/log"
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
->>>>>>> 66debd91d9268067000c061093a674ce34f18d48
+	ch "github.com/EDXFund/MasterChain/swarm/chunk"
 	colorable "github.com/mattn/go-colorable"
 )
 
