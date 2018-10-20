@@ -22,6 +22,9 @@ import (
 	"github.com/EDXFund/MasterChain/core/vm"
 )
 
+var (
+	ShardMaster = 0xFFFF
+)
 // Validator is an interface which defines the standard for block validation. It
 // is only responsible for validating block contents, as the header validation is
 // done by the specific consensus engines.

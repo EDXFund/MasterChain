@@ -268,11 +268,13 @@ func (p *BzzPeer) ID() enode.ID {
 
 * Version: 8 byte integer version of the protocol
 * NetworkID: 8 byte integer network identifier
+* ShardId:  2 byte integer shard identifier 0xFFFF for master node
 * Addr: the address advertised by the node including underlay and overlay connecctions
 */
 type HandshakeMsg struct {
 	Version   uint64
 	NetworkID uint64
+	ShardId   uint16
 	Addr      *BzzAddr
 	LightNode bool
 
@@ -286,7 +288,7 @@ type HandshakeMsg struct {
 
 // String pretty prints the handshake
 func (bh *HandshakeMsg) String() string {
-	return fmt.Sprintf("Handshake: Version: %v, NetworkID: %v, Addr: %v, LightNode: %v, peerAddr: %v", bh.Version, bh.NetworkID, bh.Addr, bh.LightNode, bh.peerAddr)
+	return fmt.Sprintf("Handshake: Version: %v, NetworkID: %v, Addr: %v, ShardId: %v, LightNode: %v, peerAddr: %v", bh.Version, bh.NetworkID, bh.ShardId, bh.Addr, bh.LightNode, bh.peerAddr)
 }
 
 // Perform initiates the handshake and validates the remote handshake message

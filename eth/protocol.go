@@ -112,6 +112,7 @@ type txPool interface {
 type statusData struct {
 	ProtocolVersion uint32
 	NetworkId       uint64
+	ShardId		    uint16
 	TD              *big.Int
 	CurrentBlock    common.Hash
 	GenesisBlock    common.Hash

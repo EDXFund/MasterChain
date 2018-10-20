@@ -38,6 +38,7 @@ const (
 	AddressLength = 20
 )
 
+const ShardMaster  uint16= 0xFFFF
 var (
 	hashT    = reflect.TypeOf(Hash{})
 	addressT = reflect.TypeOf(Address{})

@@ -71,10 +71,15 @@ type propEvent struct {
 	block *types.Block
 	td    *big.Int
 }
+// propEvent is a block propagation, waiting for its turn in the broadcast queue.
+type propShardEvent struct {
+	block *types.SBlock
+	td    *big.Int
+}
 
 type peer struct {
 	id string
-
+	shardId uint16
 	*p2p.Peer
 	rw p2p.MsgReadWriter
 
@@ -89,7 +94,9 @@ type peer struct {
 	knownBlocks mapset.Set                // Set of block hashes known to be known by this peer
 	queuedTxs   chan []*types.Transaction // Queue of transactions to broadcast to the peer
 	queuedProps chan *propEvent           // Queue of blocks to broadcast to the peer
+	queuedShardProps chan *propShardEvent           // Queue of blocks to broadcast to the peer
 	queuedAnns  chan *types.Block         // Queue of blocks to announce to the peer
+	queuedShardAnns  chan *types.SBlock         // Queue of blocks to announce to the peer
 	term        chan struct{}             // Termination channel to stop the broadcaster
 }
 
@@ -97,6 +104,7 @@ func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 	return &peer{
 		Peer:        p,
 		rw:          rw,
+		shardId:     common.ShardMaster,
 		version:     version,
 		id:          fmt.Sprintf("%x", p.ID().Bytes()[:8]),
 		knownTxs:    mapset.NewSet(),
@@ -241,6 +249,18 @@ func (p *peer) AsyncSendNewBlockHash(block *types.Block) {
 	}
 }
 
+// AsyncSendNewBlockHash queues the availability of a block for propagation to a
+// remote peer. If the peer's broadcast queue is full, the event is silently
+// dropped.
+func (p *peer) AsyncSendNewShardBlockHash(block *types.SBlock) {
+	select {
+	case p.queuedShardAnns <- block:
+		p.knownBlocks.Add(block.Hash())
+	default:
+		p.Log().Debug("Dropping block announcement", "number", block.NumberU64(), "hash", block.Hash())
+	}
+}
+
 // SendNewBlock propagates an entire block to a remote peer.
 func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
 	p.knownBlocks.Add(block.Hash())
@@ -252,6 +272,15 @@ func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
 func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 	select {
 	case p.queuedProps <- &propEvent{block: block, td: td}:
+		p.knownBlocks.Add(block.Hash())
+	default:
+		p.Log().Debug("Dropping block propagation", "number", block.NumberU64(), "hash", block.Hash())
+	}
+}
+
+func (p *peer) AsyncSendNewShardBlock(block *types.SBlock, td *big.Int) {
+	select {
+	case p.queuedShardProps <- &propShardEvent{block: block, td: td}:
 		p.knownBlocks.Add(block.Hash())
 	default:
 		p.Log().Debug("Dropping block propagation", "number", block.NumberU64(), "hash", block.Hash())
@@ -329,7 +358,7 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 
 // Handshake executes the eth protocol handshake, negotiating version number,
 // network IDs, difficulties, head and genesis blocks.
-func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis common.Hash) error {
+func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis common.Hash,shardId uint16) error {
 	// Send out own handshake in a new thread
 	errc := make(chan error, 2)
 	var status statusData // safe to read after two values have been received from errc
@@ -338,6 +367,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 		errc <- p2p.Send(p.rw, StatusMsg, &statusData{
 			ProtocolVersion: uint32(p.version),
 			NetworkId:       network,
+			ShardId:		 shardId,
 			TD:              td,
 			CurrentBlock:    head,
 			GenesisBlock:    genesis,
@@ -395,11 +425,11 @@ func (p *peer) String() string {
 		fmt.Sprintf("eth/%2d", p.version),
 	)
 }
-
+type PeersOfShard map[string]*peer
 // peerSet represents the collection of active peers currently participating in
 // the Ethereum sub-protocol.
 type peerSet struct {
-	peers  map[string]*peer
+	peers  map[uint16]PeersOfShard
 	lock   sync.RWMutex
 	closed bool
 }
@@ -407,7 +437,7 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers: make(map[string]*peer),
+		peers: make(map[uint16]PeersOfShard),
 	}
 }
 
@@ -421,10 +451,16 @@ func (ps *peerSet) Register(p *peer) error {
 	if ps.closed {
 		return errClosed
 	}
-	if _, ok := ps.peers[p.id]; ok {
-		return errAlreadyRegistered
+	if shardPeer,exist := ps.peers[p.shardId]; exist{
+		if _, ok := shardPeer[p.id]; ok {
+			return errAlreadyRegistered
+		}
+	}else{
+		ps.peers[p.shardId] = make(map[string]*peer)
+		ps.peers[p.shardId][p.id] = p
 	}
-	ps.peers[p.id] = p
+
+
 	go p.broadcast()
 
 	return nil
@@ -435,14 +471,21 @@ func (ps *peerSet) Register(p *peer) error {
 func (ps *peerSet) Unregister(id string) error {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
+	found := false
+	//find in all shard
+	for _,peers := range ps.peers {
+		p, ok := peers[id]
+		if ok {
+			found = true
+			delete(peers,id)
+			p.close()
+			break;
+		}
+	}
 
-	p, ok := ps.peers[id]
-	if !ok {
+	if !found {
 		return errNotRegistered
 	}
-	delete(ps.peers, id)
-	p.close()
-
 	return nil
 }
 
@@ -451,15 +494,24 @@ func (ps *peerSet) Peer(id string) *peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	return ps.peers[id]
+	for _,peers := range ps.peers {
+		p, ok := peers[id]
+		if ok {
+			return p
+		}
+	}
+	return nil
 }
 
 // Len returns if the current number of peers in the set.
 func (ps *peerSet) Len() int {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
-
-	return len(ps.peers)
+	alen := 0
+	for _,peers := range ps.peers {
+		alen += len(peers)
+	}
+	return alen
 }
 
 // PeersWithoutBlock retrieves a list of peers that do not have a given block in
@@ -469,11 +521,28 @@ func (ps *peerSet) PeersWithoutBlock(hash common.Hash) []*peer {
 	defer ps.lock.RUnlock()
 
 	list := make([]*peer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		if !p.knownBlocks.Contains(hash) {
-			list = append(list, p)
+	for _, peers := range ps.peers {
+		for _, p := range peers {
+			if !p.knownBlocks.Contains(hash) {
+				list = append(list, p)
+			}
 		}
 	}
+	return list
+}
+func (ps *peerSet) ShardPeersWithoutBlock(shardId uint16,hash common.Hash) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	if  shardPeers,ok := ps.peers[shardId];ok {
+		for _, p := range shardPeers {
+			if !p.knownBlocks.Contains(hash) {
+				list = append(list, p)
+			}
+		}
+	}
+
 	return list
 }
 
@@ -484,9 +553,27 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 	defer ps.lock.RUnlock()
 
 	list := make([]*peer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		if !p.knownTxs.Contains(hash) {
-			list = append(list, p)
+	for _, peers := range ps.peers {
+		for _, p := range peers {
+
+			if !p.knownTxs.Contains(hash) {
+				list = append(list, p)
+			}
+		}
+	}
+	return list
+}
+
+func (ps *peerSet) ShardPeersWithoutTx(shardId uint16,hash common.Hash) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	if  shardPeers,ok := ps.peers[shardId];ok {
+		for _, p := range shardPeers {
+			if !p.knownTxs.Contains(hash) {
+				list = append(list, p)
+			}
 		}
 	}
 	return list
@@ -501,12 +588,40 @@ func (ps *peerSet) BestPeer() *peer {
 		bestPeer *peer
 		bestTd   *big.Int
 	)
-	for _, p := range ps.peers {
-		if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
-			bestPeer, bestTd = p, td
+	if  peers, ok := ps.peers[common.ShardMaster] ; ok  {
+		for _, p := range peers {
+			if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
+				bestPeer, bestTd = p, td
+			}
 		}
+		return bestPeer
+	}else {
+
+		return nil
 	}
-	return bestPeer
+
+}
+
+// BestPeer retrieves the known peer with the currently highest total difficulty.
+func (ps *peerSet) BestPeerOfShard(shardId uint16) *peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	var (
+		bestPeer *peer
+		bestTd   *big.Int
+	)
+	if shardPeers,ok := ps.peers[shardId] ; ok {
+		for _, p := range shardPeers {
+			if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
+				bestPeer, bestTd = p, td
+			}
+		}
+		return bestPeer
+	} else {
+		return nil
+	}
+
 }
 
 // Close disconnects all peers.
@@ -516,7 +631,10 @@ func (ps *peerSet) Close() {
 	defer ps.lock.Unlock()
 
 	for _, p := range ps.peers {
-		p.Disconnect(p2p.DiscQuitting)
+		for _,ps := range  p {
+			ps.Disconnect(p2p.DiscQuitting)
+		}
+
 	}
 	ps.closed = true
 }
