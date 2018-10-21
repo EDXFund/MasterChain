@@ -37,14 +37,17 @@ import (
 
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
-	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
-	UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
-	Coinbase    common.Address `json:"miner"            gencodec:"required"`
-	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
-	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
-	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+	ParentHash  	common.Hash    `json:"parentHash"       gencodec:"required"`
+	UncleHash   	common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+	Coinbase    	common.Address `json:"miner"            gencodec:"required"`
+	ShardBlockHash 	common.Hash 	`json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
+	ShardMaskEp 	uint8			 `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
+	ShardEnabled 	[]byte 		   `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
+	Root        	common.Hash    `json:"stateRoot"        gencodec:"required"`
+	TxHash      	common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ReceiptHash 	common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-	BloomReject Bloom          `json:"rjLogsBloom"        gencodec:"required"`
+	BloomReject Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
 	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
 	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`

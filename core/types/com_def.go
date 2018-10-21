@@ -208,3 +208,27 @@ func (r *ContractResultStorage) DecodeRLP(s *rlp.Stream) error {
 	r.TxHash = dec.TxHash
 	return nil
 }
+type LastShardInfo struct {
+	ShardId 		uint16
+	BlockNumber 	uint64
+	Hash      		common.Hash
+	Td        		uint64
+}
+
+// TxDifference returns a new set which is the difference between a and b.
+func ShardBlockDifference(a, b ShardBlockInfos) ShardBlockInfos {
+	keep := make(ShardBlockInfos, 0, len(a))
+
+	remove := make(map[common.Hash]struct{})
+	for _, tx := range b {
+		remove[tx.Hash()] = struct{}{}
+	}
+
+	for _, tx := range a {
+		if _, ok := remove[tx.Hash()]; !ok {
+			keep = append(keep, tx)
+		}
+	}
+
+	return keep
+}
