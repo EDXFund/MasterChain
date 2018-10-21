@@ -44,6 +44,7 @@ type Header struct {
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
+	BloomReject Bloom          `json:"rjLogsBloom"        gencodec:"required"`
 	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
 	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
@@ -76,11 +77,34 @@ func (h *Header) Hash() common.Hash {
 func (h *Header) Size() common.StorageSize {
 	return common.StorageSize(unsafe.Sizeof(*h)) + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen()+h.Time.BitLen())/8)
 }
+type ShardBlockInfo struct{
+	shardId   		uint16
+	blockNumber  	uint64
+	blockHash    	common.Hash
+}
+func (t *ShardBlockInfo) ShardId() uint16 { return t.shardId}
+func (t *ShardBlockInfo) BlockNumber() uint64 {return t.blockNumber}
+func (t *ShardBlockInfo) Hash() common.Hash{return  t.blockHash}
+// Transactions is a Transaction slice type for basic sorting.
+type ShardBlockInfos []*ShardBlockInfo
 
+// Len returns the length of s.
+func (s ShardBlockInfos) Len() int { return len(s) }
+
+// Swap swaps the i'th and the j'th element in s.
+func (s ShardBlockInfos) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// GetRlp implements Rlpable and returns the i'th element of s in rlp.
+func (s ShardBlockInfos) GetRlp(i int) []byte {
+	enc, _ := rlp.EncodeToBytes(s[i])
+	return enc
+}
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
+// In 1st Implemention, Uncles has not been removed
 type Body struct {
-	Transactions []*Transaction
+	Transactions []*ShardBlockInfo
+
 	Uncles       []*Header
 }
 
@@ -88,7 +112,7 @@ type Body struct {
 type Block struct {
 	header       *Header
 	uncles       []*Header
-	transactions Transactions
+	shardBlocks ShardBlockInfos
 
 	// caches
 	hash atomic.Value
@@ -120,7 +144,7 @@ type StorageBlock Block
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
 	Header *Header
-	Txs    []*Transaction
+	Blks    []*ShardBlockInfo
 	Uncles []*Header
 }
 
@@ -128,7 +152,7 @@ type extblock struct {
 // "storage" block encoding. used for database.
 type storageblock struct {
 	Header *Header
-	Txs    []*Transaction
+	Blks    []*ShardBlockInfo
 	Uncles []*Header
 	TD     *big.Int
 }
@@ -140,16 +164,16 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*Receipt) *Block {
+func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts []*Receipt) *Block {
 	b := &Block{header: CopyHeader(header), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
-	if len(txs) == 0 {
+	if len(blks) == 0 {
 		b.header.TxHash = EmptyRootHash
 	} else {
-		b.header.TxHash = DeriveSha(Transactions(txs))
-		b.transactions = make(Transactions, len(txs))
-		copy(b.transactions, txs)
+		b.header.TxHash = DeriveSha(ShardBlockInfos(blks))
+		b.shardBlocks = make(ShardBlockInfos, len(blks))
+		copy(b.shardBlocks, blks)
 	}
 
 	if len(receipts) == 0 {
@@ -206,7 +230,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions = eb.Header, eb.Uncles, eb.Txs
+	b.header, b.uncles, b.shardBlocks = eb.Header, eb.Uncles, eb.Blks
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -215,7 +239,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header: b.header,
-		Txs:    b.transactions,
+		Blks:    b.shardBlocks,
 		Uncles: b.uncles,
 	})
 }
@@ -226,17 +250,17 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.transactions, b.td = sb.Header, sb.Uncles, sb.Txs, sb.TD
+	b.header, b.uncles, b.shardBlocks, b.td = sb.Header, sb.Uncles, sb.Blks, sb.TD
 	return nil
 }
 
 // TODO: copies
 
 func (b *Block) Uncles() []*Header          { return b.uncles }
-func (b *Block) Transactions() Transactions { return b.transactions }
+func (b *Block) ShardBlocks() ShardBlockInfos { return b.shardBlocks }
 
-func (b *Block) Transaction(hash common.Hash) *Transaction {
-	for _, transaction := range b.transactions {
+func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
+	for _, transaction := range b.shardBlocks {
 		if transaction.Hash() == hash {
 			return transaction
 		}
@@ -254,6 +278,7 @@ func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
 func (b *Block) MixDigest() common.Hash   { return b.header.MixDigest }
 func (b *Block) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
 func (b *Block) Bloom() Bloom             { return b.header.Bloom }
+func (b *Block) BloomRejected() Bloom     { return b.header.BloomReject }
 func (b *Block) Coinbase() common.Address { return b.header.Coinbase }
 func (b *Block) Root() common.Hash        { return b.header.Root }
 func (b *Block) ParentHash() common.Hash  { return b.header.ParentHash }
@@ -265,7 +290,7 @@ func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Ext
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.uncles} }
+func (b *Block) Body() *Body { return &Body{b.shardBlocks, b.uncles} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -291,19 +316,19 @@ func (b *Block) WithSeal(header *Header) *Block {
 
 	return &Block{
 		header:       &cpy,
-		transactions: b.transactions,
+		shardBlocks:  b.shardBlocks,
 		uncles:       b.uncles,
 	}
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(transactions []*Transaction, uncles []*Header) *Block {
+func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header) *Block {
 	block := &Block{
 		header:       CopyHeader(b.header),
-		transactions: make([]*Transaction, len(transactions)),
+		shardBlocks: make([]*ShardBlockInfo, len(shardBlocksInfos)),
 		uncles:       make([]*Header, len(uncles)),
 	}
-	copy(block.transactions, transactions)
+	copy(block.shardBlocks, shardBlocksInfos)
 	for i := range uncles {
 		block.uncles[i] = CopyHeader(uncles[i])
 	}

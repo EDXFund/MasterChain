@@ -8,6 +8,16 @@ implemention of EDX is heavily based on Ethereum, please refere [here](README-et
 
 ## Commands
 
+
+
+## Work remained 
+1. Block - ongoing
+2. Shard_pool
+3. Tx_pool
+4. Miner
+5. Handler --> eth/handle
+       --> les/handle
+6. Full Test
 ## License
 
 The go-ethereum library (i.e. all code outside of the `cmd` directory) is licensed under the

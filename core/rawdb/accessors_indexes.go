@@ -22,27 +22,66 @@ import (
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/rlp"
 )
-
 // ReadTxLookupEntry retrieves the positional metadata associated with a transaction
 // hash to allow retrieving the transaction or receipt by hash.
-func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (common.Hash, uint64, uint64) {
+func ReadShardBlockLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash, uint64, uint64) {
 	data, _ := db.Get(txLookupKey(hash))
 	if len(data) == 0 {
-		return common.Hash{}, 0, 0
+		return 0, common.Hash{}, 0, 0
 	}
 	var entry TxLookupEntry
 	if err := rlp.DecodeBytes(data, &entry); err != nil {
 		log.Error("Invalid transaction lookup entry RLP", "hash", hash, "err", err)
-		return common.Hash{}, 0, 0
+		return 0, common.Hash{}, 0, 0
 	}
-	return entry.BlockHash, entry.BlockIndex, entry.Index
+	return entry.ShardId, entry.BlockHash, entry.BlockIndex, entry.Index
+}
+
+// WriteShardBlockEntries stores a positional metadata for every shardBlock from
+// a master block, enabling hash based transaction and receipt lookups.
+func WriteShardBlockEntries(db DatabaseWriter, block *types.Block) {
+	for i, shardBlock := range block.ShardBlocks() {
+		entry := TxLookupEntry{
+			BlockHash:  block.Hash(),
+			BlockIndex: block.NumberU64(),
+			Index:      uint64(i),
+		}
+		data, err := rlp.EncodeToBytes(entry)
+		if err != nil {
+			log.Crit("Failed to encode transaction lookup entry", "err", err)
+		}
+		if err := db.Put(txLookupKey(shardBlock.Hash()), data); err != nil {
+			log.Crit("Failed to store transaction lookup entry", "err", err)
+		}
+	}
+}
+
+// DeleteTxLookupEntry removes all transaction data associated with a hash.
+func DeleteShardBlockEntry(db DatabaseDeleter, hash common.Hash) {
+	db.Delete(txLookupKey(hash))
+}
+
+// ReadTxLookupEntry retrieves the positional metadata associated with a transaction
+// hash to allow retrieving the transaction or receipt by hash.
+func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash, uint64, uint64) {
+	data, _ := db.Get(txLookupKey(hash))
+	if len(data) == 0 {
+		return 0, common.Hash{}, 0, 0
+	}
+	var entry TxLookupEntry
+	if err := rlp.DecodeBytes(data, &entry); err != nil {
+		log.Error("Invalid transaction lookup entry RLP", "hash", hash, "err", err)
+		return 0, common.Hash{}, 0, 0
+	}
+	return entry.ShardId, entry.BlockHash, entry.BlockIndex, entry.Index
 }
 
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.
-func WriteTxLookupEntries(db DatabaseWriter, block *types.Block) {
+func WriteTxLookupEntries(db DatabaseWriter, block *types.SBlock) {
 	for i, tx := range block.Transactions() {
 		entry := TxLookupEntry{
+			ShardId:    block.ShardId(),
 			BlockHash:  block.Hash(),
 			BlockIndex: block.NumberU64(),
 			Index:      uint64(i),
@@ -65,7 +104,7 @@ func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
-	blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
+	shardId, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
@@ -101,6 +140,19 @@ func ReadBloomBits(db DatabaseReader, bit uint, section uint64, head common.Hash
 // WriteBloomBits stores the compressed bloom bits vector belonging to the given
 // section and bit index.
 func WriteBloomBits(db DatabaseWriter, bit uint, section uint64, head common.Hash, bits []byte) {
+	if err := db.Put(bloomBitsKey(bit, section, head), bits); err != nil {
+		log.Crit("Failed to store bloom bits", "err", err)
+	}
+}
+// ReadBloomBits retrieves the compressed bloom bit vector belonging to the given
+// section and bit index from the.
+func ReadRejectedBloomBits(db DatabaseReader, bit uint, section uint64, head common.Hash) ([]byte, error) {
+	return db.Get(bloomBitsKey(bit, section, head))
+}
+
+// WriteBloomBits stores the compressed bloom bits vector belonging to the given
+// section and bit index.
+func WriteRejectedBloomBits(db DatabaseWriter, bit uint, section uint64, head common.Hash, bits []byte) {
 	if err := db.Put(bloomBitsKey(bit, section, head), bits); err != nil {
 		log.Crit("Failed to store bloom bits", "err", err)
 	}

@@ -548,6 +548,7 @@ func (ps *peerSet) ShardPeersWithoutBlock(shardId uint16,hash common.Hash) []*pe
 
 // PeersWithoutTx retrieves a list of peers that do not have a given transaction
 // in their set of known hashes.
+
 func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()

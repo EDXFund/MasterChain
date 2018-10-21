@@ -175,8 +175,8 @@ type sstorageblock struct {
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewSBlock(header *Header, txs []*Transaction, receipts []*ContractResult) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int)}
+func NewSBlock(header *SHeader, txs []*Transaction, receipts []*ContractResult) *SBlock {
+	b := &SBlock{header: CopySHeader(header), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
