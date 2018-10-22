@@ -9,6 +9,7 @@ import (
 	"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/rlp"
 	"io"
+	time "time"
 	"unsafe"
 )
 
@@ -213,6 +214,7 @@ type LastShardInfo struct {
 	BlockNumber 	uint64
 	Hash      		common.Hash
 	Td        		uint64
+	time            time.Time
 }
 
 // TxDifference returns a new set which is the difference between a and b.

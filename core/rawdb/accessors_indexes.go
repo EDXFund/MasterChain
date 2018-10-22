@@ -157,3 +157,36 @@ func WriteRejectedBloomBits(db DatabaseWriter, bit uint, section uint64, head co
 		log.Crit("Failed to store bloom bits", "err", err)
 	}
 }
+
+// WriteTxLookupEntries stores a positional metadata for every transaction from
+// a block, enabling hash based transaction and receipt lookups.
+func ReadShardLatestEntry(db DatabaseReader, hash common.Hash) (map[uint16]*types.LastShardInfo,error){
+	val,error := db.Get(latestShardKey(hash))
+	result := make(map[uint16]*types.LastShardInfo)
+	temp := make([]types.LastShardInfo,1)
+	if( error == nil){
+		rlp.DecodeBytes(val,temp)
+		for i:= len(temp)-1; i>0;i-- {
+			result[temp[i-1].ShardId] = & temp[i-1]
+		}
+	}
+	return result,error
+}
+func WriteShardLatestEntry(db DatabaseWriter, hash common.Hash,latestShardInfo map[uint16]*types.LastShardInfo) {
+	//convert to an array, and then encode it
+	data := make([]*types.LastShardInfo,len(latestShardInfo))
+	index := 0
+	for key,val := range latestShardInfo{
+		data[index] = val
+	}
+	if err :=  db.Put(latestShardKey(hash),rlp.EncodeToBytes(data)); err != nil {
+		log.Crit("Failed to store  block latest shard entry", "err", err)
+	}
+
+}
+
+func DeleteShardLatestEntry(db DatabaseDeleter,hash common.Hash) {
+	if err := db.Delete(latestShardKey(hash)) ; err != nil {
+		log.Crit("Failed to delete block latest shard entry", "err", err)
+	}
+}

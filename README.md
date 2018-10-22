@@ -11,9 +11,10 @@ implemention of EDX is heavily based on Ethereum, please refere [here](README-et
 
 
 ## Work remained 
-1. Block - ongoing
-2. Shard_pool
-3. Tx_pool
+1. Block - finished
+2. Shard_pool -finished
+3. fetcher/downloader -ongoing 
+3. Tx_pool 
 4. Miner
 5. Handler --> eth/handle
        --> les/handle

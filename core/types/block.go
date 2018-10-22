@@ -84,10 +84,17 @@ type ShardBlockInfo struct{
 	shardId   		uint16
 	blockNumber  	uint64
 	blockHash    	common.Hash
+	parentHash      common.Hash
+	difficulty		uint64
 }
 func (t *ShardBlockInfo) ShardId() uint16 { return t.shardId}
 func (t *ShardBlockInfo) BlockNumber() uint64 {return t.blockNumber}
+func (t *ShardBlockInfo) Number() *big.Int {return new(big.Int).SetUint64(t.blockNumber)}
+func (t *ShardBlockInfo) NumberU64() uint64 {return t.blockNumber}
 func (t *ShardBlockInfo) Hash() common.Hash{return  t.blockHash}
+func (t *ShardBlockInfo) ParentHash() common.Hash{return  t.parentHash}
+func (t *ShardBlockInfo) Difficulty() *big.Int {return  new(big.Int).SetUint64(t.difficulty)}
+func (t *ShardBlockInfo) DifficultyU64() uint64 {return  t.difficulty}
 // Transactions is a Transaction slice type for basic sorting.
 type ShardBlockInfos []*ShardBlockInfo
 
@@ -270,7 +277,7 @@ func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
 	}
 	return nil
 }
-
+func (b *Block) Header() *Header     { return b.header }
 func (b *Block) Number() *big.Int     { return new(big.Int).Set(b.header.Number) }
 func (b *Block) GasLimit() uint64     { return b.header.GasLimit }
 func (b *Block) GasUsed() uint64      { return b.header.GasUsed }
@@ -290,8 +297,8 @@ func (b *Block) ReceiptHash() common.Hash { return b.header.ReceiptHash }
 func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
 func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Extra) }
 
-func (b *Block) Header() *Header { return CopyHeader(b.header) }
-
+func (b *Block) ShardExp() uint8 		  { return b.header.ShardMaskEp }
+func (b *Block) ShardEnabled() []byte     { return b.header.ShardEnabled }
 // Body returns the non-header content of the block.
 func (b *Block) Body() *Body { return &Body{b.shardBlocks, b.uncles} }
 

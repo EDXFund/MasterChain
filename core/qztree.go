@@ -19,14 +19,15 @@ package core
 import (
 	"container/list"
 	"github.com/EDXFund/MasterChain/common"
+	"math/big"
 	"sync"
 )
 
 type Node interface {
 	Hash() common.Hash
-	Number() uint64
+	Number() *big.Int
 	ParentHash() common.Hash
-	Difficulty() uint64
+	Difficulty() *big.Int
 }
 
 type QZTree struct {
@@ -97,8 +98,38 @@ func (t *QZTree) addNode(node Node) bool {
 		return false
 	}
 }
+//cut all branch's except root by node ,return a QZTree with node as root
+func (t *QZTree) ShrinkToBranch(node Node) *QZTree{
+	t.wg.Lock()
+	defer t.wg.Unlock()
+	parent := t.findNode(node, func(n1, n2 Node) bool {
+		if n1.Hash() == n2.ParentHash() {
+			return true
+		}else {
+			return false
+		}
+	})
+	if parent != nil{
+		var result *QZTree = nil
+		for it:=parent.Children().Front(); it != nil; it = it.Next() {
+			if it.Value.(*QZTree).self.Hash() == node.Hash() {
+				result = it.Value.(*QZTree)
+				parent.Children().Remove(it)
+				break;
+			}
+		}
+		return result
+
+	} else {
+		if t.self.Hash() == node.Hash() {
+			return t
+		}else {
+			return nil
+		}
+	}
+}
 func (t *QZTree) getMaxTdPath() (uint64, *QZTree) {
-	td := t.self.Difficulty()
+	td := t.self.Difficulty().Uint64()
 	maxTd := uint64(0)
 	var maxNode *QZTree
 	maxNode = nil
@@ -213,6 +244,21 @@ func (t *QZTree) Iterator(deepFirst bool, proc func(node Node) bool) {
 		t.wfIterator(proc)
 	}
 }
+func (t *QZTree)RemoveByHash(hash common.Hash, deleteSelf bool){
+	var nodeFound Node = nil;
+	t.wfIterator(func(node Node) bool {
+		if node.Hash() == hash {
+			nodeFound = node
+			return true
+		} else {
+			return false
+		}
+	})
+
+	if nodeFound != nil {
+		t.Remove(nodeFound,deleteSelf)
+	}
+}
 func (t *QZTree) Remove(node Node, removeNode bool){
 	t.wg.Lock()
 	defer t.wg.Unlock()
@@ -259,6 +305,7 @@ func (t *QZTree) getCount() int {
 //	}
 	return count
 }
+
 type  QZTreeManager struct{
 	shardId uint16
 	trees map[common.Hash]*QZTree
@@ -299,10 +346,39 @@ func (t *QZTreeManager)RemoveBlock(node Node) {
 	}
 }
 
+func (t *QZTreeManager)RemoveBlockByHash(hash common.Hash) {
+	for _,value := range t.trees {
+		value.RemoveByHash(hash,true)
+	}
+}
+
 func (t *QZTreeManager)GetPendingCount() int {
 	count:=0
 	for _,val := range t.trees {
 		count += val.GetCount()
 	}
 	return count
+}
+//cut all node, on tree from node survived
+func (t *QZTreeManager)ReduceTo(node Node) {
+	invalidHashes := make([]common.Hash,1)
+	var newTree *QZTree = nil
+	for hash,val := range  t.trees {
+		if val.self.Number().Uint64() < node.Number().Uint64() {
+			invalidHashes = append(invalidHashes,hash)
+			newNode := val.ShrinkToBranch(node)
+			if newNode != nil {
+				newTree = newNode
+
+			}
+		}
+	}
+
+	for _,val := range  invalidHashes{
+		delete (t.trees,val)
+	}
+	if newTree != nil {
+		t.trees[newTree.self.Hash()] = newTree
+	}
+
 }

@@ -80,7 +80,7 @@ func (ec *Client) BlockByNumber(ctx context.Context, number *big.Int) (*types.Bl
 
 type rpcBlock struct {
 	Hash         common.Hash      `json:"hash"`
-	Transactions []rpcTransaction `json:"transactions"`
+	ShardBlockInfos []rpcTransaction `json:"transactions"`
 	UncleHashes  []common.Hash    `json:"uncles"`
 }
 
@@ -139,13 +139,13 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 		}
 	}
 	// Fill the sender cache of transactions in the block.
-	txs := make([]*types.Transaction, len(body.Transactions))
-	for i, tx := range body.Transactions {
+	txs := make([]*types.ShardBlockInfo, len(body.ShardBlockInfos))
+	/*for i, tx := range body.ShardBlockInfos {
 		if tx.From != nil {
 			setSenderFromServer(tx.tx, *tx.From, body.Hash)
 		}
 		txs[i] = tx.tx
-	}
+	}*/
 	return types.NewBlockWithHeader(head).WithBody(txs, uncles), nil
 }
 
@@ -169,7 +169,10 @@ func (ec *Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.H
 	}
 	return head, err
 }
-
+type rpcShardInfo struct {
+	tx *types.ShardBlockInfo
+	txExtraInfo
+}
 type rpcTransaction struct {
 	tx *types.Transaction
 	txExtraInfo

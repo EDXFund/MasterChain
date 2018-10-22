@@ -18,15 +18,16 @@ package core
 
 import (
 	"errors"
-	"fmt"
+	"github.com/EDXFund/MasterChain/ethdb"
+
 	"math"
 	"math/big"
-	"sort"
+
 	"sync"
 	"time"
 
 	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/common/prque"
+	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/event"
@@ -38,15 +39,16 @@ import (
 const (
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainShardHeadChanSize = 10
+	ShardsCount		       =32    //32*8 = 512 shards
 )
 
 var (
 	// ErrInvalidSender is returned if the transaction contains an invalid signature.
-	ErrShardInvalidSender = errors.New("invalid sender")
+	ErrShardDisabled = errors.New("shard is disabled")
 
 	// ErrNonceTooLow is returned if the nonce of a transaction is lower than the
 	// one present in the local chain.
-	ErrShardNonceTooLow = errors.New("nonce too low")
+	ErrShardAlreadyExist = errors.New("shard already exist")
 
 	// ErrUnderpriced is returned if a transaction's gas price is below the minimum
 	// configured for the transaction pool.
@@ -135,6 +137,7 @@ type ShardPoolConfig struct {
 	AccountQueue uint64 // Maximum number of non-executable transaction slots permitted per account
 	GlobalQueue  uint64 // Maximum number of non-executable transaction slots for all accounts
 
+
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
 }
 
@@ -186,6 +189,7 @@ type ShardPool struct {
 	chainconfig  *params.ChainConfig
 	chain        blockChain
 	gasPrice     *big.Int
+	chaindb      ethdb.Database
 	shardblockFeed       event.Feed
 	scope        event.SubscriptionScope
 	chainHeadCh  chan ChainHeadEvent
@@ -193,6 +197,10 @@ type ShardPool struct {
 	shardChainHeadCh  chan ShardChainHeadEvent
 	shardChainHeadSub event.Subscription
 	mu           sync.RWMutex
+
+	//controller of shards
+	shardExp     uint8
+	shardEnabled [ShardsCount]byte
 
 	currentState  *state.StateDB      // Current state in the blockchain head
 	currentMaxGas uint64              // Current gas limit for transaction caps
@@ -206,7 +214,7 @@ type ShardPool struct {
 
 	pendingBlocks map[uint16]*QZTreeManager		   //all pending shard blocks in pool orgnized as tree
 	executableBlocks map[common.Hash]types.ShardBlockInfo
-	lastshards map[uint16]*types.LastShardInfo   //most recent ShardBlock of each  shard chain
+	lastShards map[uint16]*types.LastShardInfo   //most recent ShardBlock of each  shard chain
 	wg sync.WaitGroup // for shutdown sync
 
 	homestead bool
@@ -226,18 +234,20 @@ func NewShardPool(config ShardPoolConfig, chainconfig *params.ChainConfig, chain
 
 		pendingBlocks:     make(map[uint16]*QZTreeManager),
 		executableBlocks:make(map[common.Hash]types.ShardBlockInfo),
-		lastshards:       make( map[uint16]*types.LastShardInfo),
+		lastShards:       make( map[uint16]*types.LastShardInfo),
 		beats:       make(map[uint16]time.Time),
 		all:         newShardLookup(),
 		chainHeadCh: make(chan ChainHeadEvent, chainShardHeadChanSize),
 		shardChainHeadCh: make(chan ShardChainHeadEvent, chainShardHeadChanSize),
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
+		shardExp:    0,
+		//shardEnabled:make([32]byte), //most 256 shards
 	}
 
 
 	pool.reset(nil, chain.CurrentBlock().Header())
 
-	// If local transactions and journaling is enabled, load from disk
+/*	// If local transactions and journaling is enabled, load from disk
 	if !config.NoLocals && config.Journal != "" {
 		pool.journal = newTxJournal(config.Journal)
 
@@ -248,6 +258,7 @@ func NewShardPool(config ShardPoolConfig, chainconfig *params.ChainConfig, chain
 			log.Warn("Failed to rotate transaction journal", "err", err)
 		}
 	}
+*/
 	// Subscribe events from blockchain
 	pool.chainHeadSub = pool.chain.SubscribeChainHeadEvent(pool.chainHeadCh)
 
@@ -265,7 +276,7 @@ func (pool *ShardPool) loop() {
 	defer pool.wg.Done()
 
 	// Start the stats reporting and transaction eviction tickers
-	var prevPending, prevQueued, prevStales int
+	var prevPending, prevQueued int
 
 	report := time.NewTicker(statsReportInterval)
 	defer report.Stop()
@@ -283,9 +294,9 @@ func (pool *ShardPool) loop() {
 	for {
 		select {
 		case ev := <-pool.shardChainHeadCh:
-			pool.executableBlocks[ev.Block.Hash()] = types.ShardBlockInfo{shardId:ev.Block.ShardId(),blockNumber:ev.Block.NumberU64(),hash:ev.Block.Hash()}
+			pool.addShardBlock(ev.Block)
 		// Handle ShardChainHeadEvent
-		case ev := <-pool.chainHeadCh:
+		case ev := <-pool.chainHeadCh: //block of master
 			if ev.Block != nil {
 				pool.mu.Lock()
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
@@ -296,6 +307,7 @@ func (pool *ShardPool) loop() {
 
 				//rebuild lashshards
 				pool.rebuildExecutedBlock()
+				pool.SetShardState(ev.Block.ShardExp(),ev.Block.ShardEnabled())
 				pool.mu.Unlock()
 			}
 		// Be unsubscribed due to system stopped
@@ -306,12 +318,12 @@ func (pool *ShardPool) loop() {
 		case <-report.C:
 			pool.mu.RLock()
 			pending, queued := pool.stats()
-			stales := pool.priced.stales
+		//	stales := pool.priced.stales
 			pool.mu.RUnlock()
 
-			if pending != prevPending || queued != prevQueued || stales != prevStales {
-				log.Debug("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
-				prevPending, prevQueued, prevStales = pending, queued, stales
+			if pending != prevPending || queued != prevQueued  {
+				log.Debug("Transaction pool status report", "executable", pending, "queued", queued)
+				prevPending, prevQueued = pending, queued
 			}
 
 
@@ -330,10 +342,20 @@ func (pool *ShardPool) loop() {
 }
 
 func (pool *ShardPool)GetLastestBlockInfo() map[uint16]*types.LastShardInfo{
-	return pool.lastshards
+	return pool.lastShards
 }
 func (pool *ShardPool)SetLastestBlockInfo(value map[uint16]*types.LastShardInfo) {
-	pool.lastshards = value
+	pool.lastShards = value
+}
+
+func (pool *ShardPool)GetShardState()  (uint8, [ShardsCount]byte){
+	return pool.shardExp,pool.shardEnabled
+}
+
+func (pool *ShardPool)SetShardState(shardEx uint8,shardEnabled [ShardsCount]byte) {
+	if shardEnabled != pool.shardEnabled || shardEx != pool.shardExp {
+
+	}
 }
 //rebuild executed block with current block
 func (pool *ShardPool)rebuildExecutedBlock(){
@@ -350,7 +372,7 @@ func (pool *ShardPool)rebuildExecutedBlock(){
 		}
 	}
 	for shardId,shardInfo := range temp {
-		pool.lastshards[shardId] = shardInfo
+		pool.lastShards[shardId] = shardInfo
 	}
 	//those shardInfo not in temp would not change
 }
@@ -429,23 +451,23 @@ func (pool *ShardPool) reset(oldHead, newHead *types.Header) {
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
 
-	//update all lasted shard block info
-	pool.addShardsLocked(reinject, false)
 
-	// validate the pool of pending transactions, this will remove
-	// any transactions that have been included in the block or
-	// have been invalidated because of another transaction (e.g.
-	// higher gas price)
-	//pool.demoteUnexecutables()
+	//rebuild latest shard info
+	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ShardBlockHash)
+	if err == nil {
+		pool.lastShards = latestShardInfo
+	}else {
+		pool.lastShards = make(map[uint16]*types.LastShardInfo)
+		log.Crit("Last shard info fetch failed")
+	}
 
-	// Update all accounts to the latest known pending nonce
-	/*for addr, list := range pool.pending {
-		txs := list.Flatten() // Heavy but will be cached and is needed by the miner anyway
-		pool.pendingState.SetNonce(addr, txs[len(txs)-1].Nonce()+1)
-	}*/
-	// Check the queue and move transactions over to the pending if possible
-	// or remove those that have become invalid
-	pool.promoteExecutables(nil)
+
+	//reinject is the shardblocks sould be reinjected
+	for _,value := range reinject {
+		pool.AddShardBlockInfo(value)
+	}
+
+	pool.purgeExpired()
 }
 
 // Stop terminates the transaction pool.
@@ -457,9 +479,10 @@ func (pool *ShardPool) Stop() {
 	pool.chainHeadSub.Unsubscribe()
 	pool.wg.Wait()
 
-	if pool.journal != nil {
+/*	if pool.journal != nil {
 		pool.journal.close()
 	}
+*/
 	log.Info("Transaction pool stopped")
 }
 
@@ -493,27 +516,18 @@ func (pool *ShardPool) Stats() (int, int) {
 func (pool *ShardPool) stats() (int, int) {
 	pending := 0
 	for _, list := range pool.pendingBlocks {
-		pending += list.GetCount()
+		pending += list.GetPendingCount()
 	}
 	queued := len(pool.executableBlocks)
 	return pending, queued
 }
 
 
-// Pending retrieves all currently processable transactions, grouped by origin
-// account and sorted by nonce. The returned transaction set is a copy and can be
-// freely modified by calling code.
-func (pool *ShardPool) Pending() (map[common.Address]types.Transactions, error) {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
-
-	pending := make(map[common.Address]types.Transactions)
-	for addr, list := range pool.pending {
-		pending[addr] = list.Flatten()
-	}
-	return pending, nil
+func (pool *ShardPool)AddShardBlock(blk *types.SBlock) (bool,error){
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+	return pool.addShardBlock(blk)
 }
-
 
 // add validates a transaction and inserts it into the non-executable queue for
 // later pending promotion and execution. If the transaction is a replacement for
@@ -523,119 +537,60 @@ func (pool *ShardPool) Pending() (map[common.Address]types.Transactions, error) 
 // If a newly added transaction is marked as local, its sending account will be
 // whitelisted, preventing any associated transaction from being dropped out of
 // the pool due to pricing constraints.
-func (pool *ShardPool) add(blk *types.ShardBlockInfo) (bool, error) {
+func (pool *ShardPool) addShardBlock(blk *types.SBlock) (bool, error) {
 	// If the transaction is already known, discard it
-	hash := blk.Hash()
-	shardId := blk.ShardId()
-	shardManager,ok := pool.pendingBlocks[shardId]
-	if !ok {
-		lastblock,exist := pool.lastshards[shardId]
-		if  !exist  {  //First for this shard?
-			lastblock = &types.LastShardInfo{ShardId:shardId,BlockNumber:0,Hash:pool.chain.CurrentBlock().Hash(),Td:0}
-		}
-		shardManager =  &QZTreeManager{shardId:blk.ShardId(),trees:make(map[common.Hash]*QZTree),rootHash:lastblock.Hash}
-	}
-	if pool.all.Get(hash) != nil {
-		log.Trace("Discarding already known transaction", "hash", hash)
-		return false, fmt.Errorf("known transaction: %x", hash)
-	}
-	// If the transaction fails basic validation, discard it
-	if err := pool.validateTx(tx, local); err != nil {
-		log.Trace("Discarding invalid transaction", "hash", hash, "err", err)
-		invalidTxCounter.Inc(1)
-		return false, err
-	}
-	// If the transaction pool is full, discard underpriced transactions
-	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
-		// If the new transaction is underpriced, don't accept it
-		if !local && pool.priced.Underpriced(tx, pool.locals) {
-			log.Trace("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
-			underpricedTxCounter.Inc(1)
-			return false, ErrUnderpriced
-		}
-		// New transaction is better than our worse ones, make room for it
-		drop := pool.priced.Discard(pool.all.Count()-int(pool.config.GlobalSlots+pool.config.GlobalQueue-1), pool.locals)
-		for _, tx := range drop {
-			log.Trace("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
-			underpricedTxCounter.Inc(1)
-			pool.removeTx(tx.Hash(), false)
-		}
-	}
-	// If the transaction is replacing an already pending one, do directly
-	from, _ := types.Sender(pool.signer, tx) // already validated
-	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
-		// Nonce already pending, check if required price bump is met
-		inserted, old := list.Add(tx, pool.config.PriceBump)
-		if !inserted {
-			pendingDiscardCounter.Inc(1)
-			return false, ErrReplaceUnderpriced
-		}
-		// New transaction is better, replace old one
-		if old != nil {
-			pool.all.Remove(old.Hash())
-			pool.priced.Removed()
-			pendingReplaceCounter.Inc(1)
-		}
-		pool.all.Add(tx)
-		pool.priced.Put(tx)
-		pool.journalTx(from, tx)
+	//hash := blk.Hash()
+	blockInfo := &types.ShardBlockInfo{shardId:blk.ShardId(),blockNumber:blk.NumberU64(),blockHash:blk.Hash(),difficulty:blk.Hash()}
+	return pool.addShardBlockInfo(blockInfo)
 
-		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
-
-		// We've directly injected a replacement transaction, notify subsystems
-		go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
-
-		return old != nil, nil
-	}
-	// New transaction isn't replacing a pending one, push into queue
-	replace, err := pool.enqueueTx(hash, tx)
-	if err != nil {
-		return false, err
-	}
-	// Mark local addresses and journal local transactions
-	if local {
-		if !pool.locals.contains(from) {
-			log.Info("Setting new local account", "address", from)
-			pool.locals.add(from)
-		}
-	}
-	pool.journalTx(from, tx)
-
-	log.Trace("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
-	return replace, nil
 }
 
-// enqueueTx inserts a new transaction into the non-executable transaction queue.
+func (pool *ShardPool)AddShardBlockInfo(blkInfo *types.ShardBlockInfo) (bool,error){
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+	return pool.addShardBlockInfo(blkInfo)
+}
+
+// add validates a transaction and inserts it into the non-executable queue for
+// later pending promotion and execution. If the transaction is a replacement for
+// an already pending or queued one, it overwrites the previous and returns this
+// so outer code doesn't uselessly call promote.
 //
-// Note, this method assumes the pool lock is held!
-func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, error) {
-	// Try to insert the transaction into the future queue
-	from, _ := types.Sender(pool.signer, tx) // already validated
-	if pool.queue[from] == nil {
-		pool.queue[from] = newTxList(false)
+// If a newly added transaction is marked as local, its sending account will be
+// whitelisted, preventing any associated transaction from being dropped out of
+// the pool due to pricing constraints.
+func (pool *ShardPool) addShardBlockInfo(blkInfo *types.ShardBlockInfo) (bool, error) {
+	// If the transaction is already known, discard it
+	//hash := blk.Hash()
+	if shard := pool.all.Get(blkInfo.Hash()) ; shard == nil {
+		newShardBlockInfo :=blkInfo
+		shardId := newShardBlockInfo.ShardId()
+		// shard block will b accepted only when this shard is enabled
+		if pool.shardEnabled [int(shardId/8)] & (1 << (shardId &0x07)) != 0 {
+			pool.all.Add(newShardBlockInfo)
+			//find a shard manager or create one
+			shardManager,ok := pool.pendingBlocks[shardId]
+			if !ok {
+				lastBlock, exist := pool.lastShards[shardId]
+				if  !exist  {  //First for this shard?
+					lastBlock = &types.LastShardInfo{ShardId:shardId,BlockNumber:0,Hash:pool.chain.CurrentBlock().Hash(),Td:0}
+				}
+				shardManager =  &QZTreeManager{shardId:blkInfo.ShardId(),trees:make(map[common.Hash]*QZTree),rootHash:lastBlock.Hash}
+			}
+			shardManager.AddNewBlock(blkInfo)
+			return true,nil
+		}else {
+			return false, ErrShardDisabled
+		}
 	}
-	inserted, old := pool.queue[from].Add(tx, pool.config.PriceBump)
-	if !inserted {
-		// An older transaction was better, discard this
-		queuedDiscardCounter.Inc(1)
-		return false, ErrReplaceUnderpriced
-	}
-	// Discard any previous transaction and mark this
-	if old != nil {
-		pool.all.Remove(old.Hash())
-		pool.priced.Removed()
-		queuedReplaceCounter.Inc(1)
-	}
-	if pool.all.Get(hash) == nil {
-		pool.all.Add(tx)
-		pool.priced.Put(tx)
-	}
-	return old != nil, nil
+	return false,ErrShardAlreadyExist
+
 }
+
 
 // journalTx adds the specified transaction to the local disk journal if it is
 // deemed to have been sent from a local account.
-func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
+/*func (pool *ShardPool) journalTx(from common.Address, tx *types.ShardBlockInfo) {
 	// Only journal if it's enabled and the transaction is local
 	if pool.journal == nil || !pool.locals.contains(from) {
 		return
@@ -644,435 +599,34 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 		log.Warn("Failed to journal local transaction", "err", err)
 	}
 }
-
-// promoteTx adds a transaction to the pending (processable) list of transactions
-// and returns whether it was inserted or an older was better.
-//
-// Note, this method assumes the pool lock is held!
-func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
-	// Try to insert the transaction into the pending queue
-	if pool.pending[addr] == nil {
-		pool.pending[addr] = newTxList(true)
-	}
-	list := pool.pending[addr]
-
-	inserted, old := list.Add(tx, pool.config.PriceBump)
-	if !inserted {
-		// An older transaction was better, discard this
-		pool.all.Remove(hash)
-		pool.priced.Removed()
-
-		pendingDiscardCounter.Inc(1)
-		return false
-	}
-	// Otherwise discard any previous transaction and mark this
-	if old != nil {
-		pool.all.Remove(old.Hash())
-		pool.priced.Removed()
-
-		pendingReplaceCounter.Inc(1)
-	}
-	// Failsafe to work around direct pending inserts (tests)
-	if pool.all.Get(hash) == nil {
-		pool.all.Add(tx)
-		pool.priced.Put(tx)
-	}
-	// Set the potentially new pending nonce and notify any subsystems of the new tx
-	pool.beats[addr] = time.Now()
-	pool.pendingState.SetNonce(addr, tx.Nonce()+1)
-
-	return true
-}
-
-// AddLocal enqueues a single transaction into the pool if it is valid, marking
-// the sender as a local one in the mean time, ensuring it goes around the local
-// pricing constraints.
-func (pool *TxPool) AddLocal(tx *types.Transaction) error {
-	return pool.addTx(tx, !pool.config.NoLocals)
-}
-
-// AddRemote enqueues a single transaction into the pool if it is valid. If the
-// sender is not among the locally tracked ones, full pricing constraints will
-// apply.
-func (pool *TxPool) AddRemote(tx *types.Transaction) error {
-	return pool.addTx(tx, false)
-}
-
-// AddLocals enqueues a batch of transactions into the pool if they are valid,
-// marking the senders as a local ones in the mean time, ensuring they go around
-// the local pricing constraints.
-func (pool *TxPool) AddLocals(txs []*types.Transaction) []error {
-	return pool.addTxs(txs, !pool.config.NoLocals)
-}
-
-// AddRemotes enqueues a batch of transactions into the pool if they are valid.
-// If the senders are not among the locally tracked ones, full pricing constraints
-// will apply.
-func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
-	return pool.addTxs(txs, false)
-}
-
-// addTx enqueues a single transaction into the pool if it is valid.
-func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
-
-	// Try to inject the transaction and update any state
-	replace, err := pool.add(tx, local)
-	if err != nil {
-		return err
-	}
-	// If we added a new transaction, run promotion checks and return
-	if !replace {
-		from, _ := types.Sender(pool.signer, tx) // already validated
-		pool.promoteExecutables([]common.Address{from})
-	}
-	return nil
-}
-
-// addTxs attempts to queue a batch of transactions if they are valid.
-func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
-
-	return pool.addTxsLocked(txs, local)
-}
-
-// addTxsLocked attempts to queue a batch of transactions if they are valid,
-// whilst assuming the transaction pool lock is already held.
-func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
-	// Add the batch of transaction, tracking the accepted ones
-	dirty := make(map[common.Address]struct{})
-	errs := make([]error, len(txs))
-
-	for i, tx := range txs {
-		var replace bool
-		if replace, errs[i] = pool.add(tx, local); errs[i] == nil && !replace {
-			from, _ := types.Sender(pool.signer, tx) // already validated
-			dirty[from] = struct{}{}
-		}
-	}
-	// Only reprocess the internal state if something was actually added
-	if len(dirty) > 0 {
-		addrs := make([]common.Address, 0, len(dirty))
-		for addr := range dirty {
-			addrs = append(addrs, addr)
-		}
-		pool.promoteExecutables(addrs)
-	}
-	return errs
-}
-
-// Status returns the status (unknown/pending/queued) of a batch of transactions
-// identified by their hashes.
-func (pool *TxPool) Status(hashes []common.Hash) []TxStatus {
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
-
-	status := make([]TxStatus, len(hashes))
-	for i, hash := range hashes {
-		if tx := pool.all.Get(hash); tx != nil {
-			from, _ := types.Sender(pool.signer, tx) // already validated
-			if pool.pending[from] != nil && pool.pending[from].txs.items[tx.Nonce()] != nil {
-				status[i] = TxStatusPending
-			} else {
-				status[i] = TxStatusQueued
-			}
-		}
-	}
-	return status
-}
+*/
 
 // Get returns a transaction if it is contained in the pool
 // and nil otherwise.
-func (pool *TxPool) Get(hash common.Hash) *types.Transaction {
+func (pool *ShardPool) Get(hash common.Hash) *types.ShardBlockInfo {
 	return pool.all.Get(hash)
 }
 
-// removeTx removes a single transaction from the queue, moving all subsequent
+// removeTx removes a single ShardBlock from the queue, moving all subsequent
 // transactions back to the future queue.
-func (pool *TxPool) removeTx(hash common.Hash, outofbound bool) {
-	// Fetch the transaction we wish to delete
-	tx := pool.all.Get(hash)
-	if tx == nil {
-		return
-	}
-	addr, _ := types.Sender(pool.signer, tx) // already validated during insertion
-
-	// Remove it from the list of known transactions
-	pool.all.Remove(hash)
-	if outofbound {
-		pool.priced.Removed()
-	}
-	// Remove the transaction from the pending lists and reset the account nonce
-	if pending := pool.pending[addr]; pending != nil {
-		if removed, invalids := pending.Remove(tx); removed {
-			// If no more pending transactions are left, remove the list
-			if pending.Empty() {
-				delete(pool.pending, addr)
-				delete(pool.beats, addr)
-			}
-			// Postpone any invalidated transactions
-			for _, tx := range invalids {
-				pool.enqueueTx(tx.Hash(), tx)
-			}
-			// Update the account nonce if needed
-			if nonce := tx.Nonce(); pool.pendingState.GetNonce(addr) > nonce {
-				pool.pendingState.SetNonce(addr, nonce)
-			}
-			return
-		}
-	}
-	// Transaction is in the future queue
-	if future := pool.queue[addr]; future != nil {
-		future.Remove(tx)
-		if future.Empty() {
-			delete(pool.queue, addr)
-		}
+func (pool *ShardPool) removeShardBlock(hash common.Hash) {
+	result := pool.Get(hash)
+	if result != nil {
+		pool.pendingBlocks[result.ShardId()].RemoveBlockByHash(hash)
+		pool.all.Remove(hash)
 	}
 }
 
-// promoteExecutables moves transactions that have become processable from the
-// future queue to the set of pending transactions. During this process, all
-// invalidated transactions (low nonce, low balance) are deleted.
-func (pool *ShardPool) promoteExecutables(accounts []common.Address) {
-	// Track the promoted transactions to broadcast them at once
-	var promoted []*types.Transaction
+//purge shard blocks whose blocknumber is older than latest shard info
+func (pool *ShardPool)purgeExpired() {
+	for shardId,manager := range pool.pendingBlocks {
+		if val,ok := pool.lastShards[shardId]; ok {
+			shardBlock := &types.ShardBlockInfo{shardId:val.ShardId,blockNumber:val.BlockNumber,blockHash:val.Hash,difficulty:val.Td}
+			manager.ReduceTo(shardBlock)
+		}
 
-	// Gather all the accounts potentially needing updates
-	if accounts == nil {
-		accounts = make([]common.Address, 0, len(pool.queue))
-		for addr := range pool.queue {
-			accounts = append(accounts, addr)
-		}
-	}
-	// Iterate over all accounts and promote any executable transactions
-	for _, addr := range accounts {
-		list := pool.queue[addr]
-		if list == nil {
-			continue // Just in case someone calls with a non existing account
-		}
-		// Drop all transactions that are deemed too old (low nonce)
-		for _, tx := range list.Forward(pool.currentState.GetNonce(addr)) {
-			hash := tx.Hash()
-			log.Trace("Removed old queued transaction", "hash", hash)
-			pool.all.Remove(hash)
-			pool.priced.Removed()
-		}
-		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
-		for _, tx := range drops {
-			hash := tx.Hash()
-			log.Trace("Removed unpayable queued transaction", "hash", hash)
-			pool.all.Remove(hash)
-			pool.priced.Removed()
-			queuedNofundsCounter.Inc(1)
-		}
-		// Gather all executable transactions and promote them
-		for _, tx := range list.Ready(pool.pendingState.GetNonce(addr)) {
-			hash := tx.Hash()
-			if pool.promoteTx(addr, hash, tx) {
-				log.Trace("Promoting queued transaction", "hash", hash)
-				promoted = append(promoted, tx)
-			}
-		}
-		// Drop all transactions over the allowed limit
-		if !pool.locals.contains(addr) {
-			for _, tx := range list.Cap(int(pool.config.AccountQueue)) {
-				hash := tx.Hash()
-				pool.all.Remove(hash)
-				pool.priced.Removed()
-				queuedRateLimitCounter.Inc(1)
-				log.Trace("Removed cap-exceeding queued transaction", "hash", hash)
-			}
-		}
-		// Delete the entire queue entry if it became empty.
-		if list.Empty() {
-			delete(pool.queue, addr)
-		}
-	}
-	// Notify subsystem for new promoted transactions.
-	if len(promoted) > 0 {
-		go pool.txFeed.Send(NewTxsEvent{promoted})
-	}
-	// If the pending limit is overflown, start equalizing allowances
-	pending := uint64(0)
-	for _, list := range pool.pending {
-		pending += uint64(list.Len())
-	}
-	if pending > pool.config.GlobalSlots {
-		pendingBeforeCap := pending
-		// Assemble a spam order to penalize large transactors first
-		spammers := prque.New(nil)
-		for addr, list := range pool.pending {
-			// Only evict transactions from high rollers
-			if !pool.locals.contains(addr) && uint64(list.Len()) > pool.config.AccountSlots {
-				spammers.Push(addr, int64(list.Len()))
-			}
-		}
-		// Gradually drop transactions from offenders
-		offenders := []common.Address{}
-		for pending > pool.config.GlobalSlots && !spammers.Empty() {
-			// Retrieve the next offender if not local address
-			offender, _ := spammers.Pop()
-			offenders = append(offenders, offender.(common.Address))
-
-			// Equalize balances until all the same or below threshold
-			if len(offenders) > 1 {
-				// Calculate the equalization threshold for all current offenders
-				threshold := pool.pending[offender.(common.Address)].Len()
-
-				// Iteratively reduce all offenders until below limit or threshold reached
-				for pending > pool.config.GlobalSlots && pool.pending[offenders[len(offenders)-2]].Len() > threshold {
-					for i := 0; i < len(offenders)-1; i++ {
-						list := pool.pending[offenders[i]]
-						for _, tx := range list.Cap(list.Len() - 1) {
-							// Drop the transaction from the global pools too
-							hash := tx.Hash()
-							pool.all.Remove(hash)
-							pool.priced.Removed()
-
-							// Update the account nonce to the dropped transaction
-							if nonce := tx.Nonce(); pool.pendingState.GetNonce(offenders[i]) > nonce {
-								pool.pendingState.SetNonce(offenders[i], nonce)
-							}
-							log.Trace("Removed fairness-exceeding pending transaction", "hash", hash)
-						}
-						pending--
-					}
-				}
-			}
-		}
-		// If still above threshold, reduce to limit or min allowance
-		if pending > pool.config.GlobalSlots && len(offenders) > 0 {
-			for pending > pool.config.GlobalSlots && uint64(pool.pending[offenders[len(offenders)-1]].Len()) > pool.config.AccountSlots {
-				for _, addr := range offenders {
-					list := pool.pending[addr]
-					for _, tx := range list.Cap(list.Len() - 1) {
-						// Drop the transaction from the global pools too
-						hash := tx.Hash()
-						pool.all.Remove(hash)
-						pool.priced.Removed()
-
-						// Update the account nonce to the dropped transaction
-						if nonce := tx.Nonce(); pool.pendingState.GetNonce(addr) > nonce {
-							pool.pendingState.SetNonce(addr, nonce)
-						}
-						log.Trace("Removed fairness-exceeding pending transaction", "hash", hash)
-					}
-					pending--
-				}
-			}
-		}
-		pendingRateLimitCounter.Inc(int64(pendingBeforeCap - pending))
-	}
-	// If we've queued more transactions than the hard limit, drop oldest ones
-	queued := uint64(0)
-	for _, list := range pool.queue {
-		queued += uint64(list.Len())
-	}
-	if queued > pool.config.GlobalQueue {
-		// Sort all accounts with queued transactions by heartbeat
-		addresses := make(addressesByHeartbeat, 0, len(pool.queue))
-		for addr := range pool.queue {
-			if !pool.locals.contains(addr) { // don't drop locals
-				addresses = append(addresses, addressByHeartbeat{addr, pool.beats[addr]})
-			}
-		}
-		sort.Sort(addresses)
-
-		// Drop transactions until the total is below the limit or only locals remain
-		for drop := queued - pool.config.GlobalQueue; drop > 0 && len(addresses) > 0; {
-			addr := addresses[len(addresses)-1]
-			list := pool.queue[addr.address]
-
-			addresses = addresses[:len(addresses)-1]
-
-			// Drop all transactions if they are less than the overflow
-			if size := uint64(list.Len()); size <= drop {
-				for _, tx := range list.Flatten() {
-					pool.removeTx(tx.Hash(), true)
-				}
-				drop -= size
-				queuedRateLimitCounter.Inc(int64(size))
-				continue
-			}
-			// Otherwise drop only last few transactions
-			txs := list.Flatten()
-			for i := len(txs) - 1; i >= 0 && drop > 0; i-- {
-				pool.removeTx(txs[i].Hash(), true)
-				drop--
-				queuedRateLimitCounter.Inc(1)
-			}
-		}
 	}
 }
-
-// demoteUnexecutables removes invalid and processed transactions from the pools
-// executable/pending queue and any subsequent transactions that become unexecutable
-// are moved back into the future queue.
-func (pool *TxPool) demoteUnexecutables() {
-	// Iterate over all accounts and demote any non-executable transactions
-	for addr, list := range pool.pending {
-		nonce := pool.currentState.GetNonce(addr)
-
-		// Drop all transactions that are deemed too old (low nonce)
-		for _, tx := range list.Forward(nonce) {
-			hash := tx.Hash()
-			log.Trace("Removed old pending transaction", "hash", hash)
-			pool.all.Remove(hash)
-			pool.priced.Removed()
-		}
-		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
-		for _, tx := range drops {
-			hash := tx.Hash()
-			log.Trace("Removed unpayable pending transaction", "hash", hash)
-			pool.all.Remove(hash)
-			pool.priced.Removed()
-			pendingNofundsCounter.Inc(1)
-		}
-		for _, tx := range invalids {
-			hash := tx.Hash()
-			log.Trace("Demoting pending transaction", "hash", hash)
-			pool.enqueueTx(hash, tx)
-		}
-		// If there's a gap in front, alert (should never happen) and postpone all transactions
-		if list.Len() > 0 && list.txs.Get(nonce) == nil {
-			for _, tx := range list.Cap(0) {
-				hash := tx.Hash()
-				log.Error("Demoting invalidated transaction", "hash", hash)
-				pool.enqueueTx(hash, tx)
-			}
-		}
-		// Delete the entire queue entry if it became empty.
-		if list.Empty() {
-			delete(pool.pending, addr)
-			delete(pool.beats, addr)
-		}
-	}
-}
-
-// addressByHeartbeat is an account address tagged with its last activity timestamp.
-type addressByHeartbeat struct {
-	address   common.Address
-	heartbeat time.Time
-}
-
-type addressesByHeartbeat []addressByHeartbeat
-
-func (a addressesByHeartbeat) Len() int           { return len(a) }
-func (a addressesByHeartbeat) Less(i, j int) bool { return a[i].heartbeat.Before(a[j].heartbeat) }
-func (a addressesByHeartbeat) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// accountSet is simply a set of addresses to check for existence, and a signer
-// capable of deriving addresses from transactions.
-type accountSet struct {
-	accounts map[common.Address]struct{}
-	signer   types.Signer
-	cache    *[]common.Address
-}
-
 
 // txLookup is used internally by TxPool to track transactions while allowing lookup without
 // mutex contention.
