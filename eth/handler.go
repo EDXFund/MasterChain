@@ -510,25 +510,56 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		// Deliver them all to the downloader for queuing
-		transactions := make([][]*types.Transaction, len(request))
-		uncles := make([][]*types.Header, len(request))
+		if request.ShardId == types.ShardMaster {
+			// Deliver them all to the downloader for queuing
+			bodyData := new ([]blockMasterBody)
+			if err := rlp.Decode(request.Data, bodyData); err != nil {
+				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
+			}
+			transactions := make([][]*types.ShardBlockInfo, len(request))
+			uncles := make([][]*types.Header, len(request))
+			for i, body := range *bodyData {
+				transactions[i] = body.Transactions
+				uncles[i] = body.Uncles
+			}
+			// Filter out any explicitly requested bodies, deliver the rest to the downloader
+			filter := len(transactions) > 0 || len(uncles) > 0
+			if filter {
+				transactions, uncles = pm.fetcher.FilterBodies(p.id, transactions, uncles, time.Now())
+			}
+			if len(transactions) > 0 || len(uncles) > 0 || !filter {
+				err := pm.downloader.DeliverMasterBodies(p.id, transactions, uncles)
+				if err != nil {
+					log.Debug("Failed to deliver bodies", "err", err)
+				}
+			}
+		}else { //Shard Block Info
+			bodyData := new ([]blockShardBody)
+			if err := rlp.Decode(request.Data, bodyData); err != nil {
+				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
+			}
+			// Deliver them all to the downloader for queuing
+			transactions := make([][]*types.Transaction, len(request))
+			//uncles := make([][]*types.Header, len(request))
+			for i, body := range *bodyData {
+				transactions[i] = body.Transactions
 
-		for i, body := range request {
-			transactions[i] = body.Transactions
-			uncles[i] = body.Uncles
-		}
-		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(transactions) > 0 || len(uncles) > 0
-		if filter {
-			transactions, uncles = pm.fetcher.FilterBodies(p.id, transactions, uncles, time.Now())
-		}
-		if len(transactions) > 0 || len(uncles) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, transactions, uncles)
-			if err != nil {
-				log.Debug("Failed to deliver bodies", "err", err)
+			}
+			// Filter out any explicitly requested bodies, deliver the rest to the downloader
+			filter := len(transactions) > 0
+			if filter {
+				transactions = pm.fetcher.FilterShardBodies(p.id, transactions, time.Now())
+			}
+			if len(transactions) > 0  || !filter {
+				err := pm.downloader.DeliverShardBodies(p.id, transactions, uncles)
+				if err != nil {
+					log.Debug("Failed to deliver bodies", "err", err)
+				}
 			}
 		}
+
+
+
 
 	case p.version >= eth63 && msg.Code == GetNodeDataMsg:
 		// Decode the retrieval message
@@ -632,7 +663,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 		}
 		for _, block := range unknown {
-			pm.fetcher.Notify(p.id, block.Hash, block.Number, time.Now(), p.RequestOneHeader, p.RequestBodies)
+			pm.fetcher.Notify(p.id,block.ShardId, block.Hash, block.Number, time.Now(), p.RequestOneHeader, p.RequestBodies)
 		}
 
 	case msg.Code == NewBlockMsg:
@@ -695,7 +726,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bool) {
 	hash := block.Hash()
 	shardId := block.ShardId()
+	//peers of this shard
 	peers := pm.peers.ShardPeersWithoutBlock(shardId,hash)
+	//broadcast to all master chain peers
+	peers := pm.peers.ShardPeersWithoutBlock(types.ShardMaster,hash)
 
 	// If propagation is requested, send to a subset of the peer
 	if propagate {
@@ -777,9 +811,14 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 
 	// Broadcast transactions to a batch of peers not knowing about it
 	for _, tx := range txs {
+		shardId := pm.blockchain.TxShardByHash(tx.Hash())
 		peers := pm.peers.PeersWithoutTx(tx.Hash())
 		for _, peer := range peers {
-			txset[peer] = append(txset[peer], tx)
+			//// must to do
+			if peer.ShardId() == types.ShardMaster || shardId == peer.ShardId() {
+				txset[peer] = append(txset[peer], tx)
+			}
+
 		}
 		log.Trace("Broadcast transaction", "hash", tx.Hash(), "recipients", len(peers))
 	}

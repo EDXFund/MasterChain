@@ -104,7 +104,7 @@ func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
-	shardId, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
+	_, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
@@ -115,11 +115,24 @@ func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, c
 	}
 	return body.Transactions[txIndex], blockHash, blockNumber, txIndex
 }
-
+// ReadTransaction retrieves a specific transaction from the database, along with
+// its added positional metadata.
+func ReadShardBlock(db DatabaseReader, hash common.Hash) (*types.ShardBlockInfo, common.Hash, uint64, uint64) {
+	_, blockHash, blockNumber, txIndex := ReadShardBlockLookupEntry(db, hash)
+	if blockHash == (common.Hash{}) {
+		return nil, common.Hash{}, 0, 0
+	}
+	body := ReadBody(db, blockHash, blockNumber)
+	if body == nil || len(body.Transactions) <= int(txIndex) {
+		log.Error("Transaction referenced missing", "number", blockNumber, "hash", blockHash, "index", txIndex)
+		return nil, common.Hash{}, 0, 0
+	}
+	return body.ShardBlocks[txIndex], blockHash, blockNumber, txIndex
+}
 // ReadReceipt retrieves a specific transaction receipt from the database, along with
 // its added positional metadata.
 func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, common.Hash, uint64, uint64) {
-	blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
+	_,blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
@@ -164,7 +177,7 @@ func ReadShardLatestEntry(db DatabaseReader, hash common.Hash) (map[uint16]*type
 	val,error := db.Get(latestShardKey(hash))
 	result := make(map[uint16]*types.LastShardInfo)
 	temp := make([]types.LastShardInfo,1)
-	if( error == nil){
+	if error == nil {
 		rlp.DecodeBytes(val,temp)
 		for i:= len(temp)-1; i>0;i-- {
 			result[temp[i-1].ShardId] = & temp[i-1]

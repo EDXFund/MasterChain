@@ -35,7 +35,7 @@ var (
 	// headBlockKey tracks the latest know full block's hash.
 	headBlockKey = []byte("LastBlock")
 	// lasted shard blocks
-	headBlockKey = []byte("LastShardBlock")
+	shardHeadBlockKey = []byte("LastShardBlock")
 	// headFastBlockKey tracks the latest known incomplete block's hash duirng fast sync.
 	headFastBlockKey = []byte("LastFast")
 

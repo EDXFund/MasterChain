@@ -42,11 +42,21 @@ func (p *headerPack) PeerId() string { return p.peerID }
 func (p *headerPack) Items() int     { return len(p.headers) }
 func (p *headerPack) Stats() string  { return fmt.Sprintf("%d", len(p.headers)) }
 
+type bodyPackIntf interfact {
+	PeerId() string
+	Items() int
+	stats() string
+}
 // bodyPack is a batch of block bodies returned by a peer.
 type bodyPack struct {
 	peerID       string
-	transactions [][]*types.Transaction
+	transactions [][]*types.ShardBlockInfo
 	uncles       [][]*types.Header
+}
+type shardBodyPack struct {
+	peerID       string
+	transactions [][]*types.Transaction
+
 }
 
 func (p *bodyPack) PeerId() string { return p.peerID }
@@ -57,6 +67,14 @@ func (p *bodyPack) Items() int {
 	return len(p.uncles)
 }
 func (p *bodyPack) Stats() string { return fmt.Sprintf("%d:%d", len(p.transactions), len(p.uncles)) }
+
+
+func (p *shardBodyPack) PeerId() string { return p.peerID }
+func (p *shardBodyPack) Items() int {
+
+	return len(p.transactions)
+}
+func (p *shardBodyPack) Stats() string { return fmt.Sprintf("%d:%d", len(p.transactions), len(p.uncles)) }
 
 // receiptPack is a batch of receipts returned by a peer.
 type receiptPack struct {

@@ -9,6 +9,7 @@ import (
 	"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/rlp"
 	"io"
+	"math/big"
 	time "time"
 	"unsafe"
 )
@@ -233,4 +234,89 @@ func ShardBlockDifference(a, b ShardBlockInfos) ShardBlockInfos {
 	}
 
 	return keep
+}
+
+
+// TODO: copies
+type BlockIntf interface {
+	DecodeRLP(s *rlp.Stream) error
+	EncodeRLP(w io.Writer) error
+	ShardBlock(hash common.Hash) *ShardBlockInfo
+	Uncles() []*Header
+	Header() HeaderIntf
+	Number() *big.Int
+	GasLimit() uint64
+	GasUsed() uint64
+	Difficulty() *big.Int
+	Time() *big.Int
+
+	NumberU64() uint64
+	MixDigest() common.Hash
+	Nonce() uint64
+	Bloom() Bloom
+	BloomRejected() Bloom
+	Coinbase() common.Address
+	Root() common.Hash
+	ParentHash() common.Hash
+	TxHash() common.Hash
+	ReceiptHash() common.Hash
+	UncleHash() common.Hash
+	Extra() []byte
+
+	ShardExp() uint8
+	ShardEnabled() []byte
+	// Body returns the non-header content of the block.
+	Body() *SuperBody
+	Size() common.StorageSize
+	WithSeal(header HeaderIntf) BlockIntf
+	WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header,transactions []*Transaction, receipts []*ContractResult) BlockIntf
+	//extract as block
+	ToBlock() *Block
+	//extract as shard block
+	ToSBlock() *SBlock
+	Hash() common.Hash
+	Transactions() []*Transaction
+	//Uncles()       []*Header
+	ShardBlocks()  []*ShardBlockInfo
+	Receipts()     []*Receipt
+
+}
+
+type HeaderIntf interface {
+	Hash() common.Hash
+	Size() common.StorageSize
+	ShardId() uint16
+	Number()  *big.Int
+	NumberU64() uint64
+	ToHeader() *Header
+	ToSHeader() *SHeader
+}
+
+type SuperBody struct {
+	ShardBlocks []*ShardBlockInfo
+
+	Uncles []*Header
+
+	Transactions []*Transaction
+
+	//receipts
+	Receipts ContractResults
+}
+
+func (sb *SuperBody)ToBody() *Body{
+	return &Body{Transactions:sb.ShardBlocks,Uncles:sb.Uncles}
+}
+
+func (sb *SuperBody)ToSBody() *SBody {
+	return &SBody{Transactions:sb.Transactions,Receipts:sb.Receipts}
+}
+
+type HeadEncode struct{
+	ShardId uint16
+	Header  []byte
+}
+
+type BodyEncode struct{
+	ShardId uint16
+	Body  []byte
 }

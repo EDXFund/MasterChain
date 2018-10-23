@@ -21,24 +21,24 @@ import (
 
 // Header represents a block header in the Ethereum blockchain.
 type SHeader struct {
-	ShardId    uint16      `json:"shardId"			gencodec:"required"`
-	ParentHash common.Hash `json:"parentHash"       gencodec:"required"`
+	shardId    uint16      `json:"shardId"			gencodec:"required"`
+	parentHash common.Hash `json:"parentHash"       gencodec:"required"`
 
 
-	Coinbase common.Address `json:"miner"            gencodec:"required"`
-	Root     common.Hash    `json:"stateRoot,omitempty"        gencodec:"nil"`
-	TxHash   common.Hash    `json:"transactionsRoot,omitempty" gencodec:"nil"`
-	ReceiptHash common.Hash `json:"receiptsRoot,omitempty"     gencodec:"nil"`
+	coinbase common.Address `json:"miner"            gencodec:"required"`
+	root     common.Hash    `json:"stateRoot,omitempty"        gencodec:"nil"`
+	txHash   common.Hash    `json:"transactionsRoot,omitempty" gencodec:"nil"`
+	receiptHash common.Hash `json:"receiptsRoot,omitempty"     gencodec:"nil"`
 
-	Bloom       Bloom       `json:"logsBloom"        gencodec:"required"`
-	Difficulty  *big.Int    `json:"difficulty"       gencodec:"required"`
-	Number      *big.Int    `json:"number"           gencodec:"required"`
-	GasLimit    uint64      `json:"gasLimit"         gencodec:"required"`
-	GasUsed     uint64      `json:"gasUsed"          gencodec:"required"`
-	Time        *big.Int    `json:"timestamp"        gencodec:"required"`
-	Extra       []byte      `json:"extraData"        gencodec:"required"`
-	MixDigest   common.Hash `json:"mixHash"          gencodec:"required"`
-	Nonce       BlockNonce  `json:"nonce"            gencodec:"required"`
+	bloom       Bloom       `json:"logsBloom"        gencodec:"required"`
+	difficulty  *big.Int    `json:"difficulty"       gencodec:"required"`
+	number      *big.Int    `json:"number"           gencodec:"required"`
+	gasLimit    uint64      `json:"gasLimit"         gencodec:"required"`
+	gasUsed     uint64      `json:"gasUsed"          gencodec:"required"`
+	time        *big.Int    `json:"timestamp"        gencodec:"required"`
+	extra       []byte      `json:"extraData"        gencodec:"required"`
+	mixDigest   common.Hash `json:"mixHash"          gencodec:"required"`
+	nonce       BlockNonce  `json:"nonce"            gencodec:"required"`
 }
 
 type SHeaderMarshal struct {
@@ -99,10 +99,32 @@ func (h *SHeader) Hash() common.Hash {
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.
 func (h *SHeader) Size() common.StorageSize {
-	return common.StorageSize(unsafe.Sizeof(*h)) + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen()+h.Time.BitLen())/8)
+	return common.StorageSize(unsafe.Sizeof(*h)) + common.StorageSize(len(h.extra)+(h.difficulty.BitLen()+h.number.BitLen()+h.time.BitLen())/8)
 }
 
+func (h *SHeader) ToHeader() *Header{
+	return nil
+}
+func (h *SHeader) ToSHeader() *SHeader {
+	return h
+}
 
+func (b *SHeader) ShardId() uint16      { return b.shardId }
+func (b *SHeader) Number() *big.Int     { return new(big.Int).Set(b.number) }
+func (b *SHeader) GasLimit() uint64     { return b.gasLimit }
+func (b *SHeader) GasUsed() uint64      { return b.gasUsed }
+func (b *SHeader) Difficulty() *big.Int { return new(big.Int).Set(b.difficulty) }
+func (b *SHeader) Time() *big.Int       { return new(big.Int).Set(b.time) }
+
+func (b *SHeader) NumberU64() uint64        { return b.number.Uint64() }
+func (b *SHeader) MixDigest() common.Hash   { return b.mixDigest }
+func (b *SHeader) Nonce() uint64            { return binary.BigEndian.Uint64(b.nonce[:]) }
+func (b *SHeader) Bloom() Bloom             { return b.bloom }
+func (b *SHeader) Coinbase() common.Address { return b.coinbase }
+func (b *SHeader) Root() common.Hash        { return b.root }
+func (b *SHeader) ParentHash() common.Hash  { return b.parentHash }
+func (b *SHeader) TxHash() common.Hash      { return b.txHash }
+func (b *SHeader) ReceiptHash() common.Hash { return b.receiptHash }
 
 
 // Body is a simple (mutable, non-safe) data container for storing and moving
@@ -180,17 +202,17 @@ func NewSBlock(header *SHeader, txs []*Transaction, receipts []*ContractResult) 
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
-		b.header.TxHash = EmptyRootHash
+		b.header.txHash = EmptyRootHash
 	} else {
-		b.header.TxHash = DeriveSha(Transactions(txs))
+		b.header.txHash = DeriveSha(Transactions(txs))
 		b.transactions = make(Transactions, len(txs))
 		copy(b.transactions, txs)
 	}
 
 	if len(receipts) == 0 {
-		b.header.ReceiptHash = EmptyRootHash
+		b.header.receiptHash = EmptyRootHash
 	} else {
-		b.header.ReceiptHash = DeriveSha(ContractResults(receipts))
+		b.header.receiptHash = DeriveSha(ContractResults(receipts))
 		//b.header.Bloom = CreateBloom(receipts)
 	}
 
@@ -209,18 +231,18 @@ func NewSBlockWithHeader(header *SHeader) *SBlock {
 // modifying a header variable.
 func CopySHeader(h *SHeader) *SHeader {
 	cpy := *h
-	if cpy.Time = new(big.Int); h.Time != nil {
-		cpy.Time.Set(h.Time)
+	if cpy.time = new(big.Int); h.time != nil {
+		cpy.time.Set(h.time)
 	}
-	if cpy.Difficulty = new(big.Int); h.Difficulty != nil {
-		cpy.Difficulty.Set(h.Difficulty)
+	if cpy.difficulty = new(big.Int); h.difficulty != nil {
+		cpy.difficulty.Set(h.difficulty)
 	}
-	if cpy.Number = new(big.Int); h.Number != nil {
-		cpy.Number.Set(h.Number)
+	if cpy.number = new(big.Int); h.number != nil {
+		cpy.number.Set(h.number)
 	}
-	if len(h.Extra) > 0 {
-		cpy.Extra = make([]byte, len(h.Extra))
-		copy(cpy.Extra, h.Extra)
+	if len(h.extra) > 0 {
+		cpy.extra = make([]byte, len(h.extra))
+		copy(cpy.extra, h.extra)
 	}
 	return &cpy
 }
@@ -281,25 +303,25 @@ func (b *SBlock) ContrcatReceipt(hash common.Hash) *ContractResult {
 	}
 	return nil
 }
-func (b *SBlock) ShardId() uint16      { return b.header.ShardId }
-func (b *SBlock) Number() *big.Int     { return new(big.Int).Set(b.header.Number) }
-func (b *SBlock) GasLimit() uint64     { return b.header.GasLimit }
-func (b *SBlock) GasUsed() uint64      { return b.header.GasUsed }
-func (b *SBlock) Difficulty() *big.Int { return new(big.Int).Set(b.header.Difficulty) }
-func (b *SBlock) Time() *big.Int       { return new(big.Int).Set(b.header.Time) }
+func (b *SBlock) ShardId() uint16      { return b.header.shardId }
+func (b *SBlock) Number() *big.Int     { return new(big.Int).Set(b.header.number) }
+func (b *SBlock) GasLimit() uint64     { return b.header.gasLimit }
+func (b *SBlock) GasUsed() uint64      { return b.header.gasUsed }
+func (b *SBlock) Difficulty() *big.Int { return new(big.Int).Set(b.header.difficulty) }
+func (b *SBlock) Time() *big.Int       { return new(big.Int).Set(b.header.time) }
 
-func (b *SBlock) NumberU64() uint64        { return b.header.Number.Uint64() }
-func (b *SBlock) MixDigest() common.Hash   { return b.header.MixDigest }
-func (b *SBlock) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
-func (b *SBlock) Bloom() Bloom             { return b.header.Bloom }
-func (b *SBlock) Coinbase() common.Address { return b.header.Coinbase }
-func (b *SBlock) Root() common.Hash        { return b.header.Root }
-func (b *SBlock) ParentHash() common.Hash  { return b.header.ParentHash }
-func (b *SBlock) TxHash() common.Hash      { return b.header.TxHash }
-func (b *SBlock) ReceiptHash() common.Hash { return b.header.ReceiptHash }
+func (b *SBlock) NumberU64() uint64        { return b.header.number.Uint64() }
+func (b *SBlock) MixDigest() common.Hash   { return b.header.mixDigest }
+func (b *SBlock) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.nonce[:]) }
+func (b *SBlock) Bloom() Bloom             { return b.header.bloom }
+func (b *SBlock) Coinbase() common.Address { return b.header.coinbase }
+func (b *SBlock) Root() common.Hash        { return b.header.root }
+func (b *SBlock) ParentHash() common.Hash  { return b.header.parentHash }
+func (b *SBlock) TxHash() common.Hash      { return b.header.txHash }
+func (b *SBlock) ReceiptHash() common.Hash { return b.header.receiptHash }
 
 //func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
-func (b *SBlock) Extra() []byte                 { return common.CopyBytes(b.header.Extra) }
+func (b *SBlock) Extra() []byte                 { return common.CopyBytes(b.header.extra) }
 
 func (b *SBlock) Header() *SHeader               { return CopySHeader(b.header) }
 
@@ -331,7 +353,7 @@ func (b *SBlock) WithSeal(header *SHeader) *SBlock {
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *SBlock) WithBody(transactions []*Transaction, contractReceipts ContractResults) *SBlock {
+func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractReceipts ContractResults) *SBlock {
 	block := &SBlock{
 		header: CopySHeader(b.header),
 	}
@@ -342,6 +364,9 @@ func (b *SBlock) WithBody(transactions []*Transaction, contractReceipts Contract
 	copy(block.receipts, contractReceipts)
 
 	return block
+}
+func (b *SBlock)WithBodyOfShardBlocks(shardBlocksInfos []*ShardBlockInfo, uncles []*Header) *Block{
+	return nil
 }
 
 // Hash returns the keccak256 hash of b's header.
@@ -376,4 +401,4 @@ func (self scblockSorter) Swap(i, j int) {
 }
 func (self scblockSorter) Less(i, j int) bool { return self.by(self.blocks[i], self.blocks[j]) }
 
-func SNumber(b1, b2 *SBlock) bool { return b1.header.Number.Cmp(b2.header.Number) < 0 }
+func SNumber(b1, b2 *SBlock) bool { return b1.header.number.Cmp(b2.header.number) < 0 }

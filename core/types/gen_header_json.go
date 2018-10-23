@@ -33,7 +33,7 @@ func (h Header) MarshalJSON() ([]byte, error) {
 		Hash        common.Hash    `json:"hash"`
 	}
 	var enc Header
-	enc.ParentHash = h.ParentHash
+	enc.parentHash = h.parentHash
 	enc.UncleHash = h.UncleHash
 	enc.Coinbase = h.Coinbase
 	enc.Root = h.Root

@@ -182,7 +182,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 	// Create a function that returns blocks from the closure
 	return func(hashes []common.Hash) error {
 		// Gather the block bodies to return
-		transactions := make([][]*types.Transaction, 0, len(hashes))
+		transactions := make([][]*types.ShardBlockInfo, 0, len(hashes))
 		uncles := make([][]*types.Header, 0, len(hashes))
 
 		for _, hash := range hashes {

@@ -141,26 +141,41 @@ func HasHeader(db DatabaseReader, hash common.Hash, number uint64) bool {
 }
 
 // ReadHeader retrieves the block header corresponding to the hash.
-func ReadHeader(db DatabaseReader, hash common.Hash, number uint64) *types.Header {
+func ReadHeader(db DatabaseReader, hash common.Hash, number uint64) types.HeaderIntf {
 	data := ReadHeaderRLP(db, hash, number)
 	if len(data) == 0 {
 		return nil
 	}
-	header := new(types.Header)
+	header := new(types.HeadEncode)
 	if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
 		log.Error("Invalid block header RLP", "hash", hash, "err", err)
 		return nil
 	}
-	return header
+	if header.ShardId == types.ShardMaster {
+		mheader := new (types.Header)
+		if err := rlp.Decode(bytes.NewReader(header.Header), mheader); err != nil {
+			log.Error("Invalid block header RLP", "hash", hash, "err", err)
+			return nil
+		}
+		return mheader
+	} else {
+		sheader := new (types.SHeader)
+		if err := rlp.Decode(bytes.NewReader(header.Header), sheader); err != nil {
+			log.Error("Invalid block header RLP", "hash", hash, "err", err)
+			return nil
+		}
+		return sheader
+	}
+
 }
 
 // WriteHeader stores a block header into the database and also stores the hash-
 // to-number mapping.
-func WriteHeader(db DatabaseWriter, header *types.Header) {
+func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 	// Write the hash -> number mapping
 	var (
 		hash    = header.Hash()
-		number  = header.Number.Uint64()
+		number  = header.Number64()
 		encoded = encodeBlockNumber(number)
 	)
 	key := headerNumberKey(hash)
@@ -168,7 +183,16 @@ func WriteHeader(db DatabaseWriter, header *types.Header) {
 		log.Crit("Failed to store hash to number mapping", "err", err)
 	}
 	// Write the encoded header
-	data, err := rlp.EncodeToBytes(header)
+	shardId := header.ShardId();
+	 toEncode := types.HeadEncode{ShardId:shardId}
+	 if shardId == types.ShardMaster {
+
+		 toEncode.Header,_ = rlp.EncodeToBytes(header.ToHeader())
+	 }else {
+		 toEncode.Header,_ = rlp.EncodeToBytes(header.ToSHeader())
+	 }
+
+	data, err := rlp.EncodeToBytes(toEncode)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
@@ -210,21 +234,36 @@ func HasBody(db DatabaseReader, hash common.Hash, number uint64) bool {
 }
 
 // ReadBody retrieves the block body corresponding to the hash.
-func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.Body {
+func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.SuperBody {
 	data := ReadBodyRLP(db, hash, number)
 	if len(data) == 0 {
 		return nil
 	}
-	body := new(types.Body)
+	body := new(types.BodyEncode)
 	if err := rlp.Decode(bytes.NewReader(data), body); err != nil {
 		log.Error("Invalid block body RLP", "hash", hash, "err", err)
 		return nil
 	}
-	return body
+	if body.ShardId() == types.ShardMaster {
+		bodyres := new (types.Body)
+		if err := rlp.Decode(bytes.NewReader(data), bodyres); err != nil {
+			log.Error("Invalid block body RLP", "hash", hash, "err", err)
+			return nil
+		}
+		return &types.SuperBody{bodyres.Transactions,bodyres.Uncles,nil,nil}
+	}else {
+		bodyres := new (types.SBody)
+		if err := rlp.Decode(bytes.NewReader(data), bodyres); err != nil {
+			log.Error("Invalid block body RLP", "hash", hash, "err", err)
+			return nil
+		}
+		return &types.SuperBody{nil,nil,bodyres.Transactions,bodyres.Receipts}
+	}
+
 }
 
 // WriteBody storea a block body into the database.
-func WriteBody(db DatabaseWriter, hash common.Hash, number uint64, body *types.Body) {
+func WriteBody(db DatabaseWriter, hash common.Hash, number uint64, body *types.SuperBody) {
 	data, err := rlp.EncodeToBytes(body)
 	if err != nil {
 		log.Crit("Failed to RLP encode body", "err", err)
@@ -321,7 +360,7 @@ func DeleteReceipts(db DatabaseDeleter, hash common.Hash, number uint64) {
 //
 // Note, due to concurrent download of header and block body the header and thus
 // canonical hash can be stored in the database but the body data not (yet).
-func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) *types.Block {
+func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) types.BlockIntf {
 	header := ReadHeader(db, hash, number)
 	if header == nil {
 		return nil
@@ -330,7 +369,7 @@ func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) *types.Block 
 	if body == nil {
 		return nil
 	}
-	return types.NewBlockWithHeader(header).WithBody(body.Transactions, body.Uncles)
+	return types.NewBlockWithHeader(header).WithBody(body.ShardBlocks,body.Uncles,body.Transactions, body.Receipts)
 }
 
 // WriteBlock serializes a block into the database, header and body separately.

@@ -418,7 +418,7 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	}
 	return nil
 }
-
+func (ps *peer) ShardId() uint16 { return ps.shardId}
 // String implements fmt.Stringer.
 func (p *peer) String() string {
 	return fmt.Sprintf("Peer %s [%s]", p.id,
@@ -516,8 +516,9 @@ func (ps *peerSet) Len() int {
 
 // PeersWithoutBlock retrieves a list of peers that do not have a given block in
 // their set of known hashes.
+//master block should broadcast to all peers
 func (ps *peerSet) PeersWithoutMasterBlock(hash common.Hash) []*peer {
-/*	ps.lock.RLock()
+	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	list := make([]*peer, 0, len(ps.peers))
@@ -528,8 +529,8 @@ func (ps *peerSet) PeersWithoutMasterBlock(hash common.Hash) []*peer {
 			}
 		}
 	}
-	return list*/
-	return ps.PeersWithoutShardBlock(types.ShardMaster,hash)
+	return list
+	//return ps.PeersWithoutShardBlock(types.ShardMaster,hash)
 }
 func (ps *peerSet) PeersWithoutShardBlock(shardId uint16,hash common.Hash) []*peer {
 	ps.lock.RLock()

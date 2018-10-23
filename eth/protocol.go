@@ -121,6 +121,7 @@ type statusData struct {
 
 // newBlockHashesData is the network packet for the block announcements.
 type newBlockHashesData []struct {
+	ShardId uint16
 	Hash   common.Hash // Hash of one particular block being announced
 	Number uint64      // Number of one particular block being announced
 }
@@ -177,9 +178,16 @@ type newBlockData struct {
 
 // blockBody represents the data content of a single block.
 type blockBody struct {
-	Transactions []*types.Transaction // Transactions contained within a block
+	ShardId      uint16
+	Data      []byte
+}
+type blockMasterBody struct {
+	Transactions []*types.ShardBlockInfo // Transactions contained within a block
 	Uncles       []*types.Header      // Uncles contained within a block
 }
-
+type blockShardBody struct {
+	Transactions []*types.Transaction // Transactions contained within a block
+	ContractResults []*types.ContractResult
+}
 // blockBodiesData is the network packet for block content distribution.
 type blockBodiesData []*blockBody

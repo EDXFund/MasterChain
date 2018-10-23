@@ -108,6 +108,7 @@ type BlockChain struct {
 	chainmu sync.RWMutex // blockchain insertion lock
 	procmu  sync.RWMutex // block processor lock
 
+
 	checkpoint       int          // checkpoint counts towards the new checkpoint
 	currentBlock     atomic.Value // Current head of the block chain
 	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
@@ -204,7 +205,22 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 func (bc *BlockChain) getProcInterrupt() bool {
 	return atomic.LoadInt32(&bc.procInterrupt) == 1
 }
-
+func (bc *BlockChain) getShardExp() bool {
+	return bc.CurrentHeader().ShardMaskEp
+}
+func (bc *BlockChain) getShardEnabledState() [32]byte{
+	return bc.CurrentHeader().ShardEnabled
+}
+func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16{
+	hashBytes := txHash.Bytes()
+	targetShard := hashBytes[0] & bc.getShardExp()
+	shardState := bc.CurrentHeader().ShardEnabled
+	if shardState[int(targetShard >> 3 )] & (1 << (targetShard &0x7)) {
+		return targetShard;
+	}else {
+		return 0
+	}
+}
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (bc *BlockChain) loadLastState() error {
