@@ -91,6 +91,7 @@ type ProtocolManager struct {
 	// channels for fetcher, syncer, txsyncLoop
 	newPeerCh   chan *peer
 	txsyncCh    chan *txsync
+
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
 
@@ -733,7 +734,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 // will only announce it's availability (depending what's requested).
 func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 	hash := block.Hash()
-	peers := pm.peers.PeersWithoutBlock(hash)
+	peers := pm.peers.PeersWithoutMasterBlock(hash)
 
 	// If propagation is requested, send to a subset of the peer
 	if propagate {

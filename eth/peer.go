@@ -94,7 +94,7 @@ type peer struct {
 	knownBlocks mapset.Set                // Set of block hashes known to be known by this peer
 	queuedTxs   chan []*types.Transaction // Queue of transactions to broadcast to the peer
 	queuedProps chan *propEvent           // Queue of blocks to broadcast to the peer
-	queuedShardProps chan *propShardEvent           // Queue of blocks to broadcast to the peer
+	queuedShardProps chan *propShardEvent // Queue of blocks to broadcast to the peer
 	queuedAnns  chan *types.Block         // Queue of blocks to announce to the peer
 	queuedShardAnns  chan *types.SBlock         // Queue of blocks to announce to the peer
 	term        chan struct{}             // Termination channel to stop the broadcaster
@@ -516,8 +516,8 @@ func (ps *peerSet) Len() int {
 
 // PeersWithoutBlock retrieves a list of peers that do not have a given block in
 // their set of known hashes.
-func (ps *peerSet) PeersWithoutBlock(hash common.Hash) []*peer {
-	ps.lock.RLock()
+func (ps *peerSet) PeersWithoutMasterBlock(hash common.Hash) []*peer {
+/*	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	list := make([]*peer, 0, len(ps.peers))
@@ -528,9 +528,10 @@ func (ps *peerSet) PeersWithoutBlock(hash common.Hash) []*peer {
 			}
 		}
 	}
-	return list
+	return list*/
+	return ps.PeersWithoutShardBlock(types.ShardMaster,hash)
 }
-func (ps *peerSet) ShardPeersWithoutBlock(shardId uint16,hash common.Hash) []*peer {
+func (ps *peerSet) PeersWithoutShardBlock(shardId uint16,hash common.Hash) []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
@@ -548,19 +549,17 @@ func (ps *peerSet) ShardPeersWithoutBlock(shardId uint16,hash common.Hash) []*pe
 
 // PeersWithoutTx retrieves a list of peers that do not have a given transaction
 // in their set of known hashes.
-
-func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
+func (ps *peerSet) MasterMPeersWithoutTx(hash common.Hash) []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	list := make([]*peer, 0, len(ps.peers))
-	for _, peers := range ps.peers {
-		for _, p := range peers {
+	for _, p := range ps.peers[types.ShardMaster] {
+
 
 			if !p.knownTxs.Contains(hash) {
 				list = append(list, p)
 			}
-		}
 	}
 	return list
 }

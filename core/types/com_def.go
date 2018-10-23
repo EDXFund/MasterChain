@@ -66,7 +66,7 @@ func (c *writeCounter) Write(b []byte) (int, error) {
 type ShardStatus uint16
 
 var (
-	ShardMaster ShardStatus = 0xFFFF
+	ShardMaster uint16 = 0xFFFF
 )
 var (
 	ShardEnableLen = 32
