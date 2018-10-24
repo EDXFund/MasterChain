@@ -175,7 +175,7 @@ func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 	// Write the hash -> number mapping
 	var (
 		hash    = header.Hash()
-		number  = header.Number64()
+		number  = header.NumberU64()
 		encoded = encodeBlockNumber(number)
 	)
 	key := headerNumberKey(hash)
@@ -244,7 +244,7 @@ func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.SuperBo
 		log.Error("Invalid block body RLP", "hash", hash, "err", err)
 		return nil
 	}
-	if body.ShardId() == types.ShardMaster {
+	if body.ShardId == types.ShardMaster {
 		bodyres := new (types.Body)
 		if err := rlp.Decode(bytes.NewReader(data), bodyres); err != nil {
 			log.Error("Invalid block body RLP", "hash", hash, "err", err)
@@ -263,10 +263,14 @@ func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.SuperBo
 }
 
 // WriteBody storea a block body into the database.
-func WriteBody(db DatabaseWriter, hash common.Hash, number uint64, body *types.SuperBody) {
+func WriteBody(db DatabaseWriter, hash common.Hash,shardId uint16, number uint64, body *types.SuperBody) {
 	data, err := rlp.EncodeToBytes(body)
+
 	if err != nil {
 		log.Crit("Failed to RLP encode body", "err", err)
+	} else {
+		body2 := &types.BodyEncode{shardId,data}
+		data,err = rlp.EncodeToBytes(body2)
 	}
 	WriteBodyRLP(db, hash, number, data)
 }
@@ -374,7 +378,7 @@ func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) types.BlockIn
 
 // WriteBlock serializes a block into the database, header and body separately.
 func WriteBlock(db DatabaseWriter, block *types.Block) {
-	WriteBody(db, block.Hash(), block.NumberU64(), block.Body())
+	WriteBody(db, block.Hash(),block.ShardId(), block.NumberU64(), block.Body())
 	WriteHeader(db, block.Header())
 }
 
@@ -387,25 +391,25 @@ func DeleteBlock(db DatabaseDeleter, hash common.Hash, number uint64) {
 }
 
 // FindCommonAncestor returns the last common ancestor of two block headers
-func FindCommonAncestor(db DatabaseReader, a, b *types.Header) *types.Header {
-	for bn := b.Number.Uint64(); a.Number.Uint64() > bn; {
-		a = ReadHeader(db, a.ParentHash, a.Number.Uint64()-1)
+func FindCommonAncestor(db DatabaseReader, a, b types.HeaderIntf) types.HeaderIntf {
+	for bn := b.NumberU64(); a.NumberU64() > bn; {
+		a = ReadHeader(db, a.ParentHash(), a.NumberU64()-1)
 		if a == nil {
 			return nil
 		}
 	}
-	for an := a.Number.Uint64(); an < b.Number.Uint64(); {
-		b = ReadHeader(db, b.ParentHash, b.Number.Uint64()-1)
+	for an := a.NumberU64(); an < b.NumberU64(); {
+		b = ReadHeader(db, b.ParentHash(), b.NumberU64()-1)
 		if b == nil {
 			return nil
 		}
 	}
 	for a.Hash() != b.Hash() {
-		a = ReadHeader(db, a.ParentHash, a.Number.Uint64()-1)
+		a = ReadHeader(db, a.ParentHash(), a.NumberU64()-1)
 		if a == nil {
 			return nil
 		}
-		b = ReadHeader(db, b.ParentHash, b.Number.Uint64()-1)
+		b = ReadHeader(db, b.ParentHash(), b.NumberU64()-1)
 		if b == nil {
 			return nil
 		}

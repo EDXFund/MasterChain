@@ -33,7 +33,7 @@ import (
 	"github.com/EDXFund/MasterChain/rlp"
 )
 
-//go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
+//go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go1
 
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
@@ -244,8 +244,8 @@ func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts
 // NewBlockWithHeader creates a block with the given header data. The
 // header data is copied, changes to header and to the field values
 // will not affect the block.
-func NewBlockWithHeader(header *Header) BlockIntf {
-	return &Block{header: CopyHeader(header)}
+func NewBlockWithHeader(header HeaderIntf) BlockIntf {
+	return &Block{header: CopyHeader(header.ToHeader())}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
@@ -311,6 +311,7 @@ func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
 	}
 	return nil
 }
+func (b *Block) ShardId() uint16      { return b.header.ShardId() }
 func (b *Block) Header() HeaderIntf      { return b.header }
 func (b *Block) Number() *big.Int     { return new(big.Int).Set(b.header.number) }
 func (b *Block) GasLimit() uint64     { return b.header.gasLimit }

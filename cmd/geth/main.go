@@ -353,3 +353,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 	}
 }
+
+type Test struct {
+	ddd uint16 
+}

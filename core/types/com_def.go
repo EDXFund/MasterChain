@@ -290,6 +290,7 @@ type HeaderIntf interface {
 	NumberU64() uint64
 	ToHeader() *Header
 	ToSHeader() *SHeader
+	ParentHash() common.Hash
 }
 
 type SuperBody struct {

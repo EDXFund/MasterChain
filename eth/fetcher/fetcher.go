@@ -109,7 +109,7 @@ type shardBodyFilterTask struct {
 // inject represents a schedules import operation.
 type inject struct {
 	origin string
-	block  *types.BlockIntf
+	block  types.BlockIntf
 }
 
 // Fetcher is responsible for accumulating block announcements from various peers
@@ -215,7 +215,7 @@ func (f *Fetcher) Notify(peer string, shardId uint16, hash common.Hash, number u
 }
 
 // Enqueue tries to fill gaps the fetcher's future import queue.
-func (f *Fetcher) Enqueue(peer string, block *types.Block) error {
+func (f *Fetcher) Enqueue(peer string, block types.BlockIntf) error {
 	op := &inject{
 		origin: peer,
 		block:  block,
@@ -544,16 +544,16 @@ func (f *Fetcher) loop() {
 					if f.queued[hash] == nil {
 
 						//recalc hash
-						txnHash := types.DeriveSha(types.ShardBlockInfos(task.transactions[i]))
+						txnHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
 						uncleHash := types.CalcUncleHash(task.uncles[i])
 
-						if txnHash == announce.header.TxHash && uncleHash == announce.header.UncleHash && announce.origin == task.peer {
+						if txnHash == announce.header.TxHash() && uncleHash == announce.header.UncleHash() && announce.origin == task.peer {
 							// Mark the body matched, reassemble if still unknown
 							matched = true
 
 							if f.getBlock(hash) == nil {
-								block := types.NewBlockWithHeader(announce.header).WithBody(task.transactions[i], task.uncles[i])
-								block.ReceivedAt = task.time
+								block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], task.uncles[i],nil,nil)
+								block.ReceivedAt() = task.time
 
 								blocks = append(blocks, block)
 							} else {

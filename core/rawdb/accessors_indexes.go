@@ -192,7 +192,12 @@ func WriteShardLatestEntry(db DatabaseWriter, hash common.Hash,latestShardInfo m
 	for key,val := range latestShardInfo{
 		data[index] = val
 	}
-	if err :=  db.Put(latestShardKey(hash),rlp.EncodeToBytes(data)); err != nil {
+	value,er1 := rlp.EncodeToBytes(data)
+	if er1  != nil {
+		log.Crit("Failed to encode ", "err", er1)
+		return
+	}
+	if err :=  db.Put(latestShardKey(hash),value); err != nil {
 		log.Crit("Failed to store  block latest shard entry", "err", err)
 	}
 

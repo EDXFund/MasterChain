@@ -42,7 +42,7 @@ func (p *headerPack) PeerId() string { return p.peerID }
 func (p *headerPack) Items() int     { return len(p.headers) }
 func (p *headerPack) Stats() string  { return fmt.Sprintf("%d", len(p.headers)) }
 
-type bodyPackIntf interfact {
+type bodyPackIntf interface {
 	PeerId() string
 	Items() int
 	stats() string
