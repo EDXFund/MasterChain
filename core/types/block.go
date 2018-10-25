@@ -18,7 +18,7 @@
 package types
 
 import (
-	"encoding/binary"
+	//"encoding/binary"
 
 	"io"
 	"math/big"
@@ -41,8 +41,8 @@ type Header struct {
 	uncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	coinbase       common.Address `json:"miner"            gencodec:"required"`
 	shardBlockHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
-	shardMaskEp    uint8          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
-	shardEnabled   []byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
+	shardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
+	shardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
 	root           common.Hash    `json:"stateRoot"        gencodec:"required"`
 	txHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	receiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
@@ -98,7 +98,7 @@ func (b *Header) Time() *big.Int       { return new(big.Int).Set(b.time) }
 
 func (b *Header) NumberU64() uint64        { return b.number.Uint64() }
 func (b *Header) MixDigest() common.Hash   { return b.mixDigest }
-func (b *Header) Nonce() uint64            { return binary.BigEndian.Uint64(b.nonce[:]) }
+func (b *Header) Nonce() BlockNonce            { return b.nonce }
 func (b Header) Bloom() Bloom             { return b.bloom }
 func (b Header) BloomRejected() Bloom     { return b.bloomReject }
 func (b *Header) Coinbase() common.Address { return b.coinbase }
@@ -109,8 +109,27 @@ func (b *Header) ReceiptHash() common.Hash { return b.receiptHash }
 func (b *Header) UncleHash() common.Hash   { return b.uncleHash }
 func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
 
-func (b *Header) ShardExp() uint8      { return b.shardMaskEp }
-func (b *Header) ShardEnabled() []byte { return b.shardEnabled }
+func (b *Header) ShardExp() uint16      { return b.shardMaskEp }
+func (b *Header) ShardEnabled() [32]byte { return b.shardEnabled }
+
+func (b *Header) SetShardId(v uint16){}
+func (b *Header) SetNumber(v *big.Int){b.number = new(big.Int).Set(v)}
+func (b *Header) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v)}
+
+func (b *Header) SetParentHash(v common.Hash){b.parentHash = v}
+func (b *Header) SetUncleHash(v common.Hash){b.uncleHash = v}
+func (b *Header) SetReceiptHash(v common.Hash){b.receiptHash =v }
+func (b *Header) SetTxHash(v common.Hash){b.txHash = v}
+func (b *Header) SetExtra(v []byte){b.extra = common.CopyBytes(v)}
+func (b *Header) SetTime(v *big.Int){b.time = v}
+func (b *Header) SetCoinbase(v common.Address) {b.coinbase = v}
+func (b *Header) SetRoot(v common.Hash){b.root = v}
+func (b *Header) SetBloom(v Bloom){b.bloom = v}
+func (b *Header) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64())}
+func (b *Header) SetGasLimit(v  uint64) { b.gasLimit = v}
+func (b *Header) SetGasUsed(v uint64) { b.gasUsed = v}
+func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v}
+func (b *Header) SetNonce(v BlockNonce) {b.nonce = v}
 
 type ShardBlockInfo struct {
 	shardId     uint16
@@ -169,10 +188,17 @@ type Block struct {
 
 	// These fields are used by package eth to track
 	// inter-peer block relay.
-	ReceivedAt   time.Time
+	receivedAt   time.Time
 	ReceivedFrom interface{}
 }
-
+//
+func (b *Block) ReceivedAt() time.Time {
+	return b.receivedAt
+}
+//
+func (b *Block) SetReceivedAt(tm time.Time)  {
+	b.receivedAt = tm
+}
 // DeprecatedTd is an old relic for extracting the TD of a block. It is in the
 // code solely to facilitate upgrading the database from the old format to the
 // new, after which it should be deleted. Do not use!
@@ -209,7 +235,7 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts []*Receipt) *Block {
+func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts []*Receipt,txs []*Transaction, results []*ContractResult) *Block {
 	b := &Block{header: CopyHeader(header), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
@@ -247,7 +273,14 @@ func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts
 func NewBlockWithHeader(header HeaderIntf) BlockIntf {
 	return &Block{header: CopyHeader(header.ToHeader())}
 }
-
+// poor implemention
+func CopyHeaderIntf(h HeaderIntf) HeaderIntf {
+	if h.ShardId() == ShardMaster {
+		return CopyHeader(h.ToHeader())
+	}else {
+		return CopySHeader(h.ToSHeader())
+	}
+}
 // CopyHeader creates a deep copy of a block header to prevent side effects from
 // modifying a header variable.
 func CopyHeader(h *Header) *Header {
@@ -321,7 +354,7 @@ func (b *Block) Time() *big.Int       { return new(big.Int).Set(b.header.time) }
 
 func (b *Block) NumberU64() uint64        { return b.header.number.Uint64() }
 func (b *Block) MixDigest() common.Hash   { return b.header.mixDigest }
-func (b *Block) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.nonce[:]) }
+func (b *Block) Nonce() BlockNonce            { return b.header.nonce }
 func (b Block) Bloom() Bloom             { return b.header.bloom }
 func (b Block) BloomRejected() Bloom     { return b.header.bloomReject }
 func (b *Block) Coinbase() common.Address { return b.header.coinbase }
@@ -410,6 +443,7 @@ func (b *Block) Hash() common.Hash {
 }
 
 type Blocks []*Block
+type BlockIntfs []BlockIntf
 
 type BlockBy func(b1, b2 *Block) bool
 

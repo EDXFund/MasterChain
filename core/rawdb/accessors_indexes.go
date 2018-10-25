@@ -189,7 +189,7 @@ func WriteShardLatestEntry(db DatabaseWriter, hash common.Hash,latestShardInfo m
 	//convert to an array, and then encode it
 	data := make([]*types.LastShardInfo,len(latestShardInfo))
 	index := 0
-	for key,val := range latestShardInfo{
+	for _,val := range latestShardInfo{
 		data[index] = val
 	}
 	value,er1 := rlp.EncodeToBytes(data)

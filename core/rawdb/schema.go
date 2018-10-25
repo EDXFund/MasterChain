@@ -137,5 +137,5 @@ func configKey(hash common.Hash) []byte {
 
 // configKey = configPrefix + hash
 func latestShardKey(hash common.Hash) []byte {
-	return append(latestShardKey, hash.Bytes()...)
+	return append(shardHeadBlockKey, hash.Bytes()...)
 }

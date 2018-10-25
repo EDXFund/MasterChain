@@ -115,17 +115,37 @@ func (b *SHeader) GasLimit() uint64     { return b.gasLimit }
 func (b *SHeader) GasUsed() uint64      { return b.gasUsed }
 func (b *SHeader) Difficulty() *big.Int { return new(big.Int).Set(b.difficulty) }
 func (b *SHeader) Time() *big.Int       { return new(big.Int).Set(b.time) }
-
+func (b *SHeader) UncleHash() common.Hash { return common.Hash{}}
 func (b *SHeader) NumberU64() uint64        { return b.number.Uint64() }
 func (b *SHeader) MixDigest() common.Hash   { return b.mixDigest }
-func (b *SHeader) Nonce() uint64            { return binary.BigEndian.Uint64(b.nonce[:]) }
+func (b *SHeader) Nonce() BlockNonce            { return b.nonce }
 func (b *SHeader) Bloom() Bloom             { return b.bloom }
 func (b *SHeader) Coinbase() common.Address { return b.coinbase }
 func (b *SHeader) Root() common.Hash        { return b.root }
 func (b *SHeader) ParentHash() common.Hash  { return b.parentHash }
 func (b *SHeader) TxHash() common.Hash      { return b.txHash }
 func (b *SHeader) ReceiptHash() common.Hash { return b.receiptHash }
+func (b *SHeader) Extra() []byte { return b.extra }
 
+func (b *SHeader) SetShardId(shardId uint16)  { b.shardId = shardId }
+
+func (b *SHeader) SetNumber(v *big.Int){b.number = new(big.Int).Set(v)}
+func (b *SHeader) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v)}
+
+func (b *SHeader) SetParentHash(v common.Hash){b.parentHash = v}
+func (b *SHeader) SetUncleHash(v common.Hash){}
+func (b *SHeader) SetReceiptHash(v common.Hash){b.receiptHash =v }
+func (b *SHeader) SetTxHash(v common.Hash){b.txHash = v}
+func (b *SHeader) SetExtra(v []byte){b.extra = common.CopyBytes(v)}
+func (b *SHeader) SetTime(v *big.Int){b.time = v}
+func (b *SHeader) SetCoinbase(v common.Address) {b.coinbase = v}
+func (b *SHeader) SetRoot(v common.Hash){b.root = v}
+func (b *SHeader) SetBloom(v Bloom){b.bloom = v}
+func (b *SHeader) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64())}
+func (b *SHeader) SetGasLimit(v  uint64) { b.gasLimit = v}
+func (b *SHeader) SetGasUsed(v uint64) { b.gasUsed = v}
+func (b *SHeader) SetMixDigest(v common.Hash){b.mixDigest = v}
+func (b *SHeader) SetNonce(v BlockNonce) {b.nonce = v}
 
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.

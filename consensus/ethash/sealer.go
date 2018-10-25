@@ -51,11 +51,12 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block *types.Block, resu
 	// If we're running a fake PoW, simply return a 0 nonce immediately
 	if ethash.config.PowMode == ModeFake || ethash.config.PowMode == ModeFullFake {
 		header := block.Header()
-		header.Nonce, header.MixDigest = types.BlockNonce{}, common.Hash{}
+		header.SetNonce(types.BlockNonce{})
+		header.SetMixDigest ( common.Hash{})
 		select {
-		case results <- block.WithSeal(header):
+		case results <- block.WithSeal(header).ToBlock():
 		default:
-			log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", ethash.SealHash(block.Header()))
+			log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", ethash.SealHash(block.Header().ToHeader()))
 		}
 		return nil
 	}
@@ -110,7 +111,7 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block *types.Block, resu
 			select {
 			case results <- result:
 			default:
-				log.Warn("Sealing result is not read by miner", "mode", "local", "sealhash", ethash.SealHash(block.Header()))
+				log.Warn("Sealing result is not read by miner", "mode", "local", "sealhash", ethash.SealHash(block.Header().ToHeader()))
 			}
 			close(abort)
 		case <-ethash.update:
@@ -132,9 +133,9 @@ func (ethash *Ethash) mine(block *types.Block, id int, seed uint64, abort chan s
 	// Extract some data from the header
 	var (
 		header  = block.Header()
-		hash    = ethash.SealHash(header).Bytes()
-		target  = new(big.Int).Div(two256, header.Difficulty)
-		number  = header.Number.Uint64()
+		hash    = ethash.SealHash(header.ToHeader()).Bytes()
+		target  = new(big.Int).Div(two256, header.Difficulty())
+		number  = header.NumberU64()
 		dataset = ethash.dataset(number, false)
 	)
 	// Start generating random nonces until we abort or find a good one
@@ -164,13 +165,13 @@ search:
 			digest, result := hashimotoFull(dataset.dataset, hash, nonce)
 			if new(big.Int).SetBytes(result).Cmp(target) <= 0 {
 				// Correct nonce found, create a new header with it
-				header = types.CopyHeader(header)
-				header.Nonce = types.EncodeNonce(nonce)
-				header.MixDigest = common.BytesToHash(digest)
+				header = types.CopyHeader(header.ToHeader())
+				header.SetNonce (types.EncodeNonce(nonce))
+				header.SetMixDigest (common.BytesToHash(digest))
 
 				// Seal and return a block (if still needed)
 				select {
-				case found <- block.WithSeal(header):
+				case found <- block.WithSeal(header).ToBlock():
 					logger.Trace("Ethash nonce found and reported", "attempts", nonce-seed, "nonce", nonce)
 				case <-abort:
 					logger.Trace("Ethash nonce found but discarded", "attempts", nonce-seed, "nonce", nonce)
@@ -235,7 +236,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 	//   result[1], 32 bytes hex encoded seed hash used for DAG
 	//   result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
 	makeWork := func(block *types.Block) {
-		hash := ethash.SealHash(block.Header())
+		hash := ethash.SealHash(block.Header().ToHeader())
 
 		currentWork[0] = hash.Hex()
 		currentWork[1] = common.BytesToHash(SeedHash(block.NumberU64())).Hex()
@@ -261,12 +262,12 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 		}
 		// Verify the correctness of submitted result.
 		header := block.Header()
-		header.Nonce = nonce
-		header.MixDigest = mixDigest
+		header.SetNonce  (nonce)
+		header.SetMixDigest (mixDigest)
 
 		start := time.Now()
 		if !noverify {
-			if err := ethash.verifySeal(nil, header, true); err != nil {
+			if err := ethash.verifySeal(nil, header.ToHeader(), true); err != nil {
 				log.Warn("Invalid proof-of-work submitted", "sealhash", sealhash, "elapsed", time.Since(start), "err", err)
 				return false
 			}
@@ -279,7 +280,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 		log.Trace("Verified correct proof-of-work", "sealhash", sealhash, "elapsed", time.Since(start))
 
 		// Solutions seems to be valid, return to the miner and notify acceptance.
-		solution := block.WithSeal(header)
+		solution := block.WithSeal(header).ToBlock()
 
 		// The submitted solution is within the scope of acceptance.
 		if solution.NumberU64()+staleThreshold > currentBlock.NumberU64() {

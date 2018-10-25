@@ -65,7 +65,7 @@ func (ec *Client) Close() {
 //
 // Note that loading full blocks requires two requests. Use HeaderByHash
 // if you don't need all transactions or uncle headers.
-func (ec *Client) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+func (ec *Client) BlockByHash(ctx context.Context, hash common.Hash) (types.BlockIntf, error) {
 	return ec.getBlock(ctx, "eth_getBlockByHash", hash, true)
 }
 
@@ -74,7 +74,7 @@ func (ec *Client) BlockByHash(ctx context.Context, hash common.Hash) (*types.Blo
 //
 // Note that loading full blocks requires two requests. Use HeaderByNumber
 // if you don't need all transactions or uncle headers.
-func (ec *Client) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+func (ec *Client) BlockByNumber(ctx context.Context, number *big.Int) (types.BlockIntf, error) {
 	return ec.getBlock(ctx, "eth_getBlockByNumber", toBlockNumArg(number), true)
 }
 
@@ -108,10 +108,10 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 	if head.UncleHash() != types.EmptyUncleHash && len(body.UncleHashes) == 0 {
 		return nil, fmt.Errorf("server returned empty uncle list but block header indicates uncles")
 	}
-	if head.TxHash() == types.EmptyRootHash && len(body.Transactions) > 0 {
+	if head.TxHash() == types.EmptyRootHash && len(body.ShardBlockInfos) > 0 {
 		return nil, fmt.Errorf("server returned non-empty transaction list but block header indicates no transactions")
 	}
-	if head.TxHash() != types.EmptyRootHash && len(body.Transactions) == 0 {
+	if head.TxHash() != types.EmptyRootHash && len(body.ShardBlockInfos) == 0 {
 		return nil, fmt.Errorf("server returned empty transaction list but block header indicates transactions")
 	}
 	// Load uncles because they are not included in the block response.

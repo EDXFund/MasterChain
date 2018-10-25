@@ -10,7 +10,7 @@ import (
 	"github.com/EDXFund/MasterChain/rlp"
 	"io"
 	"math/big"
-	time "time"
+	"time"
 	"unsafe"
 )
 
@@ -40,16 +40,12 @@ func (n BlockNonce) Uint64() uint64 {
 func (n BlockNonce) MarshalText() ([]byte, error) {
 	return hexutil.Bytes(n[:]).MarshalText()
 
-
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (n *BlockNonce) UnmarshalText(input []byte) error {
 	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
 }
-
-
-
 
 func rlpHash(x interface{}) (h common.Hash) {
 	hw := sha3.NewKeccak256()
@@ -64,6 +60,7 @@ func (c *writeCounter) Write(b []byte) (int, error) {
 	*c += writeCounter(len(b))
 	return len(b), nil
 }
+
 type ShardStatus uint16
 
 var (
@@ -73,21 +70,21 @@ var (
 	ShardEnableLen = 32
 )
 
-
 type contractReception struct {
-	key 	uint64			`json:"key"  	gencodec:"required"`
-	value   []byte			`json:"value" 	gencodec:"required"`
+	key   uint64 `json:"key"  	gencodec:"required"`
+	value []byte `json:"value" 	gencodec:"required"`
 }
+
 // Minimized data to transfer
 // contract data should be retrieved by other command
 type ContractResult struct {
-	TxHash 			  common.Hash `json:"txHash" 		gencodec:"required"`
-	PostState         []byte `json:"root"`
-	Status            uint64 `json:"status"`
-	CumulativeGasUsed uint64 `json:"cumulativeGasUsed" gencodec:"required"`
-	GasUsed           uint64 `json:"gasUsed" gencodec:"required"`
+	TxHash            common.Hash `json:"txHash" 		gencodec:"required"`
+	PostState         []byte      `json:"root"`
+	Status            uint64      `json:"status"`
+	CumulativeGasUsed uint64      `json:"cumulativeGasUsed" gencodec:"required"`
+	GasUsed           uint64      `json:"gasUsed" gencodec:"required"`
 }
-type ContractResults  []*ContractResult;
+type ContractResults []*ContractResult;
 // Len returns the length of s.
 func (s ContractResults) Len() int { return len(s) }
 
@@ -99,7 +96,6 @@ func (s ContractResults) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
 }
-
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
 func NewContractResult(root []byte, failed bool, cumulativeGasUsed uint64) *ContractResult {
@@ -115,7 +111,7 @@ func NewContractResult(root []byte, failed bool, cumulativeGasUsed uint64) *Cont
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
 // into an RLP stream. If no post state is present, byzantium fork is assumed.
 func (r *ContractResult) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &ContractResultRLP{&r.TxHash,r.statusEncoding(), r.CumulativeGasUsed })
+	return rlp.Encode(w, &ContractResultRLP{&r.TxHash, r.statusEncoding(), r.CumulativeGasUsed})
 }
 
 // DecodeRLP implements rlp.Decoder, and loads the consensus fields of a receipt
@@ -128,7 +124,7 @@ func (r *ContractResult) DecodeRLP(s *rlp.Stream) error {
 	if err := r.setStatus(dec.PostStatePostStateOrStatus); err != nil {
 		return err
 	}
-	r.TxHash, r.CumulativeGasUsed =  *dec.TxHash, dec.CumulativeGasUsed
+	r.TxHash, r.CumulativeGasUsed = *dec.TxHash, dec.CumulativeGasUsed
 	return nil
 }
 
@@ -161,14 +157,13 @@ func (r *ContractResult) statusEncoding() []byte {
 func (r *ContractResult) Size() common.StorageSize {
 	size := common.StorageSize(unsafe.Sizeof(*r)) + common.StorageSize(len(r.PostState))
 
-
 	return size
 }
 
 // receiptRLP is the consensus encoding of a contract .
 type ContractResultRLP struct {
-	TxHash 			  *common.Hash `json:"txHash" 		gencodec:"required"`
-	PostStatePostStateOrStatus         []byte `json:"root"`
+	TxHash                     *common.Hash `json:"txHash" 		gencodec:"required"`
+	PostStatePostStateOrStatus []byte       `json:"root"`
 
 	CumulativeGasUsed uint64 `json:"cumulativeGasUsed" gencodec:"required"`
 }
@@ -179,6 +174,7 @@ type ContractResultStorageRLP struct {
 	TxHash            common.Hash
 }
 type ContractResultStorage ContractResult
+
 // EncodeRLP implements rlp.Encoder, and flattens all content fields of a receipt
 // into an RLP stream.
 func (r *ContractResultStorage) EncodeRLP(w io.Writer) error {
@@ -186,8 +182,7 @@ func (r *ContractResultStorage) EncodeRLP(w io.Writer) error {
 		PostStateOrStatus: (*ContractResult)(r).statusEncoding(),
 		CumulativeGasUsed: r.CumulativeGasUsed,
 
-		TxHash:            r.TxHash,
-
+		TxHash: r.TxHash,
 	}
 
 	return rlp.Encode(w, enc)
@@ -204,18 +199,19 @@ func (r *ContractResultStorage) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 	// Assign the consensus fields
-	r.CumulativeGasUsed= dec.CumulativeGasUsed
+	r.CumulativeGasUsed = dec.CumulativeGasUsed
 
 	// Assign the implementation fields
 	r.TxHash = dec.TxHash
 	return nil
 }
+
 type LastShardInfo struct {
-	ShardId 		uint16
-	BlockNumber 	uint64
-	Hash      		common.Hash
-	Td        		uint64
-	time            time.Time
+	ShardId     uint16
+	BlockNumber uint64
+	Hash        common.Hash
+	Td          uint64
+	time        time.Time
 }
 
 // TxDifference returns a new set which is the difference between a and b.
@@ -236,7 +232,6 @@ func ShardBlockDifference(a, b ShardBlockInfos) ShardBlockInfos {
 	return keep
 }
 
-
 // TODO: copies
 type BlockIntf interface {
 	DecodeRLP(s *rlp.Stream) error
@@ -252,7 +247,7 @@ type BlockIntf interface {
 
 	NumberU64() uint64
 	MixDigest() common.Hash
-	Nonce() uint64
+	Nonce() BlockNonce
 	Bloom() Bloom
 	BloomRejected() Bloom
 	Coinbase() common.Address
@@ -269,7 +264,7 @@ type BlockIntf interface {
 	Body() *SuperBody
 	Size() common.StorageSize
 	WithSeal(header HeaderIntf) BlockIntf
-	WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header,transactions []*Transaction, receipts []*ContractResult) BlockIntf
+	WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header, transactions []*Transaction, receipts []*ContractResult) BlockIntf
 	//extract as block
 	ToBlock() *Block
 	//extract as shard block
@@ -277,20 +272,53 @@ type BlockIntf interface {
 	Hash() common.Hash
 	Transactions() []*Transaction
 	//Uncles()       []*Header
-	ShardBlocks()  []*ShardBlockInfo
-	Receipts()     []*Receipt
-
+	ShardBlocks() []*ShardBlockInfo
+	Receipts() []*Receipt
+	//
+	ReceivedAt() time.Time
+	SetReceivedAt(tm time.Time)
 }
 
 type HeaderIntf interface {
 	Hash() common.Hash
 	Size() common.StorageSize
 	ShardId() uint16
-	Number()  *big.Int
+	Number() *big.Int
 	NumberU64() uint64
 	ToHeader() *Header
 	ToSHeader() *SHeader
 	ParentHash() common.Hash
+	UncleHash() common.Hash
+	ReceiptHash() common.Hash
+	TxHash() common.Hash
+	Extra() []byte
+	Time() *big.Int
+	Coinbase() common.Address
+	Root() common.Hash
+	Bloom() Bloom
+	Difficulty() *big.Int
+	GasLimit() uint64
+	GasUsed() uint64
+	MixDigest() common.Hash
+	Nonce() BlockNonce
+
+
+	SetShardId( uint16)
+	SetNumber( *big.Int)
+	SetParentHash( common.Hash)
+	SetUncleHash( common.Hash)
+	SetReceiptHash( common.Hash)
+	SetTxHash( common.Hash)
+	SetExtra( []byte)
+	SetTime( *big.Int)
+	SetCoinbase( common.Address)
+	SetRoot( common.Hash)
+	SetBloom( Bloom)
+	SetDifficulty( *big.Int)
+	SetGasLimit( uint64)
+	SetGasUsed( uint64)
+	SetMixDigest( common.Hash)
+	SetNonce( BlockNonce)
 }
 
 type SuperBody struct {
@@ -304,20 +332,20 @@ type SuperBody struct {
 	Receipts ContractResults
 }
 
-func (sb *SuperBody)ToBody() *Body{
-	return &Body{Transactions:sb.ShardBlocks,Uncles:sb.Uncles}
+func (sb *SuperBody) ToBody() *Body {
+	return &Body{Transactions: sb.ShardBlocks, Uncles: sb.Uncles}
 }
 
-func (sb *SuperBody)ToSBody() *SBody {
-	return &SBody{Transactions:sb.Transactions,Receipts:sb.Receipts}
+func (sb *SuperBody) ToSBody() *SBody {
+	return &SBody{Transactions: sb.Transactions, Receipts: sb.Receipts}
 }
 
-type HeadEncode struct{
+type HeadEncode struct {
 	ShardId uint16
 	Header  []byte
 }
 
-type BodyEncode struct{
+type BodyEncode struct {
 	ShardId uint16
-	Body  []byte
+	Body    []byte
 }

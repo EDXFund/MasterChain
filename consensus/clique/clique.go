@@ -151,21 +151,21 @@ func sigHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewKeccak256()
 
 	rlp.Encode(hasher, []interface{}{
-		header.ParentHash,
-		header.UncleHash,
-		header.Coinbase,
-		header.Root,
-		header.TxHash,
-		header.ReceiptHash,
-		header.Bloom,
-		header.Difficulty,
-		header.Number,
-		header.GasLimit,
-		header.GasUsed,
-		header.Time,
-		header.Extra[:len(header.Extra)-65], // Yes, this will panic if extra is too short
-		header.MixDigest,
-		header.Nonce,
+		header.ParentHash(),
+		header.UncleHash(),
+		header.Coinbase(),
+		header.Root(),
+		header.TxHash(),
+		header.ReceiptHash(),
+		header.Bloom(),
+		header.Difficulty(),
+		header.Number(),
+		header.GasLimit(),
+		header.GasUsed(),
+		header.Time(),
+		header.Extra()[:len(header.Extra())-65], // Yes, this will panic if extra is too short
+		header.MixDigest(),
+		header.Nonce(),
 	})
 	hasher.Sum(hash[:0])
 	return hash
@@ -179,10 +179,10 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 		return address.(common.Address), nil
 	}
 	// Retrieve the signature from the header extra-data
-	if len(header.Extra) < extraSeal {
+	if len(header.Extra()) < extraSeal {
 		return common.Address{}, errMissingSignature
 	}
-	signature := header.Extra[len(header.Extra)-extraSeal:]
+	signature := header.Extra()[len(header.Extra())-extraSeal:]
 
 	// Recover the public key and the Ethereum address
 	pubkey, err := crypto.Ecrecover(sigHash(header).Bytes(), signature)
@@ -256,7 +256,11 @@ func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []*types.Hea
 
 	go func() {
 		for i, header := range headers {
-			err := c.verifyHeader(chain, header, headers[:i])
+			rawHeaders := make([]*types.Header,len(headers[:i]))
+			for key,val := range headers[:i] {
+				rawHeaders[key] = val.ToHeader()
+			}
+			err := c.verifyHeader(chain, header, rawHeaders)
 
 			select {
 			case <-abort:
@@ -273,36 +277,37 @@ func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []*types.Hea
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
 func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
-	if header.Number == nil {
+	if header.Number() == nil {
 		return errUnknownBlock
 	}
-	number := header.Number.Uint64()
+	number := header.NumberU64()
 
 	// Don't waste time checking blocks from the future
-	if header.Time.Cmp(big.NewInt(time.Now().Unix())) > 0 {
+	if header.Time().Cmp(big.NewInt(time.Now().Unix())) > 0 {
 		return consensus.ErrFutureBlock
 	}
 	// Checkpoint blocks need to enforce zero beneficiary
 	checkpoint := (number % c.config.Epoch) == 0
-	if checkpoint && header.Coinbase != (common.Address{}) {
+	if checkpoint && header.Coinbase() != (common.Address{}) {
 		return errInvalidCheckpointBeneficiary
 	}
 	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
-	if !bytes.Equal(header.Nonce[:], nonceAuthVote) && !bytes.Equal(header.Nonce[:], nonceDropVote) {
+	nonce := header.Nonce()
+	if !bytes.Equal(nonce[:], nonceAuthVote) && !bytes.Equal(nonce[:], nonceDropVote) {
 		return errInvalidVote
 	}
-	if checkpoint && !bytes.Equal(header.Nonce[:], nonceDropVote) {
+	if checkpoint && !bytes.Equal(nonce[:], nonceDropVote) {
 		return errInvalidCheckpointVote
 	}
 	// Check that the extra-data contains both the vanity and signature
-	if len(header.Extra) < extraVanity {
+	if len(header.Extra()) < extraVanity {
 		return errMissingVanity
 	}
-	if len(header.Extra) < extraVanity+extraSeal {
+	if len(header.Extra()) < extraVanity+extraSeal {
 		return errMissingSignature
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
-	signersBytes := len(header.Extra) - extraVanity - extraSeal
+	signersBytes := len(header.Extra()) - extraVanity - extraSeal
 	if !checkpoint && signersBytes != 0 {
 		return errExtraSigners
 	}
@@ -310,21 +315,21 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 		return errInvalidCheckpointSigners
 	}
 	// Ensure that the mix digest is zero as we don't have fork protection currently
-	if header.MixDigest != (common.Hash{}) {
+	if header.MixDigest() != (common.Hash{}) {
 		return errInvalidMixDigest
 	}
 	// Ensure that the block doesn't contain any uncles which are meaningless in PoA
-	if header.UncleHash != uncleHash {
+	if header.UncleHash() != uncleHash {
 		return errInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
+		if header.Difficulty() == nil || (header.Difficulty().Cmp(diffInTurn) != 0 && header.Difficulty().Cmp(diffNoTurn) != 0) {
 			return errInvalidDifficulty
 		}
 	}
 	// If all checks passed, validate any special fields for hard forks
-	if err := misc.VerifyForkHashes(chain.Config(), header, false); err != nil {
+	if err := misc.VerifyForkHashes(chain.Config(), header.ToHeader(), false); err != nil {
 		return err
 	}
 	// All basic checks passed, verify cascading fields
@@ -337,7 +342,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 // database. This is useful for concurrently verifying a batch of new headers.
 func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
-	number := header.Number.Uint64()
+	number := header.NumberU64()
 	if number == 0 {
 		return nil
 	}
@@ -346,16 +351,16 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 	if len(parents) > 0 {
 		parent = parents[len(parents)-1]
 	} else {
-		parent = chain.GetHeader(header.ParentHash, number-1)
+		parent = chain.GetHeader(header.ParentHash(), number-1)
 	}
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+	if parent == nil || parent.NumberU64() != number-1 || parent.Hash() != header.ParentHash() {
 		return consensus.ErrUnknownAncestor
 	}
-	if parent.Time.Uint64()+c.config.Period > header.Time.Uint64() {
+	if parent.Time().Uint64()+c.config.Period > header.Time().Uint64() {
 		return ErrInvalidTimestamp
 	}
 	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	snap, err := c.snapshot(chain, number-1, header.ParentHash(), parents)
 	if err != nil {
 		return err
 	}
@@ -365,8 +370,8 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 		for i, signer := range snap.signers() {
 			copy(signers[i*common.AddressLength:], signer[:])
 		}
-		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], signers) {
+		extraSuffix := len(header.Extra()) - extraSeal
+		if !bytes.Equal(header.Extra()[extraVanity:extraSuffix], signers) {
 			return errMismatchingCheckpointSigners
 		}
 	}
@@ -401,9 +406,9 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
 
-				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraSeal)/common.AddressLength)
+				signers := make([]common.Address, (len(checkpoint.Extra())-extraVanity-extraSeal)/common.AddressLength)
 				for i := 0; i < len(signers); i++ {
-					copy(signers[i][:], checkpoint.Extra[extraVanity+i*common.AddressLength:])
+					copy(signers[i][:], checkpoint.Extra()[extraVanity+i*common.AddressLength:])
 				}
 				snap = newSnapshot(c.config, c.signatures, number, hash, signers)
 				if err := snap.store(c.db); err != nil {
@@ -418,7 +423,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 		if len(parents) > 0 {
 			// If we have explicit parents, pick from there (enforced)
 			header = parents[len(parents)-1]
-			if header.Hash() != hash || header.Number.Uint64() != number {
+			if header.Hash() != hash || header.NumberU64() != number {
 				return nil, consensus.ErrUnknownAncestor
 			}
 			parents = parents[:len(parents)-1]
@@ -430,7 +435,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			}
 		}
 		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
+		number, hash = number-1, header.ParentHash()
 	}
 	// Previous snapshot found, apply any pending headers on top of it
 	for i := 0; i < len(headers)/2; i++ {
@@ -473,12 +478,12 @@ func (c *Clique) VerifySeal(chain consensus.ChainReader, header *types.Header) e
 // from.
 func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 	// Verifying the genesis block is not supported
-	number := header.Number.Uint64()
+	number := header.NumberU64()
 	if number == 0 {
 		return errUnknownBlock
 	}
 	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	snap, err := c.snapshot(chain, number-1, header.ParentHash(), parents)
 	if err != nil {
 		return err
 	}
@@ -501,11 +506,11 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	}
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
 	if !c.fakeDiff {
-		inturn := snap.inturn(header.Number.Uint64(), signer)
-		if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
+		inturn := snap.inturn(header.NumberU64(), signer)
+		if inturn && header.Difficulty().Cmp(diffInTurn) != 0 {
 			return errWrongDifficulty
 		}
-		if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
+		if !inturn && header.Difficulty().Cmp(diffNoTurn) != 0 {
 			return errWrongDifficulty
 		}
 	}
@@ -516,12 +521,13 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 // header for running the transactions on top.
 func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
-	header.Coinbase = common.Address{}
-	header.Nonce = types.BlockNonce{}
 
-	number := header.Number.Uint64()
+	header.SetCoinbase ( common.Address{})
+	header.SetNonce (types.BlockNonce{})
+
+	number := header.NumberU64()
 	// Assemble the voting snapshot to check which votes make sense
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	snap, err := c.snapshot(chain, number-1, header.ParentHash(), nil)
 	if err != nil {
 		return err
 	}
@@ -537,42 +543,44 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 		}
 		// If there's pending proposals, cast a vote on them
 		if len(addresses) > 0 {
-			header.Coinbase = addresses[rand.Intn(len(addresses))]
-			if c.proposals[header.Coinbase] {
-				copy(header.Nonce[:], nonceAuthVote)
+			header.SetCoinbase (addresses[rand.Intn(len(addresses))])
+			nonce := header.Nonce();
+			if c.proposals[header.Coinbase()] {
+				copy(nonce[:], nonceAuthVote)
 			} else {
-				copy(header.Nonce[:], nonceDropVote)
+				copy(nonce[:], nonceDropVote)
 			}
+			header.SetNonce(nonce)
 		}
 		c.lock.RUnlock()
 	}
 	// Set the correct difficulty
-	header.Difficulty = CalcDifficulty(snap, c.signer)
+	header.SetDifficulty ( CalcDifficulty(snap, c.signer))
 
 	// Ensure the extra data has all it's components
-	if len(header.Extra) < extraVanity {
-		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
+	if len(header.Extra()) < extraVanity {
+		header.SetExtra ( append(header.Extra(), bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra()))...))
 	}
-	header.Extra = header.Extra[:extraVanity]
+	header.SetExtra (header.Extra()[:extraVanity])
 
 	if number%c.config.Epoch == 0 {
 		for _, signer := range snap.signers() {
-			header.Extra = append(header.Extra, signer[:]...)
+			header.SetExtra (append(header.Extra(), signer[:]...))
 		}
 	}
-	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
+	header.SetExtra (append(header.Extra(), make([]byte, extraSeal)...))
 
 	// Mix digest is reserved for now, set to empty
-	header.MixDigest = common.Hash{}
+	header.SetMixDigest ( common.Hash{})
 
 	// Ensure the timestamp has the correct delay
-	parent := chain.GetHeader(header.ParentHash, number-1)
+	parent := chain.GetHeader(header.ParentHash(), number-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = new(big.Int).Add(parent.Time, new(big.Int).SetUint64(c.config.Period))
-	if header.Time.Int64() < time.Now().Unix() {
-		header.Time = big.NewInt(time.Now().Unix())
+	header.SetTime(new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(c.config.Period)))
+	if header.Time().Int64() < time.Now().Unix() {
+		header.SetTime (big.NewInt(time.Now().Unix()))
 	}
 	return nil
 }
@@ -581,11 +589,11 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 // rewards given, and returns the final block.
 func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-	header.UncleHash = types.CalcUncleHash(nil)
+	header.SetRoot(state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
+	header.SetUncleHash (types.CalcUncleHash(nil))
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts), nil
+	return types.NewBlock(header, nil, nil, receipts,nil,nil), nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
@@ -601,10 +609,10 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	header := block.Header()
+	header := block.Header().ToHeader()
 
 	// Sealing the genesis block is not supported
-	number := header.Number.Uint64()
+	number := header.NumberU64()
 	if number == 0 {
 		return errUnknownBlock
 	}
@@ -619,7 +627,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 	c.lock.RUnlock()
 
 	// Bail out if we're unauthorized to sign a block
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	snap, err := c.snapshot(chain, number-1, header.ParentHash(), nil)
 	if err != nil {
 		return err
 	}
@@ -637,8 +645,8 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 		}
 	}
 	// Sweet, the protocol permits us to sign the block, wait for our time
-	delay := time.Unix(header.Time.Int64(), 0).Sub(time.Now()) // nolint: gosimple
-	if header.Difficulty.Cmp(diffNoTurn) == 0 {
+	delay := time.Unix(header.Time().Int64(), 0).Sub(time.Now()) // nolint: gosimple
+	if header.Difficulty().Cmp(diffNoTurn) == 0 {
 		// It's not our turn explicitly to sign, delay it a bit
 		wiggle := time.Duration(len(snap.Signers)/2+1) * wiggleTime
 		delay += time.Duration(rand.Int63n(int64(wiggle)))
@@ -650,7 +658,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 	if err != nil {
 		return err
 	}
-	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
+	copy(header.Extra()[len(header.Extra())-extraSeal:], sighash)
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
@@ -661,9 +669,9 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 		}
 
 		select {
-		case results <- block.WithSeal(header):
+		case results <- block.WithSeal(header.ToHeader()).ToBlock():
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", c.SealHash(header))
+			log.Warn("Sealing result is not read by miner", "sealhash", c.SealHash(header.ToHeader()))
 		}
 	}()
 
@@ -674,7 +682,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 // that a new block should have based on the previous blocks in the chain and the
 // current signer.
 func (c *Clique) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
-	snap, err := c.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
+	snap, err := c.snapshot(chain, parent.NumberU64(), parent.Hash(), nil)
 	if err != nil {
 		return nil
 	}
