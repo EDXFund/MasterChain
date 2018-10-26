@@ -454,7 +454,7 @@ func (pool *ShardPool) reset(oldHead, newHead types.HeaderIntf) {
 
 
 	//rebuild latest shard info
-	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ShardBlockHash())
+	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ToHeader().ShardBlockHash())
 	if err == nil {
 		pool.lastShards = latestShardInfo
 	}else {

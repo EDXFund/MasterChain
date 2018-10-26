@@ -201,7 +201,7 @@ type SBlock struct {
 	header *SHeader
 
 	transactions Transactions
-	receipts     ContractResults
+	results     ContractResults
 
 
 	// caches
@@ -240,6 +240,16 @@ func (b *SBlock) ShardEnabled() [32]byte { return [32]byte{0} }
 func (b *SBlock) ToBlock() *Block { return nil }
 func (b *SBlock) UncleHash() common.Hash   { return common.Hash{} }
 func (b *SBlock) Uncles() []HeaderIntf   { return nil }
+func (b *SBlock)Transactions() []*Transaction {
+	return b.transactions
+}
+
+func (b *SBlock)Receipts()    []*Receipt {
+	return nil
+}
+func (b *SBlock) Results()    []*ContractResult {
+	return b.results
+}
 // [deprecated by eth/63]
 // StorageBlock defines the RLP encoding of a Block stored in the
 // state database. The StorageBlock encoding contains fields that
@@ -326,7 +336,7 @@ func (b *SBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.receipts = eb.Header, eb.Txs, eb.Receipts
+	b.header, b.transactions, b.results = eb.Header, eb.Txs, eb.Receipts
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -336,7 +346,7 @@ func (b *SBlock) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, sextblock{
 		Header:   b.header,
 		Txs:      b.transactions,
-		Receipts: b.receipts,
+		Receipts: b.results,
 	})
 }
 
@@ -346,16 +356,14 @@ func (b *StorageSBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&sb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.receipts, b.td = sb.Header, sb.Txs, sb.Receipts, sb.TD
+	b.header, b.transactions, b.results, b.td = sb.Header, sb.Txs, sb.Receipts, sb.TD
 	return nil
 }
 
 // TODO: copies
 
 
-func (b *SBlock) Transactions() []*Transaction { return b.transactions }
 
-func (b *SBlock) Receiptions() ContractResults { return b.receipts }
 
 func (b *SBlock) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {
@@ -365,10 +373,10 @@ func (b *SBlock) Transaction(hash common.Hash) *Transaction {
 	}
 	return nil
 }
-func (b *SBlock) ContractReceipts() ContractResults { return b.receipts }
+func (b *SBlock) ContractReceipts() ContractResults { return b.results }
 
 func (b *SBlock) ContrcatReceipt(hash common.Hash) *ContractResult {
-	for _, receipt := range b.receipts {
+	for _, receipt := range b.results {
 		if receipt.TxHash == hash {
 			return receipt
 		}
@@ -392,14 +400,14 @@ func (b *SBlock) Root() common.Hash        { return b.header.root }
 func (b *SBlock) ParentHash() common.Hash  { return b.header.parentHash }
 func (b *SBlock) TxHash() common.Hash      { return b.header.txHash }
 func (b *SBlock) ReceiptHash() common.Hash { return b.header.receiptHash }
-func (b *SBlock) Receipts() []*Receipt { return nil }
+
 //func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
 func (b *SBlock) Extra() []byte                 { return common.CopyBytes(b.header.extra) }
 
 func (b *SBlock) Header() HeaderIntf               { return b.header }
 
 // Body returns the non-header content of the block.
-func (b *SBlock) Body() *SuperBody { return &SuperBody{nil,nil,b.transactions, b.receipts} }
+func (b *SBlock) Body() *SuperBody { return &SuperBody{nil,nil,b.transactions, b.results} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -421,7 +429,7 @@ func (b *SBlock) WithSeal(header HeaderIntf) BlockIntf {
 	return &SBlock{
 		header:       cpy,
 		transactions: b.transactions,
-		receipts:     b.receipts,
+		results:     b.results,
 	}
 }
 
@@ -431,10 +439,10 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 		header: CopySHeader(b.header),
 	}
 	block.transactions = make([]*Transaction, len(transactions))
-	block.receipts = make(ContractResults, len(contractReceipts))
+	block.results = make(ContractResults, len(contractReceipts))
 
 	copy(block.transactions, transactions)
-	copy(block.receipts, contractReceipts)
+	copy(block.results, contractReceipts)
 
 	return block
 }

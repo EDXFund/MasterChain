@@ -393,7 +393,7 @@ func (b *Block) Uncles() []HeaderIntf            {
 	}
 	return result
 }
-func (b *Block) ShardBlocks() []*ShardBlockInfo { return b.shardBlocks }
+
 
 func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
 	for _, transaction := range b.shardBlocks {
@@ -430,6 +430,13 @@ func (b *Block) ShardEnabled() [32]byte { return b.header.shardEnabled }
 // Body returns the non-header content of the block.
 func (b *Block) Body() *SuperBody { return &SuperBody{b.shardBlocks, b.uncles,nil,nil} }
 func (b *Block)Transactions() []*Transaction {
+	return nil
+}
+func (b *Block)ShardBlocks() []*ShardBlockInfo {
+	return b.shardBlocks
+}
+
+func (b *Block)Results()    []*ContractResult {
 	return nil
 }
 func (b *Block)ToBlock() *Block{

@@ -171,7 +171,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	heighter := func() uint64 {
 		return blockchain.CurrentBlock().NumberU64()
 	}
-	inserter := func(blocks types.Blocks) (int, error) {
+	inserter := func(blocks types.BlockIntfs) (int, error) {
 		// If fast sync is running, deny importing weird blocks
 		if atomic.LoadUint32(&manager.fastSync) == 1 {
 			log.Warn("Discarded bad propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
@@ -264,7 +264,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		genesis = pm.blockchain.Genesis()
 		head    = pm.blockchain.CurrentHeader()
 		hash    = head.Hash()
-		number  = head.Number.Uint64()
+		number  = head.NumberU64()
 		td      = pm.blockchain.GetTd(hash, number)
 	)
 	if err := p.Handshake(pm.networkID, td, hash, genesis.Hash(),common.ShardMaster); err != nil {
@@ -361,7 +361,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					first = false
 					origin = pm.blockchain.GetHeaderByHash(query.Origin.Hash)
 					if origin != nil {
-						query.Origin.Number = origin.Number.Uint64()
+						query.Origin.Number = origin.NumberU64()
 					}
 				} else {
 					origin = pm.blockchain.GetHeader(query.Origin.Hash, query.Origin.Number)
@@ -389,7 +389,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			case hashMode && !query.Reverse:
 				// Hash based traversal towards the leaf block
 				var (
-					current = origin.Number.Uint64()
+					current = origin.NumberU64()
 					next    = current + query.Skip + 1
 				)
 				if next <= current {
@@ -438,7 +438,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// If we already have a DAO header, we can check the peer's TD against it. If
 			// the peer's ahead of this, it too must have a reply to the DAO check
 			if daoHeader := pm.blockchain.GetHeaderByNumber(pm.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
-				if _, td := p.Head(); td.Cmp(pm.blockchain.GetTd(daoHeader.Hash(), daoHeader.Number.Uint64())) >= 0 {
+				if _, td := p.Head(); td.Cmp(pm.blockchain.GetTd(daoHeader.Hash(), daoHeader.NumberU64())) >= 0 {
 					verifyDAO = false
 				}
 			}
@@ -454,7 +454,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		filter := len(headers) == 1
 		if filter {
 			// If it's a potential DAO fork check, validate against the rules
-			if p.forkDrop != nil && pm.chainconfig.DAOForkBlock.Cmp(headers[0].Number) == 0 {
+			if p.forkDrop != nil && pm.chainconfig.DAOForkBlock.Cmp(headers[0].Number()) == 0 {
 				// Disable the fork drop timer
 				p.forkDrop.Stop()
 				p.forkDrop = nil
@@ -766,7 +766,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 }
 // BroadcastBlock will either propagate a block to a subset of it's peers, or
 // will only announce it's availability (depending what's requested).
-func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
+func (pm *ProtocolManager) BroadcastBlock(block types.BlockIntf, propagate bool) {
 	hash := block.Hash()
 	peers := pm.peers.PeersWithoutMasterBlock(hash)
 

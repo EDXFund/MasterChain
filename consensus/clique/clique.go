@@ -460,7 +460,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 
 // VerifyUncles implements consensus.Engine, always returning an error for any
 // uncles as this consensus mechanism doesn't permit uncles.
-func (c *Clique) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
+func (c *Clique) VerifyUncles(chain consensus.ChainReader, block types.BlockIntf) error {
 	if len(block.Uncles()) > 0 {
 		return errors.New("uncles not allowed")
 	}
@@ -588,7 +588,26 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header types.HeaderIntf) e
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given, and returns the final block.
-func (c *Clique) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB, txs []*types.Transaction, uncles []types.HeaderIntf, receipts []*types.Receipt) (types.BlockIntf, error) {
+func (c *Clique) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,results []*types.ContractResult, txs []*types.Transaction,  receipts []*types.Receipt) (types.BlockIntf, error) {
+	if header.ShardId() == types.ShardMaster {
+		// No block rewards in PoA, so the state remains as is and uncles are dropped
+		return c.finalizeMaster(chain,header,state,blks,receipts)
+	}else {
+		return c.finalizeShard(chain,header,state,txs,results)
+	}
+
+}
+// Finalize implements consensus.Engine, ensuring no uncles are set, nor block
+// rewards given, and returns the final block.
+func (c *Clique) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,  txs []*types.Transaction ,results []*types.ContractResult) (types.BlockIntf, error) {
+	// No block rewards in PoA, so the state remains as is and uncles are dropped
+	header.SetRoot(state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
+	header.SetUncleHash (types.CalcUncleHash(nil))
+
+	// Assemble and return the final block for sealing
+	return types.NewBlock(header, nil, nil, nil), nil
+}
+func (c *Clique) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo, receipts []*types.Receipt) (types.BlockIntf, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.SetRoot(state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 	header.SetUncleHash (types.CalcUncleHash(nil))
@@ -609,7 +628,7 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
-func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (c *Clique) Seal(chain consensus.ChainReader, block types.BlockIntf, results chan<- types.BlockIntf, stop <-chan struct{}) error {
 	header := block.Header().ToHeader()
 
 	// Sealing the genesis block is not supported

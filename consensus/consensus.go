@@ -83,8 +83,7 @@ type Engine interface {
 	// and assembles the final block.
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
-	Finalize(chain ChainReader, header types.HeaderIntf, state *state.StateDB, txs []*types.Transaction,
-		uncles []types.HeaderIntf, receipts []*types.Receipt) (types.BlockIntf, error)
+	 Finalize(chain ChainReader, header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,results []*types.ContractResult, txs []*types.Transaction,  receipts []*types.Receipt)(types.BlockIntf, error)
 
 	// Seal generates a new sealing request for the given input block and pushes
 	// the result into the given channel.

@@ -174,7 +174,7 @@ type worker struct {
 	newTxs  int32 // New arrival transaction count since last sealing work submitting.
 
 	// External functions, this will be dropped next
-	isLocalBlock func(block *types.Block) bool // Function used to determine whether the specified block is mined by local miner.
+	isLocalBlock func(block types.BlockIntf) bool // Function used to determine whether the specified block is mined by local miner.
 
 	// Test hooks
 	newTaskHook  func(*task)                        // Method to call upon receiving a new sealing task.
@@ -183,7 +183,7 @@ type worker struct {
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(types.BlockIntf) bool) *worker {
 	worker := &worker{
 		config:             config,
 		engine:             engine,
@@ -1027,7 +1027,7 @@ func (w *worker) commit(uncles []types.HeaderIntf, interval func(), update bool,
 		*receipts[i] = *l
 	}
 	s := w.current.state.Copy()
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.txs, uncles, w.current.receipts)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s,w.current.shards,w.current.results, w.current.txs, w.current.receipts)
 	if err != nil {
 		return err
 	}

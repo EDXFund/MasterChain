@@ -61,7 +61,7 @@ type TrieID struct {
 
 // StateTrieID returns a TrieID for a state trie belonging to a certain block
 // header.
-func StateTrieID(header *types.Header) *TrieID {
+func StateTrieID(header types.HeaderIntf) *TrieID {
 	return &TrieID{
 		BlockHash:   header.Hash(),
 		BlockNumber: header.NumberU64(),

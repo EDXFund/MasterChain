@@ -407,8 +407,8 @@ type Config struct {
 
 // sealTask wraps a seal block with relative result channel for remote sealer thread.
 type sealTask struct {
-	block   *types.Block
-	results chan<- *types.Block
+	block   types.BlockIntf
+	results chan<- types.BlockIntf
 }
 
 // mineResult wraps the pow solution parameters for the specified block.

@@ -271,13 +271,19 @@ type BlockIntf interface {
 	//extract as shard block
 	ToSBlock() *SBlock
 	Hash() common.Hash
-	Transactions() []*Transaction
+
 	//Uncles()       []*Header
-	ShardBlocks() []*ShardBlockInfo
-	Receipts() []*Receipt
+
+
 	//
 	ReceivedAt() time.Time
 	SetReceivedAt(tm time.Time)
+
+	Transactions() []*Transaction
+
+	ShardBlocks() []*ShardBlockInfo
+	Receipts()    []*Receipt
+	Results()    []*ContractResult
 }
 
 type HeaderIntf interface {

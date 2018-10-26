@@ -47,7 +47,7 @@ var (
 
 // Seal implements consensus.Engine, attempting to find a nonce that satisfies
 // the block's difficulty requirements.
-func (ethash *Ethash) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (ethash *Ethash) Seal(chain consensus.ChainReader, block types.BlockIntf, results chan<- types.BlockIntf, stop <-chan struct{}) error {
 	// If we're running a fake PoW, simply return a 0 nonce immediately
 	if ethash.config.PowMode == ModeFake || ethash.config.PowMode == ModeFullFake {
 		header := block.Header()
@@ -90,7 +90,7 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block *types.Block, resu
 	}
 	var (
 		pend   sync.WaitGroup
-		locals = make(chan *types.Block)
+		locals = make(chan types.BlockIntf)
 	)
 	for i := 0; i < threads; i++ {
 		pend.Add(1)
@@ -101,7 +101,7 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block *types.Block, resu
 	}
 	// Wait until sealing is terminated or a nonce is found
 	go func() {
-		var result *types.Block
+		var result types.BlockIntf
 		select {
 		case <-stop:
 			// Outside abort, stop all miner threads
@@ -129,7 +129,7 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block *types.Block, resu
 
 // mine is the actual proof-of-work miner that searches for a nonce starting from
 // seed that results in correct final block difficulty.
-func (ethash *Ethash) mine(block *types.Block, id int, seed uint64, abort chan struct{}, found chan *types.Block) {
+func (ethash *Ethash) mine(block types.BlockIntf, id int, seed uint64, abort chan struct{}, found chan types.BlockIntf) {
 	// Extract some data from the header
 	var (
 		header  = block.Header()
@@ -189,11 +189,11 @@ search:
 // remote is a standalone goroutine to handle remote mining related stuff.
 func (ethash *Ethash) remote(notify []string, noverify bool) {
 	var (
-		works = make(map[common.Hash]*types.Block)
+		works = make(map[common.Hash]types.BlockIntf)
 		rates = make(map[common.Hash]hashrate)
 
-		results      chan<- *types.Block
-		currentBlock *types.Block
+		results      chan<- types.BlockIntf
+		currentBlock types.BlockIntf
 		currentWork  [3]string
 
 		notifyTransport = &http.Transport{}
@@ -235,7 +235,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 	//   result[0], 32 bytes hex encoded current block header pow-hash
 	//   result[1], 32 bytes hex encoded seed hash used for DAG
 	//   result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
-	makeWork := func(block *types.Block) {
+	makeWork := func(block types.BlockIntf) {
 		hash := ethash.SealHash(block.Header().ToHeader())
 
 		currentWork[0] = hash.Hex()

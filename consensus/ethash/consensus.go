@@ -566,15 +566,31 @@ func (ethash *Ethash) Prepare(chain consensus.ChainReader, header types.HeaderIn
 
 // Finalize implements consensus.Engine, accumulating the block and uncle rewards,
 // setting the final state and assembling the block.
-func (ethash *Ethash) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB, txs []*types.ShardBlockInfo, uncles []types.HeaderIntf, receipts []*types.Receipt) (types.BlockIntf, error) {
+func (ethash *Ethash) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,results []*types.ContractResult, txs []*types.Transaction,  receipts []*types.Receipt)(types.BlockIntf, error) {
+	if header.ShardId() == types.ShardMaster {
+		return ethash.finalizeMaster(chain,header,state,blks,receipts)
+	}else{
+		return ethash.finalizeShard(chain,header,state,txs,results)
+	}
+}
+// Finalize implements consensus.Engine, ensuring no uncles are set, nor block
+// rewards given, and returns the final block.
+func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,  txs []*types.Transaction ,results []*types.ContractResult) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
-	accumulateRewards(chain.Config(), state, header, uncles)
+	/*accumulateRewards(chain.Config(), state, header, nil)
+	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
+*/
+	// Header seems complete, assemble into a block and return
+	return types.NewBlock(header, nil, nil, nil), nil
+}
+func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,  receipts []*types.Receipt) (types.BlockIntf, error) {
+	// Accumulate any block and uncle rewards and commit the final state root
+	accumulateRewards(chain.Config(), state, header, nil)
 	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, txs, uncles, receipts), nil
+	return types.NewBlock(header, nil, nil, receipts), nil
 }
-
 // SealHash returns the hash of a block prior to it being sealed.
 func (ethash *Ethash) SealHash(header types.HeaderIntf) (hash common.Hash) {
 	hasher := sha3.NewKeccak256()
