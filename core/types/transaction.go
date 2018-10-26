@@ -29,7 +29,7 @@ import (
 	"github.com/EDXFund/MasterChain/rlp"
 )
 
-//go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
+//go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go1
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
@@ -48,6 +48,7 @@ type txdata struct {
 	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
 	GasLimit     uint64          `json:"gas"      gencodec:"required"`
 	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
+	TokenId      uint64          `json:"tokenId"  gencodec:"required"`
 	Amount       *big.Int        `json:"value"    gencodec:"required"`
 	Payload      []byte          `json:"input"    gencodec:"required"`
 
@@ -223,6 +224,7 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 		gasLimit:   tx.data.GasLimit,
 		gasPrice:   new(big.Int).Set(tx.data.Price),
 		to:         tx.data.Recipient,
+		token:      tx.data.TokenId,
 		amount:     tx.data.Amount,
 		data:       tx.data.Payload,
 		checkNonce: true,
@@ -387,6 +389,7 @@ type Message struct {
 	to         *common.Address
 	from       common.Address
 	nonce      uint64
+	token      uint64
 	amount     *big.Int
 	gasLimit   uint64
 	gasPrice   *big.Int
@@ -394,11 +397,12 @@ type Message struct {
 	checkNonce bool
 }
 
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool) Message {
+func NewMessage(from common.Address, to *common.Address, nonce uint64, token uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool) Message {
 	return Message{
 		from:       from,
 		to:         to,
 		nonce:      nonce,
+		token:      token,
 		amount:     amount,
 		gasLimit:   gasLimit,
 		gasPrice:   gasPrice,
@@ -410,6 +414,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 func (m Message) From() common.Address { return m.from }
 func (m Message) To() *common.Address  { return m.to }
 func (m Message) GasPrice() *big.Int   { return m.gasPrice }
+func (m Message) TokenId() uint64        { return m.token }
 func (m Message) Value() *big.Int      { return m.amount }
 func (m Message) Gas() uint64          { return m.gasLimit }
 func (m Message) Nonce() uint64        { return m.nonce }

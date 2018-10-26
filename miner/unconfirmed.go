@@ -29,10 +29,10 @@ import (
 // mined block is part of the canonical chain or not.
 type chainRetriever interface {
 	// GetHeaderByNumber retrieves the canonical header associated with a block number.
-	GetHeaderByNumber(number uint64) *types.Header
+	GetHeaderByNumber(number uint64) types.HeaderIntf
 
 	// GetBlockByNumber retrieves the canonical block associated with a block number.
-	GetBlockByNumber(number uint64) *types.Block
+	GetBlockByNumber(number uint64) types.BlockIntf
 }
 
 // unconfirmedBlock is a small collection of metadata about a locally mined block

@@ -23,27 +23,27 @@ import (
 
 // NewTxsEvent is posted when a batch of transactions enter the transaction pool.
 type NewTxsEvent struct{ Txs []*types.Transaction }
-type NewShardBlockEvent struct{ Block []*types.Block }
+type NewShardBlockEvent struct{ Block []types.BlockIntf }
 // PendingLogsEvent is posted pre mining and notifies of pending logs.
 type PendingLogsEvent struct {
 	Logs []*types.Log
 }
 
 // NewMinedBlockEvent is posted when a block has been imported.
-type NewMinedBlockEvent struct{ Block *types.Block }
+type NewMinedBlockEvent struct{ Block types.BlockIntf }
 
 // RemovedLogsEvent is posted when a reorg happens
 type RemovedLogsEvent struct{ Logs []*types.Log }
 
 type ChainEvent struct {
-	Block *types.Block
+	Block types.BlockIntf
 	Hash  common.Hash
 	Logs  []*types.Log
 }
 
 type ChainSideEvent struct {
-	Block *types.Block
+	Block types.BlockIntf
 }
 
-type ChainHeadEvent struct{ Block *types.Block }
+type ChainHeadEvent struct{ Block types.BlockIntf }
 type ShardChainHeadEvent struct {Block *types.SBlock}

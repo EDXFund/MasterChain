@@ -54,6 +54,7 @@ type StateTransition struct {
 	gas        uint64
 	gasPrice   *big.Int
 	initialGas uint64
+	token      uint64
 	value      *big.Int
 	data       []byte
 	state      vm.StateDB
@@ -69,7 +70,7 @@ type Message interface {
 	GasPrice() *big.Int
 	Gas() uint64
 	Value() *big.Int
-
+    TokenId() uint64
 	Nonce() uint64
 	CheckNonce() bool
 	Data() []byte
@@ -115,6 +116,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 		evm:      evm,
 		msg:      msg,
 		gasPrice: msg.GasPrice(),
+		token:	  msg.TokenId(),
 		value:    msg.Value(),
 		data:     msg.Data(),
 		state:    evm.StateDB,

@@ -7,47 +7,58 @@ import (
 	"errors"
 
 	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/common/hexutil"
 )
 
-var _ = (*logMarshaling)(nil)
-
+// MarshalJSON marshals as JSON.
 func (l Log) MarshalJSON() ([]byte, error) {
 	type Log struct {
-		Address     common.Address `json:"address" gencodec:"required"`
-		Topics      []common.Hash  `json:"topics" gencodec:"required"`
-		Data        hexutil.Bytes  `json:"data" gencodec:"required"`
-		BlockNumber hexutil.Uint64 `json:"blockNumber"`
-		TxHash      common.Hash    `json:"transactionHash" gencodec:"required"`
-		TxIndex     hexutil.Uint   `json:"transactionIndex" gencodec:"required"`
-		BlockHash   common.Hash    `json:"blockHash"`
-		Index       hexutil.Uint   `json:"logIndex" gencodec:"required"`
-		Removed     bool           `json:"removed"`
+		Address            common.Address `json:"address" gencodec:"required"`
+		Topics             []common.Hash  `json:"topics" gencodec:"required"`
+		Data               []byte         `json:"data" gencodec:"required"`
+		TxHash             common.Hash    `json:"transactionHash" gencodec:"required"`
+		ShardId            uint64
+		BlockNumberOfShard uint64      `json:"blockNumber"`
+		TxIndexInShard     uint        `json:"transactionIndex" gencodec:"required"`
+		BlockHashOfShard   common.Hash `json:"blockHash"`
+		LogIndexInMaster   uint        `json:"logIndex" gencodec:"required"`
+		MasterBlockNumber  uint64      `json:"blockNumber"`
+		ShardIndexInMaster uint        `json:"shardIndex" gencodec:"required"`
+		BlockHashOfMaster  common.Hash `json:"blockHash"`
+		Removed            bool        `json:"removed"`
 	}
 	var enc Log
 	enc.Address = l.Address
 	enc.Topics = l.Topics
 	enc.Data = l.Data
-	enc.BlockNumber = hexutil.Uint64(l.BlockNumber)
 	enc.TxHash = l.TxHash
-	enc.TxIndex = hexutil.Uint(l.TxIndex)
-	enc.BlockHash = l.BlockHash
-	enc.Index = hexutil.Uint(l.Index)
+	enc.ShardId = l.ShardId
+	enc.BlockNumberOfShard = l.BlockNumberOfShard
+	enc.TxIndexInShard = l.TxIndexInShard
+	enc.BlockHashOfShard = l.BlockHashOfShard
+	enc.LogIndexInMaster = l.LogIndexInMaster
+	enc.MasterBlockNumber = l.MasterBlockNumber
+	enc.ShardIndexInMaster = l.ShardIndexInMaster
+	enc.BlockHashOfMaster = l.BlockHashOfMaster
 	enc.Removed = l.Removed
 	return json.Marshal(&enc)
 }
 
+// UnmarshalJSON unmarshals from JSON.
 func (l *Log) UnmarshalJSON(input []byte) error {
 	type Log struct {
-		Address     *common.Address `json:"address" gencodec:"required"`
-		Topics      []common.Hash   `json:"topics" gencodec:"required"`
-		Data        *hexutil.Bytes  `json:"data" gencodec:"required"`
-		BlockNumber *hexutil.Uint64 `json:"blockNumber"`
-		TxHash      *common.Hash    `json:"transactionHash" gencodec:"required"`
-		TxIndex     *hexutil.Uint   `json:"transactionIndex" gencodec:"required"`
-		BlockHash   *common.Hash    `json:"blockHash"`
-		Index       *hexutil.Uint   `json:"logIndex" gencodec:"required"`
-		Removed     *bool           `json:"removed"`
+		Address            *common.Address `json:"address" gencodec:"required"`
+		Topics             []common.Hash   `json:"topics" gencodec:"required"`
+		Data               []byte          `json:"data" gencodec:"required"`
+		TxHash             *common.Hash    `json:"transactionHash" gencodec:"required"`
+		ShardId            *uint64
+		BlockNumberOfShard *uint64      `json:"blockNumber"`
+		TxIndexInShard     *uint        `json:"transactionIndex" gencodec:"required"`
+		BlockHashOfShard   *common.Hash `json:"blockHash"`
+		LogIndexInMaster   *uint        `json:"logIndex" gencodec:"required"`
+		MasterBlockNumber  *uint64      `json:"blockNumber"`
+		ShardIndexInMaster *uint        `json:"shardIndex" gencodec:"required"`
+		BlockHashOfMaster  *common.Hash `json:"blockHash"`
+		Removed            *bool        `json:"removed"`
 	}
 	var dec Log
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -64,25 +75,38 @@ func (l *Log) UnmarshalJSON(input []byte) error {
 	if dec.Data == nil {
 		return errors.New("missing required field 'data' for Log")
 	}
-	l.Data = *dec.Data
-	if dec.BlockNumber != nil {
-		l.BlockNumber = uint64(*dec.BlockNumber)
-	}
+	l.Data = dec.Data
 	if dec.TxHash == nil {
 		return errors.New("missing required field 'transactionHash' for Log")
 	}
 	l.TxHash = *dec.TxHash
-	if dec.TxIndex == nil {
+	if dec.ShardId != nil {
+		l.ShardId = *dec.ShardId
+	}
+	if dec.BlockNumberOfShard != nil {
+		l.BlockNumberOfShard = *dec.BlockNumberOfShard
+	}
+	if dec.TxIndexInShard == nil {
 		return errors.New("missing required field 'transactionIndex' for Log")
 	}
-	l.TxIndex = uint(*dec.TxIndex)
-	if dec.BlockHash != nil {
-		l.BlockHash = *dec.BlockHash
+	l.TxIndexInShard = *dec.TxIndexInShard
+	if dec.BlockHashOfShard != nil {
+		l.BlockHashOfShard = *dec.BlockHashOfShard
 	}
-	if dec.Index == nil {
+	if dec.LogIndexInMaster == nil {
 		return errors.New("missing required field 'logIndex' for Log")
 	}
-	l.Index = uint(*dec.Index)
+	l.LogIndexInMaster = *dec.LogIndexInMaster
+	if dec.MasterBlockNumber != nil {
+		l.MasterBlockNumber = *dec.MasterBlockNumber
+	}
+	if dec.ShardIndexInMaster == nil {
+		return errors.New("missing required field 'shardIndex' for Log")
+	}
+	l.ShardIndexInMaster = *dec.ShardIndexInMaster
+	if dec.BlockHashOfMaster != nil {
+		l.BlockHashOfMaster = *dec.BlockHashOfMaster
+	}
 	if dec.Removed != nil {
 		l.Removed = *dec.Removed
 	}

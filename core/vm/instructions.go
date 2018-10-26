@@ -893,13 +893,14 @@ func makeLog(size int) executionFunc {
 		}
 
 		d := memory.Get(mStart.Int64(), mSize.Int64())
+		////MUST TODO renew Log
 		interpreter.evm.StateDB.AddLog(&types.Log{
 			Address: contract.Address(),
 			Topics:  topics,
 			Data:    d,
 			// This is a non-consensus field, but assigned here because
 			// core/state doesn't know the current block number.
-			BlockNumber: interpreter.evm.BlockNumber.Uint64(),
+			BlockNumberOfShard: interpreter.evm.BlockNumber.Uint64(),
 		})
 
 		interpreter.intPool.put(mStart, mSize)

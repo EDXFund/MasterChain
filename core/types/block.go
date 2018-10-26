@@ -235,8 +235,8 @@ type storageblock struct {
 // The values of TxHash, UncleHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts []*Receipt,txs []*Transaction, results []*ContractResult) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int)}
+func NewBlock(header HeaderIntf, blks []*ShardBlockInfo, uncles []HeaderIntf, receipts []*Receipt) BlockIntf {
+	b := &Block{header: CopyHeader(header.ToHeader()), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(blks) == 0 {
@@ -260,7 +260,7 @@ func NewBlock(header *Header, blks []*ShardBlockInfo, uncles []*Header, receipts
 		b.header.uncleHash = CalcUncleHash(uncles)
 		b.uncles = make([]*Header, len(uncles))
 		for i := range uncles {
-			b.uncles[i] = CopyHeader(uncles[i])
+			b.uncles[i] = CopyHeader(uncles[i].ToHeader())
 		}
 	}
 
@@ -333,7 +333,13 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 }
 
 
-func (b *Block) Uncles() []*Header            { return b.uncles }
+func (b *Block) Uncles() []HeaderIntf            {
+	result := make([]HeaderIntf,len(b.uncles))
+	for k,v := range b.uncles {
+		result[k] = v.ToHeader()
+	}
+	return result
+}
 func (b *Block) ShardBlocks() []*ShardBlockInfo { return b.shardBlocks }
 
 func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
@@ -365,8 +371,8 @@ func (b *Block) ReceiptHash() common.Hash { return b.header.receiptHash }
 func (b *Block) UncleHash() common.Hash   { return b.header.uncleHash }
 func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.extra) }
 
-func (b *Block) ShardExp() uint8      { return b.header.shardMaskEp }
-func (b *Block) ShardEnabled() []byte { return b.header.shardEnabled }
+func (b *Block) ShardExp() uint16      { return b.header.shardMaskEp }
+func (b *Block) ShardEnabled() [32]byte { return b.header.shardEnabled }
 
 // Body returns the non-header content of the block.
 func (b *Block) Body() *SuperBody { return &SuperBody{b.shardBlocks, b.uncles,nil,nil} }
@@ -396,7 +402,7 @@ func (b *Block) Size() common.StorageSize {
 	return common.StorageSize(c)
 }
 
-func CalcUncleHash(uncles []*Header) common.Hash {
+func CalcUncleHash(uncles []HeaderIntf) common.Hash {
 	return rlpHash(uncles)
 }
 

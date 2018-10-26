@@ -237,7 +237,7 @@ type BlockIntf interface {
 	DecodeRLP(s *rlp.Stream) error
 	EncodeRLP(w io.Writer) error
 	ShardBlock(hash common.Hash) *ShardBlockInfo
-	Uncles() []*Header
+	Uncles() []HeaderIntf
 	Header() HeaderIntf
 	Number() *big.Int
 	GasLimit() uint64
@@ -258,8 +258,9 @@ type BlockIntf interface {
 	UncleHash() common.Hash
 	Extra() []byte
 
-	ShardExp() uint8
-	ShardEnabled() []byte
+	ShardId()  uint16
+	ShardExp() uint16
+	ShardEnabled() [32]byte
 	// Body returns the non-header content of the block.
 	Body() *SuperBody
 	Size() common.StorageSize

@@ -27,7 +27,7 @@ import (
 	"github.com/EDXFund/MasterChain/rlp"
 )
 
-//go:generate gencodec -type Receipt -field-override receiptMarshaling -out gen_receipt_json.go
+//go:generate gencodec -type Receipt -field-override receiptMarshaling -out gen_receipt_json.go1
 
 var (
 	receiptStatusFailedRLP     = []byte{}

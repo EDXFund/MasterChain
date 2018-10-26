@@ -1,19 +1,17 @@
 package types
 
 import (
-"encoding/binary"
-"io"
-"math/big"
-"sort"
-"sync/atomic"
-"time"
-"unsafe"
+	"io"
+	"math/big"
+	"sort"
+	"sync/atomic"
+	"time"
+	"unsafe"
 
-"github.com/EDXFund/MasterChain/common"
-"github.com/EDXFund/MasterChain/common/hexutil"
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/common/hexutil"
 
-
-"github.com/EDXFund/MasterChain/rlp"
+	"github.com/EDXFund/MasterChain/rlp"
 )
 
 
@@ -176,7 +174,7 @@ type SBlock struct {
 
 	// These fields are used by package eth to track
 	// inter-peer block relay.
-	ReceivedAt   time.Time
+	receivedAt   time.Time
 	ReceivedFrom interface{}
 }
 type SBlocks []*SBlock
@@ -187,7 +185,21 @@ type SBlocks []*SBlock
 func (b *SBlock) DeprecatedTd() *big.Int {
 	return b.td
 }
-
+func (b *SBlock) ReceivedAt() time.Time {
+	return b.receivedAt
+}
+func (b *SBlock) SetReceivedAt(t time.Time) {
+	b.receivedAt = t
+}
+func (b *SBlock) ToSBlock() *SBlock { return b }
+// dummy implementions
+func (b *SBlock)  ShardBlock(hash common.Hash) *ShardBlockInfo {return nil}
+func (b *SBlock)  ShardBlocks() []*ShardBlockInfo {return nil}
+func (b *SBlock) ShardExp() uint16      { return 0 }
+func (b *SBlock) ShardEnabled() [32]byte { return [32]byte{0} }
+func (b *SBlock) ToBlock() *Block { return nil }
+func (b *SBlock) UncleHash() common.Hash   { return common.Hash{} }
+func (b *SBlock) Uncles() []HeaderIntf   { return nil }
 // [deprecated by eth/63]
 // StorageBlock defines the RLP encoding of a Block stored in the
 // state database. The StorageBlock encoding contains fields that
@@ -217,8 +229,8 @@ type sstorageblock struct {
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewSBlock(header *SHeader, txs []*Transaction, receipts []*ContractResult) *SBlock {
-	b := &SBlock{header: CopySHeader(header), td: new(big.Int)}
+func NewSBlock(header HeaderIntf, txs []*Transaction, receipts []*ContractResult) BlockIntf {
+	b := &SBlock{header: CopySHeader(header.ToSHeader()), td: new(big.Int)}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -301,7 +313,7 @@ func (b *StorageSBlock) DecodeRLP(s *rlp.Stream) error {
 // TODO: copies
 
 
-func (b *SBlock) Transactions() Transactions { return b.transactions }
+func (b *SBlock) Transactions() []*Transaction { return b.transactions }
 
 func (b *SBlock) Receiptions() ContractResults { return b.receipts }
 
@@ -332,21 +344,22 @@ func (b *SBlock) Time() *big.Int       { return new(big.Int).Set(b.header.time) 
 
 func (b *SBlock) NumberU64() uint64        { return b.header.number.Uint64() }
 func (b *SBlock) MixDigest() common.Hash   { return b.header.mixDigest }
-func (b *SBlock) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.nonce[:]) }
+func (b *SBlock) Nonce() BlockNonce            { return b.header.nonce }
 func (b *SBlock) Bloom() Bloom             { return b.header.bloom }
+func (b *SBlock) BloomRejected() Bloom             { return Bloom{0} }
 func (b *SBlock) Coinbase() common.Address { return b.header.coinbase }
 func (b *SBlock) Root() common.Hash        { return b.header.root }
 func (b *SBlock) ParentHash() common.Hash  { return b.header.parentHash }
 func (b *SBlock) TxHash() common.Hash      { return b.header.txHash }
 func (b *SBlock) ReceiptHash() common.Hash { return b.header.receiptHash }
-
+func (b *SBlock) Receipts() []*Receipt { return nil }
 //func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
 func (b *SBlock) Extra() []byte                 { return common.CopyBytes(b.header.extra) }
 
-func (b *SBlock) Header() *SHeader               { return CopySHeader(b.header) }
+func (b *SBlock) Header() HeaderIntf               { return b.header }
 
 // Body returns the non-header content of the block.
-func (b *SBlock) Body() *SBody { return &SBody{b.transactions, b.receipts} }
+func (b *SBlock) Body() *SuperBody { return &SuperBody{nil,nil,b.transactions, b.receipts} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -362,11 +375,11 @@ func (b *SBlock) Size() common.StorageSize {
 
 // WithSeal returns a new block with the data from b but the header replaced with
 // the sealed one.
-func (b *SBlock) WithSeal(header *SHeader) *SBlock {
-	cpy := *header
+func (b *SBlock) WithSeal(header HeaderIntf) BlockIntf {
+	cpy := header.ToSHeader()
 
 	return &SBlock{
-		header:       &cpy,
+		header:       cpy,
 		transactions: b.transactions,
 		receipts:     b.receipts,
 	}
@@ -384,6 +397,11 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 	copy(block.receipts, contractReceipts)
 
 	return block
+}
+// WithBody returns a new block with the given transaction and uncle contents.
+func (b *SBlock) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
+
+	return b.WithBodyOfTransactions(transactions,receipts)
 }
 func (b *SBlock)WithBodyOfShardBlocks(shardBlocksInfos []*ShardBlockInfo, uncles []*Header) *Block{
 	return nil

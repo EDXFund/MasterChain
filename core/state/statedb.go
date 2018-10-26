@@ -132,14 +132,14 @@ func (self *StateDB) Reset(root common.Hash) error {
 	self.clearJournalAndRefund()
 	return nil
 }
-
+//// must to do  add log should be refined
 func (self *StateDB) AddLog(log *types.Log) {
 	self.journal.append(addLogChange{txhash: self.thash})
 
 	log.TxHash = self.thash
-	log.BlockHash = self.bhash
-	log.TxIndex = uint(self.txIndex)
-	log.Index = self.logSize
+	log.BlockHashOfShard = self.bhash
+	log.TxIndexInShard = uint(self.txIndex)
+	log.LogIndexInMaster = self.logSize
 	self.logs[self.thash] = append(self.logs[self.thash], log)
 	self.logSize++
 }
