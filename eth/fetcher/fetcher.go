@@ -94,7 +94,7 @@ type headerFilterTask struct {
 type bodyFilterTask struct {
 	peer         string                 // The source peer of block bodies
 	shardBlocks [][]*types.ShardBlockInfo // Collection of transactions per block bodies
-	uncles       [][]*types.Header      // Collection of uncles per block bodies
+	uncles       [][]types.HeaderIntf     // Collection of uncles per block bodies
 	transactions [][]*types.Transaction // Collection of transactions per block bodies
 	contractResults       [][]*types.ContractResult      // Collection of contract results
 	time         time.Time              // Arrival time of the blocks' contents
@@ -252,7 +252,7 @@ func (f *Fetcher) FilterHeaders(peer string, headers []types.HeaderIntf, time ti
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]*types.Header, shardBlocks [][]*types.ShardBlockInfo, results [][]*types.ContractResult,time time.Time) ([][]*types.Transaction,[][]*types.Header, [][]*types.ShardBlockInfo, [][]*types.ContractResult) {
+func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]types.HeaderIntf, shardBlocks [][]*types.ShardBlockInfo, results [][]*types.ContractResult,time time.Time) ([][]*types.Transaction,[][]*types.Header, [][]*types.ShardBlockInfo, [][]*types.ContractResult) {
 	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions), "uncles", len(uncles))
 
 	// Send the filter channel to the fetcher
@@ -474,7 +474,7 @@ func (f *Fetcher) loop() {
 						announce.time = task.time
 
 						// If the block is empty (header only), short circuit into the final import queue
-						if header.Hash() == types.DeriveSha(types.Transactions{}) && header.UncleHash() == types.CalcUncleHash([]*types.Header{}) {
+						if header.Hash() == types.DeriveSha(types.Transactions{}) && header.UncleHash() == types.CalcUncleHash([]types.HeaderIntf{}) {
 							log.Trace("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number, "hash", header.Hash())
 
 							block := types.NewBlockWithHeader(header)

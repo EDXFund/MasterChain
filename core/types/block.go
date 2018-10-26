@@ -451,9 +451,9 @@ func (b *Block) Hash() common.Hash {
 type Blocks []*Block
 type BlockIntfs []BlockIntf
 
-type BlockBy func(b1, b2 *Block) bool
+type BlockBy func(b1, b2 BlockIntf) bool
 
-func (self BlockBy) Sort(blocks Blocks) {
+func (self BlockBy) Sort(blocks BlockIntfs) {
 	bs := blockSorter{
 		blocks: blocks,
 		by:     self,
@@ -462,8 +462,8 @@ func (self BlockBy) Sort(blocks Blocks) {
 }
 
 type blockSorter struct {
-	blocks Blocks
-	by     func(b1, b2 *Block) bool
+	blocks BlockIntfs
+	by     func(b1, b2 BlockIntf) bool
 }
 
 func (self blockSorter) Len() int { return len(self.blocks) }
@@ -472,4 +472,4 @@ func (self blockSorter) Swap(i, j int) {
 }
 func (self blockSorter) Less(i, j int) bool { return self.by(self.blocks[i], self.blocks[j]) }
 
-func Number(b1, b2 *Block) bool { return b1.header.number.Cmp(b2.header.number) < 0 }
+func Number(b1, b2 BlockIntf) bool { return b1.Header().Number().Cmp(b2.Header().Number()) < 0 }

@@ -39,7 +39,7 @@ func ReadShardBlockLookupEntry(db DatabaseReader, hash common.Hash) (uint16, com
 
 // WriteShardBlockEntries stores a positional metadata for every shardBlock from
 // a master block, enabling hash based transaction and receipt lookups.
-func WriteShardBlockEntries(db DatabaseWriter, block *types.Block) {
+func WriteShardBlockEntries(db DatabaseWriter, block types.BlockIntf) {
 	for i, shardBlock := range block.ShardBlocks() {
 		entry := TxLookupEntry{
 			BlockHash:  block.Hash(),

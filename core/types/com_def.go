@@ -265,7 +265,7 @@ type BlockIntf interface {
 	Body() *SuperBody
 	Size() common.StorageSize
 	WithSeal(header HeaderIntf) BlockIntf
-	WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header, transactions []*Transaction, receipts []*ContractResult) BlockIntf
+	WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []HeaderIntf, transactions []*Transaction, receipts []*ContractResult) BlockIntf
 	//extract as block
 	ToBlock() *Block
 	//extract as shard block

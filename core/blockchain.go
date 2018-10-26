@@ -666,7 +666,7 @@ func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) (blocks []types
 // GetUnclesInChain retrieves all the uncles from a given block backwards until
 // a specific distance is reached.
 func (bc *BlockChain) GetUnclesInChain(block types.BlockIntf, length int) []types.HeaderIntf {
-	uncles := []*types.Header{}
+	/*uncles := []*types.Header{}
 	for i := 0; block != nil && i < length; i++ {
 		uncles = append(uncles, block.Uncles()...)
 		block = bc.GetBlock(block.ParentHash(), block.NumberU64()-1)
@@ -675,7 +675,8 @@ func (bc *BlockChain) GetUnclesInChain(block types.BlockIntf, length int) []type
 	for key,val := range uncles {
 		unclesIntf[key] = val
 	}
-	return unclesIntf
+	return unclesIntf */
+	return nil
 }
 
 // TrieNode retrieves a blob of data associated with a trie node (or code hash)
@@ -726,7 +727,7 @@ func (bc *BlockChain) Stop() {
 }
 
 func (bc *BlockChain) procFutureBlocks() {
-	blocks := make([]*types.Block, 0, bc.futureBlocks.Len())
+	blocks := make([]types.BlockIntf, 0, bc.futureBlocks.Len())
 	for _, hash := range bc.futureBlocks.Keys() {
 		if block, exist := bc.futureBlocks.Peek(hash); exist {
 			blocks = append(blocks, block.(*types.Block))
@@ -803,12 +804,13 @@ func SetReceiptsData(config *params.ChainConfig, block types.BlockIntf, receipts
 			receipts[j].GasUsed = receipts[j].CumulativeGasUsed - receipts[j-1].CumulativeGasUsed
 		}
 		// The derived log fields can simply be set from the block and transaction
+		////MUST TODO: check and set logs for master/shard
 		for k := 0; k < len(receipts[j].Logs); k++ {
-			receipts[j].Logs[k].BlockNumber = block.NumberU64()
+			/*receipts[j].Logs[k].BlockNumber = block.NumberU64()
 			receipts[j].Logs[k].BlockHash = block.Hash()
 			receipts[j].Logs[k].TxHash = receipts[j].TxHash
 			receipts[j].Logs[k].TxIndex = uint(j)
-			receipts[j].Logs[k].Index = logIndex
+			receipts[j].Logs[k].Index = logIndex*/
 			logIndex++
 		}
 	}
@@ -861,7 +863,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.BlockIntfs, receiptCha
 		//receipts only exist on master chain block
 		rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
 		if bc.shardId == types.ShardMaster {
-			rawdb.WriteShardBlockEntries(batch, block.ToBlock())
+			rawdb.WriteShardBlockEntries(batch, block)
 		}else {
 			rawdb.WriteTxLookupEntries(batch, block.ToSBlock())
 		}

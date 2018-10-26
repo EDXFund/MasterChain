@@ -147,7 +147,8 @@ type SignerFn func(accounts.Account, []byte) ([]byte, error)
 // Note, the method requires the extra data to be at least 65 bytes, otherwise it
 // panics. This is done to avoid accidentally using both forms (signature present
 // or not), which could be abused to produce different hashes for the same header.
-func sigHash(header *types.Header) (hash common.Hash) {
+////MUST TODO adopt to master/shard head
+func sigHash(header types.HeaderIntf) (hash common.Hash) {
 	hasher := sha3.NewKeccak256()
 
 	rlp.Encode(hasher, []interface{}{
@@ -172,7 +173,7 @@ func sigHash(header *types.Header) (hash common.Hash) {
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
+func ecrecover(header types.HeaderIntf, sigcache *lru.ARCCache) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
@@ -238,25 +239,25 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
-func (c *Clique) Author(header *types.Header) (common.Address, error) {
+func (c *Clique) Author(header types.HeaderIntf) (common.Address, error) {
 	return ecrecover(header, c.signatures)
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
-func (c *Clique) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
+func (c *Clique) VerifyHeader(chain consensus.ChainReader, header types.HeaderIntf, seal bool) error {
 	return c.verifyHeader(chain, header, nil)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers. The
 // method returns a quit channel to abort the operations and a results channel to
 // retrieve the async verifications (the order is that of the input slice).
-func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []types.HeaderIntf, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 
 	go func() {
 		for i, header := range headers {
-			rawHeaders := make([]*types.Header,len(headers[:i]))
+			rawHeaders := make([]types.HeaderIntf,len(headers[:i]))
 			for key,val := range headers[:i] {
 				rawHeaders[key] = val.ToHeader()
 			}
@@ -276,7 +277,7 @@ func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []*types.Hea
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (c *Clique) verifyHeader(chain consensus.ChainReader, header types.HeaderIntf, parents []types.HeaderIntf) error {
 	if header.Number() == nil {
 		return errUnknownBlock
 	}
@@ -340,14 +341,14 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header types.HeaderIntf, parents []types.HeaderIntf) error {
 	// The genesis block is the always valid dead-end
 	number := header.NumberU64()
 	if number == 0 {
 		return nil
 	}
 	// Ensure that the block's timestamp isn't too close to it's parent
-	var parent *types.Header
+	var parent types.HeaderIntf
 	if len(parents) > 0 {
 		parent = parents[len(parents)-1]
 	} else {
@@ -380,10 +381,10 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
-func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []types.HeaderIntf) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk for checkpoints
 	var (
-		headers []*types.Header
+		headers []types.HeaderIntf
 		snap    *Snapshot
 	)
 	for snap == nil {
@@ -419,7 +420,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			}
 		}
 		// No snapshot for this header, gather the header and move backward
-		var header *types.Header
+		var header types.HeaderIntf
 		if len(parents) > 0 {
 			// If we have explicit parents, pick from there (enforced)
 			header = parents[len(parents)-1]
@@ -468,7 +469,7 @@ func (c *Clique) VerifyUncles(chain consensus.ChainReader, block *types.Block) e
 
 // VerifySeal implements consensus.Engine, checking whether the signature contained
 // in the header satisfies the consensus protocol requirements.
-func (c *Clique) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
+func (c *Clique) VerifySeal(chain consensus.ChainReader, header types.HeaderIntf) error {
 	return c.verifySeal(chain, header, nil)
 }
 
@@ -476,7 +477,7 @@ func (c *Clique) VerifySeal(chain consensus.ChainReader, header *types.Header) e
 // consensus protocol requirements. The method accepts an optional list of parent
 // headers that aren't yet part of the local blockchain to generate the snapshots
 // from.
-func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (c *Clique) verifySeal(chain consensus.ChainReader, header types.HeaderIntf, parents []types.HeaderIntf) error {
 	// Verifying the genesis block is not supported
 	number := header.NumberU64()
 	if number == 0 {
@@ -519,7 +520,7 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
-func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) error {
+func (c *Clique) Prepare(chain consensus.ChainReader, header types.HeaderIntf) error {
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 
 	header.SetCoinbase ( common.Address{})
@@ -587,13 +588,13 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given, and returns the final block.
-func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (c *Clique) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB, txs []*types.Transaction, uncles []types.HeaderIntf, receipts []*types.Receipt) (types.BlockIntf, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.SetRoot(state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 	header.SetUncleHash (types.CalcUncleHash(nil))
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, nil, nil, receipts,nil,nil), nil
+	return types.NewBlock(header, nil, nil, receipts), nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
