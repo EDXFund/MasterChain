@@ -57,6 +57,45 @@ type Header struct {
 	mixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
 	nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
 }
+
+type HeaderStruct struct {
+	ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
+	UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+	Coinbase       common.Address `json:"miner"            gencodec:"required"`
+	ShardBlockHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
+	ShardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
+	ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
+	Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
+	TxHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ReceiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+	Bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
+	BloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
+	Difficulty     *big.Int       `json:"difficulty"       gencodec:"required"`
+	Number         *big.Int       `json:"number"           gencodec:"required"`
+	GasLimit       uint64         `json:"gasLimit"         gencodec:"required"`
+	GasUsed        uint64         `json:"gasUsed"          gencodec:"required"`
+	Time           *big.Int       `json:"timestamp"        gencodec:"required"`
+	Extra          []byte         `json:"extraData"        gencodec:"required"`
+	MixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
+	Nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
+}
+
+func (h *Header) FillBy(h2 *HeaderStruct){
+	h.parentHash = h2.ParentHash
+	h.root = h2.Root
+	h.txHash = h2.TxHash
+	h.receiptHash = h2.ReceiptHash
+	h.bloom = h2.Bloom
+	h.bloomReject = h2.BloomReject
+	h.difficulty = h2.Difficulty
+	h.number = h2.Number
+	h.gasLimit = h2.GasLimit
+	h.gasUsed = h2.GasUsed
+	h.time    = h2.Time
+	h.extra  = h2.Extra
+	h.mixDigest = h2.MixDigest
+	h.nonce	    = h2.Nonce
+}
 func (h *Header) ShardId() uint16 {
 	return ShardMaster
 }
@@ -130,6 +169,7 @@ func (b *Header) SetGasLimit(v  uint64) { b.gasLimit = v}
 func (b *Header) SetGasUsed(v uint64) { b.gasUsed = v}
 func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v}
 func (b *Header) SetNonce(v BlockNonce) {b.nonce = v}
+func (b *Header) ShardBlockHash() common.Hash {return b.shardBlockHash}
 
 type ShardBlockInfo struct {
 	shardId     uint16
@@ -137,6 +177,13 @@ type ShardBlockInfo struct {
 	blockHash   common.Hash
 	parentHash  common.Hash
 	difficulty  uint64
+}
+type ShardBlockInfoStruct struct {
+	ShardId     uint16
+	BlockNumber uint64
+	BlockHash   common.Hash
+	ParentHash  common.Hash
+	Difficulty  uint64
 }
 
 func (t *ShardBlockInfo) ShardId() uint16         { return t.shardId }
@@ -147,7 +194,13 @@ func (t *ShardBlockInfo) Hash() common.Hash       { return t.blockHash }
 func (t *ShardBlockInfo) ParentHash() common.Hash { return t.parentHash }
 func (t *ShardBlockInfo) Difficulty() *big.Int    { return new(big.Int).SetUint64(t.difficulty) }
 func (t *ShardBlockInfo) DifficultyU64() uint64   { return t.difficulty }
-
+func (t *ShardBlockInfo) FillBy(ss* ShardBlockInfoStruct)    {
+	t.shardId    = ss.ShardId
+	t.blockNumber = ss.BlockNumber
+	t.blockHash   = ss.BlockHash
+	t.parentHash  = ss.ParentHash
+	t.difficulty  = ss.Difficulty
+}
 // Transactions is a Transaction slice type for basic sorting.
 type ShardBlockInfos []*ShardBlockInfo
 
@@ -419,16 +472,16 @@ func (b *Block) WithSeal(header HeaderIntf) BlockIntf {
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
+func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []HeaderIntf,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
 	block := &Block{
 		header:      CopyHeader(b.header),
 		shardBlocks: make([]*ShardBlockInfo, len(shardBlocksInfos)),
 		uncles:      make([]*Header, len(uncles)),
 	}
 	copy(block.shardBlocks, shardBlocksInfos)
-	for i := range uncles {
+/*	for i := range uncles {
 		block.uncles[i] = CopyHeader(uncles[i])
-	}
+	}*/
 	return block
 }
 // WithBody returns a new block with the given transaction and uncle contents.

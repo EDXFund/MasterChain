@@ -576,7 +576,7 @@ func (w *worker) resultLoop() {
 				// Update the block hash in all logs since it is now available and not when the
 				// receipt/log of individual transactions were created.
 				for _, log := range receipt.Logs {
-					log.BlockHash = hash
+					log.BlockHashOfShard =  hash
 				}
 				logs = append(logs, receipt.Logs...)
 			}
@@ -704,7 +704,8 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, vm.Config{})
+	gasUsed := w.current.header.GasUsed()
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &gasUsed, vm.Config{})
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -849,22 +850,26 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	num := parent.Number()
 	var header types.HeaderIntf
 	if w.chain.ShardId() == types.ShardMaster {
-		header = &types.Header{
-			parentHash: parent.Hash(),
-			number:     num.Add(num, common.Big1),
-			gasLimit:   core.CalcGasLimit(parent, w.gasFloor, w.gasCeil),
-			extra:      w.extra,
-			time:       big.NewInt(timestamp),
-		}
+		mheader := new(types.Header)
+		mheader.FillBy(&types.HeaderStruct{
+			ParentHash: parent.Hash(),
+			Number:     num.Add(num, common.Big1),
+			GasLimit:   core.CalcGasLimit(parent, w.gasFloor, w.gasCeil),
+			Extra:      w.extra,
+			Time:       big.NewInt(timestamp),
+		})
+		header = mheader
 	}else {
-		header = &types.SHeader{
-			shardId  :  w.chain.ShardId(),
-			parentHash: parent.Hash(),
-			number:     num.Add(num, common.Big1),
-			gasLimit:   core.CalcGasLimit(parent, w.gasFloor, w.gasCeil),
-			extra:      w.extra,
-			time:       big.NewInt(timestamp),
-		}
+		sheader := new(types.SHeader)
+		sheader.FillBy(&types.SHeaderStruct{
+			ShardId  :  w.chain.ShardId(),
+			ParentHash: parent.Hash(),
+			Number:     num.Add(num, common.Big1),
+			GasLimit:   core.CalcGasLimit(parent, w.gasFloor, w.gasCeil),
+			Extra:      w.extra,
+			Time:       big.NewInt(timestamp),
+		})
+		header = sheader
 	}
 
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)

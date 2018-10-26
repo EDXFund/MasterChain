@@ -45,14 +45,14 @@ func NewFakePeer(id string, db ethdb.Database, hc *core.HeaderChain, dl *Downloa
 // of the best known header.
 func (p *FakePeer) Head() (common.Hash, *big.Int) {
 	header := p.hc.CurrentHeader()
-	return header.Hash(), header.Number
+	return header.Hash(), header.Number()
 }
 
 // RequestHeadersByHash implements downloader.Peer, returning a batch of headers
 // defined by the origin hash and the associated query parameters.
 func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, reverse bool) error {
 	var (
-		headers []*types.Header
+		headers []types.HeaderIntf
 		unknown bool
 	)
 	for !unknown && len(headers) < amount {
@@ -60,12 +60,12 @@ func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, 
 		if origin == nil {
 			break
 		}
-		number := origin.Number.Uint64()
+		number := origin.NumberU64()
 		headers = append(headers, origin)
 		if reverse {
 			for i := 0; i <= skip; i++ {
 				if header := p.hc.GetHeader(hash, number); header != nil {
-					hash = header.ParentHash
+					hash = header.ParentHash()
 					number--
 				} else {
 					unknown = true
@@ -74,7 +74,7 @@ func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, 
 			}
 		} else {
 			var (
-				current = origin.Number.Uint64()
+				current = origin.NumberU64()
 				next    = current + uint64(skip) + 1
 			)
 			if header := p.hc.GetHeaderByNumber(next); header != nil {
@@ -96,7 +96,7 @@ func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, 
 // defined by the origin number and the associated query parameters.
 func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, reverse bool) error {
 	var (
-		headers []*types.Header
+		headers []types.HeaderIntf
 		unknown bool
 	)
 	for !unknown && len(headers) < amount {
@@ -124,7 +124,7 @@ func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, r
 func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 	var (
 		txs    [][]*types.Transaction
-		uncles [][]*types.Header
+		uncles [][]types.HeaderIntf
 	)
 	for _, hash := range hashes {
 		block := rawdb.ReadBlock(p.db, hash, *p.hc.GetBlockNumber(hash))
@@ -132,7 +132,7 @@ func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 		txs = append(txs, block.Transactions())
 		uncles = append(uncles, block.Uncles())
 	}
-	p.dl.DeliverBodies(p.id, txs, uncles)
+	p.dl.DeliverShardBodies(p.id, txs, uncles)
 	return nil
 }
 

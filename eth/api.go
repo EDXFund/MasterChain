@@ -189,7 +189,7 @@ func (api *PrivateAdminAPI) ExportChain(file string) (bool, error) {
 	return true, nil
 }
 
-func hasAllBlocks(chain *core.BlockChain, bs []*types.Block) bool {
+func hasAllBlocks(chain *core.BlockChain, bs []types.BlockIntf) bool {
 	for _, b := range bs {
 		if !chain.HasBlock(b.Hash(), b.NumberU64()) {
 			return false
@@ -218,7 +218,7 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 	// Run actual the import in pre-configured batches
 	stream := rlp.NewStream(reader, 0)
 
-	blocks, index := make([]*types.Block, 0, 2500), 0
+	blocks, index := make([]types.BlockIntf, 0, 2500), 0
 	for batch := 0; ; batch++ {
 		// Load a batch of blocks from the input file
 		for len(blocks) < cap(blocks) {
@@ -269,7 +269,7 @@ func (api *PublicDebugAPI) DumpBlock(blockNr rpc.BlockNumber) (state.Dump, error
 		_, stateDb := api.eth.miner.Pending()
 		return stateDb.RawDump(), nil
 	}
-	var block *types.Block
+	var block types.BlockIntf
 	if blockNr == rpc.LatestBlockNumber {
 		block = api.eth.blockchain.CurrentBlock()
 	} else {
@@ -391,7 +391,7 @@ func storageRangeAt(st state.Trie, start []byte, maxResult int) (StorageRangeRes
 //
 // With one parameter, returns the list of accounts modified in the specified block.
 func (api *PrivateDebugAPI) GetModifiedAccountsByNumber(startNum uint64, endNum *uint64) ([]common.Address, error) {
-	var startBlock, endBlock *types.Block
+	var startBlock, endBlock types.BlockIntf
 
 	startBlock = api.eth.blockchain.GetBlockByNumber(startNum)
 	if startBlock == nil {
@@ -419,7 +419,7 @@ func (api *PrivateDebugAPI) GetModifiedAccountsByNumber(startNum uint64, endNum 
 //
 // With one parameter, returns the list of accounts modified in the specified block.
 func (api *PrivateDebugAPI) GetModifiedAccountsByHash(startHash common.Hash, endHash *common.Hash) ([]common.Address, error) {
-	var startBlock, endBlock *types.Block
+	var startBlock, endBlock types.BlockIntf
 	startBlock = api.eth.blockchain.GetBlockByHash(startHash)
 	if startBlock == nil {
 		return nil, fmt.Errorf("start block %x not found", startHash)
@@ -440,7 +440,7 @@ func (api *PrivateDebugAPI) GetModifiedAccountsByHash(startHash common.Hash, end
 	return api.getModifiedAccounts(startBlock, endBlock)
 }
 
-func (api *PrivateDebugAPI) getModifiedAccounts(startBlock, endBlock *types.Block) ([]common.Address, error) {
+func (api *PrivateDebugAPI) getModifiedAccounts(startBlock, endBlock types.BlockIntf) ([]common.Address, error) {
 	if startBlock.Number().Uint64() >= endBlock.Number().Uint64() {
 		return nil, fmt.Errorf("start block height (%d) must be less than end block height (%d)", startBlock.Number().Uint64(), endBlock.Number().Uint64())
 	}

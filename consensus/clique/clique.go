@@ -682,7 +682,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
 // that a new block should have based on the previous blocks in the chain and the
 // current signer.
-func (c *Clique) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
+func (c *Clique) CalcDifficulty(chain consensus.ChainReader, time uint64, parent types.HeaderIntf) *big.Int {
 	snap, err := c.snapshot(chain, parent.NumberU64(), parent.Hash(), nil)
 	if err != nil {
 		return nil
@@ -701,7 +701,7 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
-func (c *Clique) SealHash(header *types.Header) common.Hash {
+func (c *Clique) SealHash(header types.HeaderIntf) common.Hash {
 	return sigHash(header)
 }
 

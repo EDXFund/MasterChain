@@ -192,13 +192,13 @@ func (m *MultiResolver) ValidateOwner(name string, address common.Address) (bool
 }
 
 // HeaderByNumber uses the validator of the given domainname and retrieves the header for the given block number
-func (m *MultiResolver) HeaderByNumber(ctx context.Context, name string, blockNr *big.Int) (*types.Header, error) {
+func (m *MultiResolver) HeaderByNumber(ctx context.Context, name string, blockNr *big.Int) (types.HeaderIntf, error) {
 	rs, err := m.getResolveValidator(name)
 	if err != nil {
 		return nil, err
 	}
 	for _, r := range rs {
-		var header *types.Header
+		var header types.HeaderIntf
 		header, err = r.HeaderByNumber(ctx, blockNr)
 		// we hide the error if it is not for the last resolver we check
 		if err == nil {

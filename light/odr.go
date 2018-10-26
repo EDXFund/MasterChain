@@ -64,9 +64,9 @@ type TrieID struct {
 func StateTrieID(header *types.Header) *TrieID {
 	return &TrieID{
 		BlockHash:   header.Hash(),
-		BlockNumber: header.Number.Uint64(),
+		BlockNumber: header.NumberU64(),
 		AccKey:      nil,
-		Root:        header.Root,
+		Root:        header.Root(),
 	}
 }
 
@@ -140,14 +140,14 @@ type ChtRequest struct {
 	Config           *IndexerConfig
 	ChtNum, BlockNum uint64
 	ChtRoot          common.Hash
-	Header           *types.Header
+	Header           types.HeaderIntf
 	Td               *big.Int
 	Proof            *NodeSet
 }
 
 // StoreResult stores the retrieved data in local database
 func (req *ChtRequest) StoreResult(db ethdb.Database) {
-	hash, num := req.Header.Hash(), req.Header.Number.Uint64()
+	hash, num := req.Header.Hash(), req.Header.NumberU64()
 
 	rawdb.WriteHeader(db, req.Header)
 	rawdb.WriteTd(db, hash, num, req.Td)

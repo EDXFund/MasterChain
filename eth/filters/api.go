@@ -174,7 +174,7 @@ func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Su
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_newblockfilter
 func (api *PublicFilterAPI) NewBlockFilter() rpc.ID {
 	var (
-		headers   = make(chan *types.Header)
+		headers   = make(chan types.HeaderIntf)
 		headerSub = api.events.SubscribeNewHeads(headers)
 	)
 
@@ -213,7 +213,7 @@ func (api *PublicFilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, er
 	rpcSub := notifier.CreateSubscription()
 
 	go func() {
-		headers := make(chan *types.Header)
+		headers := make(chan types.HeaderIntf)
 		headersSub := api.events.SubscribeNewHeads(headers)
 
 		for {

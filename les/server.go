@@ -324,7 +324,7 @@ func (pm *ProtocolManager) blockLoop() {
 	headCh := make(chan core.ChainHeadEvent, 10)
 	headSub := pm.blockchain.SubscribeChainHeadEvent(headCh)
 	go func() {
-		var lastHead *types.Header
+		var lastHead types.HeaderIntf
 		lastBroadcastTd := common.Big0
 		for {
 			select {

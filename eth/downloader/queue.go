@@ -47,7 +47,7 @@ var (
 type fetchRequest struct {
 	Peer    *peerConnection // Peer to which the request was sent
 	From    uint64          // [eth/62] Requested chain element index (used for skeleton fills only)
-	Headers []*types.Header // [eth/62] Requested headers, sorted by request order
+	Headers []types.HeaderIntf // [eth/62] Requested headers, sorted by request order
 	Time    time.Time       // Time when the request was made
 }
 
@@ -57,8 +57,8 @@ type fetchResult struct {
 	Pending int         // Number of data fetches still pending
 	Hash    common.Hash // Hash of the header to prevent recalculating
 
-	Header       *types.Header
-	Uncles       []*types.Header
+	Header       types.HeaderIntf
+	Uncles       []types.HeaderIntf
 	Transactions types.Transactions
 	Receipts     types.Receipts
 }
@@ -69,22 +69,22 @@ type queue struct {
 
 	// Headers are "special", they download in batches, supported by a skeleton chain
 	headerHead      common.Hash                    // [eth/62] Hash of the last queued header to verify order
-	headerTaskPool  map[uint64]*types.Header       // [eth/62] Pending header retrieval tasks, mapping starting indexes to skeleton headers
+	headerTaskPool  map[uint64]types.HeaderIntf       // [eth/62] Pending header retrieval tasks, mapping starting indexes to skeleton headers
 	headerTaskQueue *prque.Prque                   // [eth/62] Priority queue of the skeleton indexes to fetch the filling headers for
 	headerPeerMiss  map[string]map[uint64]struct{} // [eth/62] Set of per-peer header batches known to be unavailable
 	headerPendPool  map[string]*fetchRequest       // [eth/62] Currently pending header retrieval operations
-	headerResults   []*types.Header                // [eth/62] Result cache accumulating the completed headers
+	headerResults   []types.HeaderIntf                // [eth/62] Result cache accumulating the completed headers
 	headerProced    int                            // [eth/62] Number of headers already processed from the results
 	headerOffset    uint64                         // [eth/62] Number of the first header in the result cache
 	headerContCh    chan bool                      // [eth/62] Channel to notify when header download finishes
 
 	// All data retrievals below are based on an already assembles header chain
-	blockTaskPool  map[common.Hash]*types.Header // [eth/62] Pending block (body) retrieval tasks, mapping hashes to headers
+	blockTaskPool  map[common.Hash]types.HeaderIntf // [eth/62] Pending block (body) retrieval tasks, mapping hashes to headers
 	blockTaskQueue *prque.Prque                  // [eth/62] Priority queue of the headers to fetch the blocks (bodies) for
 	blockPendPool  map[string]*fetchRequest      // [eth/62] Currently pending block (body) retrieval operations
 	blockDonePool  map[common.Hash]struct{}      // [eth/62] Set of the completed block (body) fetches
 
-	receiptTaskPool  map[common.Hash]*types.Header // [eth/63] Pending receipt retrieval tasks, mapping hashes to headers
+	receiptTaskPool  map[common.Hash]types.HeaderIntf // [eth/63] Pending receipt retrieval tasks, mapping hashes to headers
 	receiptTaskQueue *prque.Prque                  // [eth/63] Priority queue of the headers to fetch the receipts for
 	receiptPendPool  map[string]*fetchRequest      // [eth/63] Currently pending receipt retrieval operations
 	receiptDonePool  map[common.Hash]struct{}      // [eth/63] Set of the completed receipt fetches
@@ -104,11 +104,11 @@ func newQueue() *queue {
 	return &queue{
 		headerPendPool:   make(map[string]*fetchRequest),
 		headerContCh:     make(chan bool),
-		blockTaskPool:    make(map[common.Hash]*types.Header),
+		blockTaskPool:    make(map[common.Hash]types.HeaderIntf),
 		blockTaskQueue:   prque.New(nil),
 		blockPendPool:    make(map[string]*fetchRequest),
 		blockDonePool:    make(map[common.Hash]struct{}),
-		receiptTaskPool:  make(map[common.Hash]*types.Header),
+		receiptTaskPool:  make(map[common.Hash]types.HeaderIntf),
 		receiptTaskQueue: prque.New(nil),
 		receiptPendPool:  make(map[string]*fetchRequest),
 		receiptDonePool:  make(map[common.Hash]struct{}),
@@ -129,12 +129,12 @@ func (q *queue) Reset() {
 	q.headerHead = common.Hash{}
 	q.headerPendPool = make(map[string]*fetchRequest)
 
-	q.blockTaskPool = make(map[common.Hash]*types.Header)
+	q.blockTaskPool = make(map[common.Hash]types.HeaderIntf)
 	q.blockTaskQueue.Reset()
 	q.blockPendPool = make(map[string]*fetchRequest)
 	q.blockDonePool = make(map[common.Hash]struct{})
 
-	q.receiptTaskPool = make(map[common.Hash]*types.Header)
+	q.receiptTaskPool = make(map[common.Hash]types.HeaderIntf)
 	q.receiptTaskQueue.Reset()
 	q.receiptPendPool = make(map[string]*fetchRequest)
 	q.receiptDonePool = make(map[common.Hash]struct{})
@@ -256,7 +256,7 @@ func (q *queue) resultSlots(pendPool map[string]*fetchRequest, donePool map[comm
 	pending := 0
 	for _, request := range pendPool {
 		for _, header := range request.Headers {
-			if header.Number.Uint64() < q.resultOffset+uint64(limit) {
+			if header.NumberU64() < q.resultOffset+uint64(limit) {
 				pending++
 			}
 		}
@@ -267,7 +267,7 @@ func (q *queue) resultSlots(pendPool map[string]*fetchRequest, donePool map[comm
 
 // ScheduleSkeleton adds a batch of header retrieval tasks to the queue to fill
 // up an already retrieved header skeleton.
-func (q *queue) ScheduleSkeleton(from uint64, skeleton []*types.Header) {
+func (q *queue) ScheduleSkeleton(from uint64, skeleton []types.HeaderIntf) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -276,10 +276,10 @@ func (q *queue) ScheduleSkeleton(from uint64, skeleton []*types.Header) {
 		panic("skeleton assembly already in progress")
 	}
 	// Schedule all the header retrieval tasks for the skeleton assembly
-	q.headerTaskPool = make(map[uint64]*types.Header)
+	q.headerTaskPool = make(map[uint64]types.HeaderIntf)
 	q.headerTaskQueue = prque.New(nil)
 	q.headerPeerMiss = make(map[string]map[uint64]struct{}) // Reset availability to correct invalid chains
-	q.headerResults = make([]*types.Header, len(skeleton)*MaxHeaderFetch)
+	q.headerResults = make([]types.HeaderIntf, len(skeleton)*MaxHeaderFetch)
 	q.headerProced = 0
 	q.headerOffset = from
 	q.headerContCh = make(chan bool, 1)
@@ -294,7 +294,7 @@ func (q *queue) ScheduleSkeleton(from uint64, skeleton []*types.Header) {
 
 // RetrieveHeaders retrieves the header chain assemble based on the scheduled
 // skeleton.
-func (q *queue) RetrieveHeaders() ([]*types.Header, int) {
+func (q *queue) RetrieveHeaders() ([]types.HeaderIntf, int) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -306,20 +306,20 @@ func (q *queue) RetrieveHeaders() ([]*types.Header, int) {
 
 // Schedule adds a set of headers for the download queue for scheduling, returning
 // the new headers encountered.
-func (q *queue) Schedule(headers []*types.Header, from uint64) []*types.Header {
+func (q *queue) Schedule(headers []types.HeaderIntf, from uint64) []types.HeaderIntf {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
 	// Insert all the headers prioritised by the contained block number
-	inserts := make([]*types.Header, 0, len(headers))
+	inserts := make([]types.HeaderIntf, 0, len(headers))
 	for _, header := range headers {
 		// Make sure chain order is honoured and preserved throughout
 		hash := header.Hash()
-		if header.Number == nil || header.Number.Uint64() != from {
+		if header.Number == nil || header.NumberU64() != from {
 			log.Warn("Header broke chain ordering", "number", header.Number, "hash", hash, "expected", from)
 			break
 		}
-		if q.headerHead != (common.Hash{}) && q.headerHead != header.ParentHash {
+		if q.headerHead != (common.Hash{}) && q.headerHead != header.ParentHash() {
 			log.Warn("Header broke chain ancestry", "number", header.Number, "hash", hash)
 			break
 		}
@@ -334,11 +334,11 @@ func (q *queue) Schedule(headers []*types.Header, from uint64) []*types.Header {
 		}
 		// Queue the header for content retrieval
 		q.blockTaskPool[hash] = header
-		q.blockTaskQueue.Push(header, -int64(header.Number.Uint64()))
+		q.blockTaskQueue.Push(header, -int64(header.NumberU64()))
 
 		if q.mode == FastSync {
 			q.receiptTaskPool[hash] = header
-			q.receiptTaskQueue.Push(header, -int64(header.Number.Uint64()))
+			q.receiptTaskQueue.Push(header, -int64(header.NumberU64()))
 		}
 		inserts = append(inserts, header)
 		q.headerHead = hash
@@ -455,8 +455,8 @@ func (q *queue) ReserveHeaders(p *peerConnection, count int) *fetchRequest {
 // previously failed downloads. Beside the next batch of needed fetches, it also
 // returns a flag whether empty blocks were queued requiring processing.
 func (q *queue) ReserveBodies(p *peerConnection, count int) (*fetchRequest, bool, error) {
-	isNoop := func(header *types.Header) bool {
-		return header.TxHash == types.EmptyRootHash && header.UncleHash == types.EmptyUncleHash
+	isNoop := func(header types.HeaderIntf) bool {
+		return header.TxHash() == types.EmptyRootHash && header.UncleHash() == types.EmptyUncleHash
 	}
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -468,8 +468,8 @@ func (q *queue) ReserveBodies(p *peerConnection, count int) (*fetchRequest, bool
 // any previously failed downloads. Beside the next batch of needed fetches, it
 // also returns a flag whether empty receipts were queued requiring importing.
 func (q *queue) ReserveReceipts(p *peerConnection, count int) (*fetchRequest, bool, error) {
-	isNoop := func(header *types.Header) bool {
-		return header.ReceiptHash == types.EmptyRootHash
+	isNoop := func(header types.HeaderIntf) bool {
+		return header.ReceiptHash() == types.EmptyRootHash
 	}
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -484,8 +484,8 @@ func (q *queue) ReserveReceipts(p *peerConnection, count int) (*fetchRequest, bo
 // Note, this method expects the queue lock to be already held for writing. The
 // reason the lock is not obtained in here is because the parameters already need
 // to access the queue, so they already need a lock anyway.
-func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common.Hash]*types.Header, taskQueue *prque.Prque,
-	pendPool map[string]*fetchRequest, donePool map[common.Hash]struct{}, isNoop func(*types.Header) bool) (*fetchRequest, bool, error) {
+func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common.Hash]types.HeaderIntf, taskQueue *prque.Prque,
+	pendPool map[string]*fetchRequest, donePool map[common.Hash]struct{}, isNoop func(types.HeaderIntf) bool) (*fetchRequest, bool, error) {
 	// Short circuit if the pool has been depleted, or if the peer's already
 	// downloading something (sanity check not to corrupt state)
 	if taskQueue.Empty() {
@@ -498,16 +498,16 @@ func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common
 	space := q.resultSlots(pendPool, donePool)
 
 	// Retrieve a batch of tasks, skipping previously failed ones
-	send := make([]*types.Header, 0, count)
-	skip := make([]*types.Header, 0)
+	send := make([]types.HeaderIntf, 0, count)
+	skip := make([]types.HeaderIntf, 0)
 
 	progress := false
 	for proc := 0; proc < space && len(send) < count && !taskQueue.Empty(); proc++ {
-		header := taskQueue.PopItem().(*types.Header)
+		header := taskQueue.PopItem().(types.HeaderIntf)
 		hash := header.Hash()
 
 		// If we're the first to request this task, initialise the result container
-		index := int(header.Number.Int64() - int64(q.resultOffset))
+		index := int(header.Number().Int64() - int64(q.resultOffset))
 		if index >= len(q.resultCache) || index < 0 {
 			common.Report("index allocation went beyond available resultCache space")
 			return nil, false, errInvalidChain
@@ -542,7 +542,7 @@ func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common
 	}
 	// Merge all the skipped headers back
 	for _, header := range skip {
-		taskQueue.Push(header, -int64(header.Number.Uint64()))
+		taskQueue.Push(header, -int64(header.NumberU64()))
 	}
 	if progress {
 		// Wake WaitResults, resultCache was modified
@@ -588,7 +588,7 @@ func (q *queue) cancel(request *fetchRequest, taskQueue *prque.Prque, pendPool m
 		taskQueue.Push(request.From, -int64(request.From))
 	}
 	for _, header := range request.Headers {
-		taskQueue.Push(header, -int64(header.Number.Uint64()))
+		taskQueue.Push(header, -int64(header.NumberU64()))
 	}
 	delete(pendPool, request.Peer.id)
 }
@@ -602,13 +602,13 @@ func (q *queue) Revoke(peerID string) {
 
 	if request, ok := q.blockPendPool[peerID]; ok {
 		for _, header := range request.Headers {
-			q.blockTaskQueue.Push(header, -int64(header.Number.Uint64()))
+			q.blockTaskQueue.Push(header, -int64(header.NumberU64()))
 		}
 		delete(q.blockPendPool, peerID)
 	}
 	if request, ok := q.receiptPendPool[peerID]; ok {
 		for _, header := range request.Headers {
-			q.receiptTaskQueue.Push(header, -int64(header.Number.Uint64()))
+			q.receiptTaskQueue.Push(header, -int64(header.NumberU64()))
 		}
 		delete(q.receiptPendPool, peerID)
 	}
@@ -660,7 +660,7 @@ func (q *queue) expire(timeout time.Duration, pendPool map[string]*fetchRequest,
 				taskQueue.Push(request.From, -int64(request.From))
 			}
 			for _, header := range request.Headers {
-				taskQueue.Push(header, -int64(header.Number.Uint64()))
+				taskQueue.Push(header, -int64(header.NumberU64()))
 			}
 			// Add the peer to the expiry report along the number of failed requests
 			expiries[id] = len(request.Headers)
@@ -680,7 +680,7 @@ func (q *queue) expire(timeout time.Duration, pendPool map[string]*fetchRequest,
 // If the headers are accepted, the method makes an attempt to deliver the set
 // of ready headers to the processor to keep the pipeline full. However it will
 // not block to prevent stalling other pending deliveries.
-func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh chan []*types.Header) (int, error) {
+func (q *queue) DeliverHeaders(id string, headers []types.HeaderIntf, headerProcCh chan []types.HeaderIntf) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -697,7 +697,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 
 	accepted := len(headers) == MaxHeaderFetch
 	if accepted {
-		if headers[0].Number.Uint64() != request.From {
+		if headers[0].NumberU64() != request.From {
 			log.Trace("First header broke chain ordering", "peer", id, "number", headers[0].Number, "hash", headers[0].Hash(), request.From)
 			accepted = false
 		} else if headers[len(headers)-1].Hash() != target {
@@ -708,12 +708,12 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 	if accepted {
 		for i, header := range headers[1:] {
 			hash := header.Hash()
-			if want := request.From + 1 + uint64(i); header.Number.Uint64() != want {
+			if want := request.From + 1 + uint64(i); header.NumberU64() != want {
 				log.Warn("Header broke chain ordering", "peer", id, "number", header.Number, "hash", hash, "expected", want)
 				accepted = false
 				break
 			}
-			if headers[i].Hash() != header.ParentHash {
+			if headers[i].Hash() != header.ParentHash() {
 				log.Warn("Header broke chain ancestry", "peer", id, "number", header.Number, "hash", hash)
 				accepted = false
 				break
@@ -744,7 +744,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 	}
 	if ready > 0 {
 		// Headers are ready for delivery, gather them and push forward (non blocking)
-		process := make([]*types.Header, ready)
+		process := make([]types.HeaderIntf, ready)
 		copy(process, q.headerResults[q.headerProced:q.headerProced+ready])
 
 		select {
@@ -764,12 +764,12 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 // DeliverBodies injects a block body retrieval response into the results queue.
 // The method returns the number of blocks bodies accepted from the delivery and
 // also wakes any threads waiting for data delivery.
-func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, uncleLists [][]*types.Header) (int, error) {
+func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, uncleLists [][]types.HeaderIntf) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	reconstruct := func(header *types.Header, index int, result *fetchResult) error {
-		if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash || types.CalcUncleHash(uncleLists[index]) != header.UncleHash {
+	reconstruct := func(header types.HeaderIntf, index int, result *fetchResult) error {
+		if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash() || types.CalcUncleHash(uncleLists[index]) != header.UncleHash() {
 			return errInvalidBody
 		}
 		result.Transactions = txLists[index]
@@ -786,8 +786,8 @@ func (q *queue) DeliverReceipts(id string, receiptList [][]*types.Receipt) (int,
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	reconstruct := func(header *types.Header, index int, result *fetchResult) error {
-		if types.DeriveSha(types.Receipts(receiptList[index])) != header.ReceiptHash {
+	reconstruct := func(header types.HeaderIntf, index int, result *fetchResult) error {
+		if types.DeriveSha(types.Receipts(receiptList[index])) != header.ReceiptHash() {
 			return errInvalidReceipt
 		}
 		result.Receipts = receiptList[index]
@@ -801,9 +801,9 @@ func (q *queue) DeliverReceipts(id string, receiptList [][]*types.Receipt) (int,
 // Note, this method expects the queue lock to be already held for writing. The
 // reason the lock is not obtained in here is because the parameters already need
 // to access the queue, so they already need a lock anyway.
-func (q *queue) deliver(id string, taskPool map[common.Hash]*types.Header, taskQueue *prque.Prque,
+func (q *queue) deliver(id string, taskPool map[common.Hash]types.HeaderIntf, taskQueue *prque.Prque,
 	pendPool map[string]*fetchRequest, donePool map[common.Hash]struct{}, reqTimer metrics.Timer,
-	results int, reconstruct func(header *types.Header, index int, result *fetchResult) error) (int, error) {
+	results int, reconstruct func(header types.HeaderIntf, index int, result *fetchResult) error) (int, error) {
 
 	// Short circuit if the data was never requested
 	request := pendPool[id]
@@ -831,7 +831,7 @@ func (q *queue) deliver(id string, taskPool map[common.Hash]*types.Header, taskQ
 			break
 		}
 		// Reconstruct the next result if contents match up
-		index := int(header.Number.Int64() - int64(q.resultOffset))
+		index := int(header.Number().Int64() - int64(q.resultOffset))
 		if index >= len(q.resultCache) || index < 0 || q.resultCache[index] == nil {
 			failure = errInvalidChain
 			break
@@ -854,7 +854,7 @@ func (q *queue) deliver(id string, taskPool map[common.Hash]*types.Header, taskQ
 	// Return all failed or missing fetches to the queue
 	for _, header := range request.Headers {
 		if header != nil {
-			taskQueue.Push(header, -int64(header.Number.Uint64()))
+			taskQueue.Push(header, -int64(header.NumberU64()))
 		}
 	}
 	// Wake up WaitResults

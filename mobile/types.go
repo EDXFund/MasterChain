@@ -133,7 +133,7 @@ func (h *Headers) Get(index int) (header *Header, _ error) {
 
 // Block represents an entire block in the Ethereum blockchain.
 type Block struct {
-	block *types.Block
+	block types.BlockIntf
 }
 
 // NewBlockFromRLP parses a block from an RLP data dump.

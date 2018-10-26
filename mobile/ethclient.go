@@ -117,7 +117,7 @@ func (ec *EthereumClient) SyncProgress(ctx *Context) (progress *SyncProgress, _ 
 // NewHeadHandler is a client-side subscription callback to invoke on events and
 // subscription failure.
 type NewHeadHandler interface {
-	OnNewHead(header *Header)
+	OnNewHead(header HeaderIntf)
 	OnError(failure string)
 }
 
@@ -125,7 +125,7 @@ type NewHeadHandler interface {
 // on the given channel.
 func (ec *EthereumClient) SubscribeNewHead(ctx *Context, handler NewHeadHandler, buffer int) (sub *Subscription, _ error) {
 	// Subscribe to the event internally
-	ch := make(chan *types.Header, buffer)
+	ch := make(chan types.HeaderIntf, buffer)
 	rawSub, err := ec.client.SubscribeNewHead(ctx.context, ch)
 	if err != nil {
 		return nil, err

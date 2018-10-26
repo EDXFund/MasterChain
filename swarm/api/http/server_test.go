@@ -1251,6 +1251,6 @@ func (t *testResolveValidator) Resolve(addr string) (common.Hash, error) {
 func (t *testResolveValidator) Owner(node [32]byte) (addr common.Address, err error) {
 	return
 }
-func (t *testResolveValidator) HeaderByNumber(context.Context, *big.Int) (header *types.Header, err error) {
+func (t *testResolveValidator) HeaderByNumber(context.Context, *big.Int) (header types.HeaderIntf, err error) {
 	return
 }

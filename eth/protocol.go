@@ -183,7 +183,7 @@ type blockBody struct {
 }
 type blockMasterBody struct {
 	Transactions []*types.ShardBlockInfo // Transactions contained within a block
-	Uncles       []*types.Header      // Uncles contained within a block
+	Uncles       []types.HeaderIntf      // Uncles contained within a block
 }
 type blockShardBody struct {
 	Transactions []*types.Transaction // Transactions contained within a block

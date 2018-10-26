@@ -101,7 +101,7 @@ type fetchRequest struct {
 // fetchResponse represents a header download response
 type fetchResponse struct {
 	reqID   uint64
-	headers []*types.Header
+	headers []types.HeaderIntf
 	peer    *peer
 }
 
@@ -504,7 +504,7 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64) {
 }
 
 // deliverHeaders delivers header download request responses for processing
-func (f *lightFetcher) deliverHeaders(peer *peer, reqID uint64, headers []*types.Header) {
+func (f *lightFetcher) deliverHeaders(peer *peer, reqID uint64, headers []types.HeaderIntf) {
 	f.deliverChn <- fetchResponse{reqID: reqID, headers: headers, peer: peer}
 }
 
@@ -514,7 +514,7 @@ func (f *lightFetcher) processResponse(req fetchRequest, resp fetchResponse) boo
 		req.peer.Log().Debug("Response content mismatch", "requested", len(resp.headers), "reqfrom", resp.headers[0], "delivered", req.amount, "delfrom", req.hash)
 		return false
 	}
-	headers := make([]*types.Header, req.amount)
+	headers := make([]types.HeaderIntf, req.amount)
 	for i, header := range resp.headers {
 		headers[int(req.amount)-1-i] = header
 	}
@@ -527,7 +527,7 @@ func (f *lightFetcher) processResponse(req fetchRequest, resp fetchResponse) boo
 	}
 	tds := make([]*big.Int, len(headers))
 	for i, header := range headers {
-		td := f.chain.GetTd(header.Hash(), header.Number.Uint64())
+		td := f.chain.GetTd(header.Hash(), header.NumberU64())
 		if td == nil {
 			log.Debug("Total difficulty not found for header", "index", i+1, "number", header.Number, "hash", header.Hash())
 			return false
@@ -540,7 +540,7 @@ func (f *lightFetcher) processResponse(req fetchRequest, resp fetchResponse) boo
 
 // newHeaders updates the block trees of all active peers according to a newly
 // downloaded and validated batch or headers
-func (f *lightFetcher) newHeaders(headers []*types.Header, tds []*big.Int) {
+func (f *lightFetcher) newHeaders(headers []types.HeaderIntf, tds []*big.Int) {
 	var maxTd *big.Int
 	for p, fp := range f.peers {
 		if !f.checkAnnouncedHeaders(fp, headers, tds) {
@@ -562,10 +562,10 @@ func (f *lightFetcher) newHeaders(headers []*types.Header, tds []*big.Int) {
 // sets it and its parents to known (even those which are older than the currently
 // validated ones). Return value shows if all hashes, numbers and Tds matched
 // correctly to the announced values (otherwise the peer should be dropped).
-func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*types.Header, tds []*big.Int) bool {
+func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []types.HeaderIntf, tds []*big.Int) bool {
 	var (
 		n      *fetcherTreeNode
-		header *types.Header
+		header types.HeaderIntf
 		td     *big.Int
 	)
 
@@ -576,7 +576,7 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 				return true
 			}
 			// we ran out of recently delivered headers but have not reached a node known by this peer yet, continue matching
-			hash, number := header.ParentHash, header.Number.Uint64()-1
+			hash, number := header.ParentHash(), header.NumberU64()-1
 			td = f.chain.GetTd(hash, number)
 			header = f.chain.GetHeader(hash, number)
 			if header == nil || td == nil {
@@ -588,7 +588,7 @@ func (f *lightFetcher) checkAnnouncedHeaders(fp *fetcherPeerInfo, headers []*typ
 			td = tds[i]
 		}
 		hash := header.Hash()
-		number := header.Number.Uint64()
+		number := header.NumberU64()
 		if n == nil {
 			n = fp.nodeByHash[hash]
 		}
@@ -652,7 +652,7 @@ func (f *lightFetcher) checkSyncedHeaders(p *peer) {
 		go f.pm.removePeer(p.id)
 	} else {
 		header := f.chain.GetHeader(n.hash, n.number)
-		f.newHeaders([]*types.Header{header}, []*big.Int{td})
+		f.newHeaders([]types.HeaderIntf{header}, []*big.Int{td})
 	}
 }
 
@@ -678,7 +678,7 @@ func (f *lightFetcher) checkKnownNode(p *peer, n *fetcherTreeNode) bool {
 		p.Log().Debug("Unknown peer to check known nodes")
 		return false
 	}
-	if !f.checkAnnouncedHeaders(fp, []*types.Header{header}, []*big.Int{td}) {
+	if !f.checkAnnouncedHeaders(fp, []types.HeaderIntf{header}, []*big.Int{td}) {
 		p.Log().Debug("Inconsistent announcement")
 		go f.pm.removePeer(p.id)
 	}

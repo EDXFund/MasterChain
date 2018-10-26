@@ -205,7 +205,7 @@ func (t *BlockTest) insertBlocks(blockchain *core.BlockChain) ([]btBlock, error)
 	return validBlocks, nil
 }
 
-func validateHeader(h *btHeader, h2 *types.Header) error {
+func validateHeader(h *btHeader, h2 types.HeaderIntf) error {
 	if h.Bloom != h2.Bloom {
 		return fmt.Errorf("Bloom: want: %x have: %x", h.Bloom, h2.Bloom)
 	}
@@ -293,7 +293,7 @@ func (t *BlockTest) validateImportedHeaders(cm *core.BlockChain, validBlocks []b
 	return nil
 }
 
-func (bb *btBlock) decode() (*types.Block, error) {
+func (bb *btBlock) decode() (types.BlockIntf, error) {
 	data, err := hexutil.Decode(bb.Rlp)
 	if err != nil {
 		return nil, err

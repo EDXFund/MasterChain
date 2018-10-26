@@ -46,7 +46,7 @@ func newTesterAccountPool() *testerAccountPool {
 
 // checkpoint creates a Clique checkpoint signer section from the provided list
 // of authorized signers and embeds it into the provided header.
-func (ap *testerAccountPool) checkpoint(header *types.Header, signers []string) {
+func (ap *testerAccountPool) checkpoint(header types.HeaderIntf, signers []string) {
 	auths := make([]common.Address, len(signers))
 	for i, signer := range signers {
 		auths[i] = ap.address(signer)
@@ -74,7 +74,7 @@ func (ap *testerAccountPool) address(account string) common.Address {
 
 // sign calculates a Clique digital signature for the given block and embeds it
 // back into the header.
-func (ap *testerAccountPool) sign(header *types.Header, signer string) {
+func (ap *testerAccountPool) sign(header types.HeaderIntf, signer string) {
 	// Ensure we have a persistent key for the signer
 	if ap.accounts[signer] == nil {
 		ap.accounts[signer], _ = crypto.GenerateKey()
@@ -440,7 +440,7 @@ func TestClique(t *testing.T) {
 			blocks[j] = block.WithSeal(header)
 		}
 		// Split the blocks up into individual import batches (cornercase testing)
-		batches := [][]*types.Block{nil}
+		batches := [][]types.BlockIntf{nil}
 		for j, block := range blocks {
 			if tt.votes[j].newbatch {
 				batches = append(batches, nil)

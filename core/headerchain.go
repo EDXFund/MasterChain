@@ -49,7 +49,7 @@ const (
 // the necessary mutex locking/unlocking.
 type HeaderChain struct {
 	config *params.ChainConfig
-
+	shardId       uint16
 	chainDb       ethdb.Database
 	genesisHeader types.HeaderIntf
 
@@ -212,9 +212,11 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []types.HeaderIntf, checkFreq i
 			// Chain broke ancestry, log a message (programming error) and skip insertion
 			log.Error("Non contiguous header insert", "number", chain[i].Number, "hash", chain[i].Hash(),
 				"parent", chain[i].ParentHash, "prevnumber", chain[i-1].Number, "prevhash", chain[i-1].Hash())
-
+	        chaini_1_hash := chain[i-1].Hash().Bytes()
+	        chaini_hash := chain[i].Hash().Bytes()
+	        chaini_p_hash := chain[i].ParentHash()
 			return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x…], item %d is #%d [%x…] (parent [%x…])", i-1, chain[i-1].Number,
-				chain[i-1].Hash().Bytes()[:4], i, chain[i].Number, chain[i].Hash().Bytes()[:4], chain[i].ParentHash()[:4])
+				chaini_1_hash[:4], i, chain[i].Number, chaini_hash[:4], chaini_p_hash[:4])
 		}
 	}
 

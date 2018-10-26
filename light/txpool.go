@@ -100,7 +100,7 @@ func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBacke
 		odr:         chain.Odr(),
 		chainDb:     chain.Odr().Database(),
 		head:        chain.CurrentHeader().Hash(),
-		clearIdx:    chain.CurrentHeader().Number.Uint64(),
+		clearIdx:    chain.CurrentHeader().NumberU64(),
 	}
 	// Subscribe events from blockchain
 	pool.chainHeadSub = pool.chain.SubscribeChainHeadEvent(pool.chainHeadCh)
@@ -111,7 +111,7 @@ func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBacke
 
 // currentState returns the light state of the current head header
 func (pool *TxPool) currentState(ctx context.Context) *state.StateDB {
-	return NewState(ctx, pool.chain.CurrentHeader(), pool.odr)
+	return NewState(ctx, pool.chain.CurrentHeader().ToHeader(), pool.odr)
 }
 
 // GetNonce returns the "pending" nonce of a given address. It always queries
@@ -184,7 +184,7 @@ func (pool *TxPool) checkMinedTxs(ctx context.Context, hash common.Hash, number 
 		if _, err := GetBlockReceipts(ctx, pool.odr, hash, number); err != nil { // ODR caches, ignore results
 			return err
 		}
-		rawdb.WriteTxLookupEntries(pool.chainDb, block)
+		rawdb.WriteTxLookupEntries(pool.chainDb, block.ToSBlock())
 
 		// Update the transaction pool's state
 		for _, tx := range list {
@@ -218,28 +218,28 @@ func (pool *TxPool) rollbackTxs(hash common.Hash, txc txStateChanges) {
 // timeout) occurs during checking new blocks, it leaves the locally known head
 // at the latest checked block and still returns a valid txStateChanges, making it
 // possible to continue checking the missing blocks at the next chain head event
-func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader *types.Header) (txStateChanges, error) {
+func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader types.HeaderIntf) (txStateChanges, error) {
 	txc := make(txStateChanges)
 	oldh := pool.chain.GetHeaderByHash(pool.head)
 	newh := newHeader
 	// find common ancestor, create list of rolled back and new block hashes
 	var oldHashes, newHashes []common.Hash
 	for oldh.Hash() != newh.Hash() {
-		if oldh.Number.Uint64() >= newh.Number.Uint64() {
+		if oldh.NumberU64() >= newh.NumberU64() {
 			oldHashes = append(oldHashes, oldh.Hash())
-			oldh = pool.chain.GetHeader(oldh.ParentHash, oldh.Number.Uint64()-1)
+			oldh = pool.chain.GetHeader(oldh.ParentHash(), oldh.NumberU64()-1)
 		}
-		if oldh.Number.Uint64() < newh.Number.Uint64() {
+		if oldh.NumberU64() < newh.NumberU64() {
 			newHashes = append(newHashes, newh.Hash())
-			newh = pool.chain.GetHeader(newh.ParentHash, newh.Number.Uint64()-1)
+			newh = pool.chain.GetHeader(newh.ParentHash(), newh.NumberU64()-1).ToHeader()
 			if newh == nil {
 				// happens when CHT syncing, nothing to do
-				newh = oldh
+				newh = oldh.ToHeader()
 			}
 		}
 	}
-	if oldh.Number.Uint64() < pool.clearIdx {
-		pool.clearIdx = oldh.Number.Uint64()
+	if oldh.NumberU64() < pool.clearIdx {
+		pool.clearIdx = oldh.NumberU64()
 	}
 	// roll back old blocks
 	for _, hash := range oldHashes {
@@ -249,14 +249,14 @@ func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader *types.Header)
 	// check mined txs of new blocks (array is in reversed order)
 	for i := len(newHashes) - 1; i >= 0; i-- {
 		hash := newHashes[i]
-		if err := pool.checkMinedTxs(ctx, hash, newHeader.Number.Uint64()-uint64(i), txc); err != nil {
+		if err := pool.checkMinedTxs(ctx, hash, newHeader.NumberU64()-uint64(i), txc); err != nil {
 			return txc, err
 		}
 		pool.head = hash
 	}
 
 	// clear old mined tx entries of old blocks
-	if idx := newHeader.Number.Uint64(); idx > pool.clearIdx+txPermanent {
+	if idx := newHeader.NumberU64(); idx > pool.clearIdx+txPermanent {
 		idx2 := idx - txPermanent
 		if len(pool.mined) > 0 {
 			for i := pool.clearIdx; i < idx2; i++ {
@@ -287,7 +287,7 @@ func (pool *TxPool) eventLoop() {
 	for {
 		select {
 		case ev := <-pool.chainHeadCh:
-			pool.setNewHead(ev.Block.Header())
+			pool.setNewHead(ev.Block.Header().ToHeader())
 			// hack in order to avoid hogging the lock; this part will
 			// be replaced by a subsequent PR.
 			time.Sleep(time.Millisecond)
@@ -299,7 +299,7 @@ func (pool *TxPool) eventLoop() {
 	}
 }
 
-func (pool *TxPool) setNewHead(head *types.Header) {
+func (pool *TxPool) setNewHead(head types.HeaderIntf) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
@@ -309,8 +309,8 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	txc, _ := pool.reorgOnNewHead(ctx, head)
 	m, r := txc.getLists()
 	pool.relay.NewHead(pool.head, m, r)
-	pool.homestead = pool.config.IsHomestead(head.Number)
-	pool.signer = types.MakeSigner(pool.config, head.Number)
+	pool.homestead = pool.config.IsHomestead(head.Number())
+	pool.signer = types.MakeSigner(pool.config, head.Number())
 }
 
 // Stop stops the light transaction pool
@@ -360,7 +360,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	// Check the transaction doesn't exceed the current
 	// block limit gas.
 	header := pool.chain.GetHeaderByHash(pool.head)
-	if header.GasLimit < tx.Gas() {
+	if header.GasLimit() < tx.Gas() {
 		return core.ErrGasLimit
 	}
 

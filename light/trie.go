@@ -29,12 +29,12 @@ import (
 	"github.com/EDXFund/MasterChain/trie"
 )
 
-func NewState(ctx context.Context, head *types.Header, odr OdrBackend) *state.StateDB {
-	state, _ := state.New(head.Root, NewStateDatabase(ctx, head, odr))
+func NewState(ctx context.Context, head types.HeaderIntf, odr OdrBackend) *state.StateDB {
+	state, _ := state.New(head.Root(), NewStateDatabase(ctx, head, odr))
 	return state
 }
 
-func NewStateDatabase(ctx context.Context, head *types.Header, odr OdrBackend) state.Database {
+func NewStateDatabase(ctx context.Context, head types.HeaderIntf, odr OdrBackend) state.Database {
 	return &odrDatabase{ctx, StateTrieID(head), odr}
 }
 

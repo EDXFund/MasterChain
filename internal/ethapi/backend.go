@@ -47,13 +47,13 @@ type Backend interface {
 
 	// BlockChain API
 	SetHead(number uint64)
-	HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error)
-	BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Block, error)
-	StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, *types.Header, error)
-	GetBlock(ctx context.Context, blockHash common.Hash) (*types.Block, error)
+	HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (types.HeaderIntf, error)
+	BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (types.BlockIntf, error)
+	StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, types.HeaderIntf, error)
+	GetBlock(ctx context.Context, blockHash common.Hash) (types.BlockIntf, error)
 	GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error)
 	GetTd(blockHash common.Hash) *big.Int
-	GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg vm.Config) (*vm.EVM, func() error, error)
+	GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header types.HeaderIntf, vmCfg vm.Config) (*vm.EVM, func() error, error)
 	SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 	SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription
@@ -68,7 +68,7 @@ type Backend interface {
 	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
 
 	ChainConfig() *params.ChainConfig
-	CurrentBlock() *types.Block
+	CurrentBlock() types.BlockIntf
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

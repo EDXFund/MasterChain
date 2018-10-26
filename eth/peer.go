@@ -288,7 +288,7 @@ func (p *peer) AsyncSendNewShardBlock(block *types.SBlock, td *big.Int) {
 }
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
-func (p *peer) SendBlockHeaders(headers []*types.Header) error {
+func (p *peer) SendBlockHeaders(headers []types.HeaderIntf) error {
 	return p2p.Send(p.rw, BlockHeadersMsg, headers)
 }
 

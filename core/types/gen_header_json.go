@@ -4,23 +4,157 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
+	"math/big"
+
+	"github.com/EDXFund/MasterChain/common"
 )
 
 // MarshalJSON marshals as JSON.
-func (h Header) MarshalJSON() ([]byte, error) {
-	type Header struct {
+func (h HeaderStruct) MarshalJSON() ([]byte, error) {
+	type HeaderStruct struct {
+		ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
+		UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+		Coinbase       common.Address `json:"miner"            gencodec:"required"`
+		ShardBlockHash common.Hash    `json:"shardHash"		gencodec:"required"`
+		ShardMaskEp    uint16         `json:"shardHash"		gencodec:"required"`
+		ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"`
+		Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
+		TxHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
+		ReceiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+		Bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
+		BloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"`
+		Difficulty     *big.Int       `json:"difficulty"       gencodec:"required"`
+		Number         *big.Int       `json:"number"           gencodec:"required"`
+		GasLimit       uint64         `json:"gasLimit"         gencodec:"required"`
+		GasUsed        uint64         `json:"gasUsed"          gencodec:"required"`
+		Time           *big.Int       `json:"timestamp"        gencodec:"required"`
+		Extra          []byte         `json:"extraData"        gencodec:"required"`
+		MixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
+		Nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
 	}
-	var enc Header
+	var enc HeaderStruct
+	enc.ParentHash = h.ParentHash
+	enc.UncleHash = h.UncleHash
+	enc.Coinbase = h.Coinbase
+	enc.ShardBlockHash = h.ShardBlockHash
+	enc.ShardMaskEp = h.ShardMaskEp
+	enc.ShardEnabled = h.ShardEnabled
+	enc.Root = h.Root
+	enc.TxHash = h.TxHash
+	enc.ReceiptHash = h.ReceiptHash
+	enc.Bloom = h.Bloom
+	enc.BloomReject = h.BloomReject
+	enc.Difficulty = h.Difficulty
+	enc.Number = h.Number
+	enc.GasLimit = h.GasLimit
+	enc.GasUsed = h.GasUsed
+	enc.Time = h.Time
+	enc.Extra = h.Extra
+	enc.MixDigest = h.MixDigest
+	enc.Nonce = h.Nonce
 	return json.Marshal(&enc)
 }
 
 // UnmarshalJSON unmarshals from JSON.
-func (h *Header) UnmarshalJSON(input []byte) error {
-	type Header struct {
+func (h *HeaderStruct) UnmarshalJSON(input []byte) error {
+	type HeaderStruct struct {
+		ParentHash     *common.Hash    `json:"parentHash"       gencodec:"required"`
+		UncleHash      *common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+		Coinbase       *common.Address `json:"miner"            gencodec:"required"`
+		ShardBlockHash *common.Hash    `json:"shardHash"		gencodec:"required"`
+		ShardMaskEp    *uint16         `json:"shardHash"		gencodec:"required"`
+		ShardEnabled   [32]byte          `json:"shardHash"		gencodec:"required"`
+		Root           *common.Hash    `json:"stateRoot"        gencodec:"required"`
+		TxHash         *common.Hash    `json:"transactionsRoot" gencodec:"required"`
+		ReceiptHash    *common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+		Bloom          *Bloom          `json:"logsBloom"        gencodec:"required"`
+		BloomReject    *Bloom          `json:"rjLogsBloom"        gencodec:"required"`
+		Difficulty     *big.Int        `json:"difficulty"       gencodec:"required"`
+		Number         *big.Int        `json:"number"           gencodec:"required"`
+		GasLimit       *uint64         `json:"gasLimit"         gencodec:"required"`
+		GasUsed        *uint64         `json:"gasUsed"          gencodec:"required"`
+		Time           *big.Int        `json:"timestamp"        gencodec:"required"`
+		Extra          []byte          `json:"extraData"        gencodec:"required"`
+		MixDigest      *common.Hash    `json:"mixHash"          gencodec:"required"`
+		Nonce          *BlockNonce     `json:"nonce"            gencodec:"required"`
 	}
-	var dec Header
+	var dec HeaderStruct
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
+	if dec.ParentHash == nil {
+		return errors.New("missing required field 'parentHash' for HeaderStruct")
+	}
+	h.ParentHash = *dec.ParentHash
+	if dec.UncleHash == nil {
+		return errors.New("missing required field 'sha3Uncles' for HeaderStruct")
+	}
+	h.UncleHash = *dec.UncleHash
+	if dec.Coinbase == nil {
+		return errors.New("missing required field 'miner' for HeaderStruct")
+	}
+	h.Coinbase = *dec.Coinbase
+	if dec.ShardBlockHash != nil {
+		h.ShardBlockHash = *dec.ShardBlockHash
+	}
+	if dec.ShardMaskEp != nil {
+		h.ShardMaskEp = *dec.ShardMaskEp
+	}
+	if dec.ShardEnabled != [32]byte{0} {
+		h.ShardEnabled = dec.ShardEnabled
+	}
+	if dec.Root == nil {
+		return errors.New("missing required field 'stateRoot' for HeaderStruct")
+	}
+	h.Root = *dec.Root
+	if dec.TxHash == nil {
+		return errors.New("missing required field 'transactionsRoot' for HeaderStruct")
+	}
+	h.TxHash = *dec.TxHash
+	if dec.ReceiptHash == nil {
+		return errors.New("missing required field 'receiptsRoot' for HeaderStruct")
+	}
+	h.ReceiptHash = *dec.ReceiptHash
+	if dec.Bloom == nil {
+		return errors.New("missing required field 'logsBloom' for HeaderStruct")
+	}
+	h.Bloom = *dec.Bloom
+	if dec.BloomReject == nil {
+		return errors.New("missing required field 'rjLogsBloom' for HeaderStruct")
+	}
+	h.BloomReject = *dec.BloomReject
+	if dec.Difficulty == nil {
+		return errors.New("missing required field 'difficulty' for HeaderStruct")
+	}
+	h.Difficulty = dec.Difficulty
+	if dec.Number == nil {
+		return errors.New("missing required field 'number' for HeaderStruct")
+	}
+	h.Number = dec.Number
+	if dec.GasLimit == nil {
+		return errors.New("missing required field 'gasLimit' for HeaderStruct")
+	}
+	h.GasLimit = *dec.GasLimit
+	if dec.GasUsed == nil {
+		return errors.New("missing required field 'gasUsed' for HeaderStruct")
+	}
+	h.GasUsed = *dec.GasUsed
+	if dec.Time == nil {
+		return errors.New("missing required field 'timestamp' for HeaderStruct")
+	}
+	h.Time = dec.Time
+	if dec.Extra == nil {
+		return errors.New("missing required field 'extraData' for HeaderStruct")
+	}
+	h.Extra = dec.Extra
+	if dec.MixDigest == nil {
+		return errors.New("missing required field 'mixHash' for HeaderStruct")
+	}
+	h.MixDigest = *dec.MixDigest
+	if dec.Nonce == nil {
+		return errors.New("missing required field 'nonce' for HeaderStruct")
+	}
+	h.Nonce = *dec.Nonce
 	return nil
 }

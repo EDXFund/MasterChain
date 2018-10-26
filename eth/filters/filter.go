@@ -33,8 +33,8 @@ import (
 type Backend interface {
 	ChainDb() ethdb.Database
 	EventMux() *event.TypeMux
-	HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error)
-	HeaderByHash(ctx context.Context, blockHash common.Hash) (*types.Header, error)
+	HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (types.HeaderIntf, error)
+	HeaderByHash(ctx context.Context, blockHash common.Hash) (types.HeaderIntf, error)
 	GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error)
 	GetLogs(ctx context.Context, blockHash common.Hash) ([][]*types.Log, error)
 
@@ -133,7 +133,7 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.Log, error) {
 	if header == nil {
 		return nil, nil
 	}
-	head := header.Number.Uint64()
+	head := header.NumberU64()
 
 	if f.begin == -1 {
 		f.begin = int64(head)
@@ -230,8 +230,8 @@ func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.Log, e
 }
 
 // blockLogs returns the logs matching the filter criteria within a single block.
-func (f *Filter) blockLogs(ctx context.Context, header *types.Header) (logs []*types.Log, err error) {
-	if bloomFilter(header.Bloom, f.addresses, f.topics) {
+func (f *Filter) blockLogs(ctx context.Context, header types.HeaderIntf) (logs []*types.Log, err error) {
+	if bloomFilter(header.Bloom(), f.addresses, f.topics) {
 		found, err := f.checkMatches(ctx, header)
 		if err != nil {
 			return logs, err
@@ -243,7 +243,7 @@ func (f *Filter) blockLogs(ctx context.Context, header *types.Header) (logs []*t
 
 // checkMatches checks if the receipts belonging to the given header contain any log events that
 // match the filter criteria. This function is called when the bloom filter signals a potential match.
-func (f *Filter) checkMatches(ctx context.Context, header *types.Header) (logs []*types.Log, err error) {
+func (f *Filter) checkMatches(ctx context.Context, header types.HeaderIntf) (logs []*types.Log, err error) {
 	// Get the logs of the block
 	logsList, err := f.backend.GetLogs(ctx, header.Hash())
 	if err != nil {
@@ -284,13 +284,14 @@ func includes(addresses []common.Address, a common.Address) bool {
 
 // filterLogs creates a slice of logs matching the given criteria.
 func filterLogs(logs []*types.Log, fromBlock, toBlock *big.Int, addresses []common.Address, topics [][]common.Hash) []*types.Log {
-	var ret []*types.Log
+	////MUST TODO : adapt logs
+	/*var ret []*types.Log
 Logs:
 	for _, log := range logs {
-		if fromBlock != nil && fromBlock.Int64() >= 0 && fromBlock.Uint64() > log.BlockNumber {
+		if fromBlock != nil && fromBlock.Int64() >= 0 && fromBlock.Uint64() > log.BlockNumber() {
 			continue
 		}
-		if toBlock != nil && toBlock.Int64() >= 0 && toBlock.Uint64() < log.BlockNumber {
+		if toBlock != nil && toBlock.Int64() >= 0 && toBlock.Uint64() < log.BlockNumber() {
 			continue
 		}
 
@@ -316,6 +317,8 @@ Logs:
 		ret = append(ret, log)
 	}
 	return ret
+	*/
+	return nil
 }
 
 func bloomFilter(bloom types.Bloom, addresses []common.Address, topics [][]common.Hash) bool {

@@ -199,7 +199,7 @@ type ShardPool struct {
 	mu           sync.RWMutex
 
 	//controller of shards
-	shardExp     uint8
+	shardExp     uint16
 	shardEnabled [ShardsCount]byte
 
 	currentState  *state.StateDB      // Current state in the blockchain head
@@ -245,7 +245,7 @@ func NewShardPool(config ShardPoolConfig, chainconfig *params.ChainConfig, chain
 	}
 
 
-	pool.reset(nil, chain.CurrentBlock().Header())
+	pool.reset(nil, chain.CurrentBlock().Header().ToHeader())
 
 /*	// If local transactions and journaling is enabled, load from disk
 	if !config.NoLocals && config.Journal != "" {
@@ -302,8 +302,8 @@ func (pool *ShardPool) loop() {
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
 					pool.homestead = true
 				}
-				pool.reset(head.Header(), ev.Block.Header())
-				head = ev.Block
+				pool.reset(head.Header().ToHeader(), ev.Block.Header().ToHeader())
+				head = ev.Block.ToBlock()
 
 				//rebuild lashshards
 				pool.rebuildExecutedBlock()
@@ -329,14 +329,15 @@ func (pool *ShardPool) loop() {
 
 
 		// Handle local transaction journal rotation
+		////MUST TODO rebuild jounal
 		case <-journal.C:
-			if pool.journal != nil {
+			/*if pool.journal != nil {
 				pool.mu.Lock()
 				if err := pool.journal.rotate(pool.local()); err != nil {
 					log.Warn("Failed to rotate local tx journal", "err", err)
 				}
 				pool.mu.Unlock()
-			}
+			}*/
 		}
 	}
 }
@@ -348,11 +349,11 @@ func (pool *ShardPool)SetLastestBlockInfo(value map[uint16]*types.LastShardInfo)
 	pool.lastShards = value
 }
 
-func (pool *ShardPool)GetShardState()  (uint8, [ShardsCount]byte){
+func (pool *ShardPool)GetShardState()  (uint16, [ShardsCount]byte){
 	return pool.shardExp,pool.shardEnabled
 }
 
-func (pool *ShardPool)SetShardState(shardEx uint8,shardEnabled [ShardsCount]byte) {
+func (pool *ShardPool)SetShardState(shardEx uint16,shardEnabled [ShardsCount]byte) {
 	if shardEnabled != pool.shardEnabled || shardEx != pool.shardExp {
 
 	}
@@ -378,7 +379,7 @@ func (pool *ShardPool)rebuildExecutedBlock(){
 }
 // lockedReset is a wrapper around reset to allow calling it in a thread safe
 // manner. This method is only ever used in the tester!
-func (pool *ShardPool) lockedReset(oldHead, newHead *types.Header) {
+func (pool *ShardPool) lockedReset(oldHead, newHead types.HeaderIntf) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
@@ -387,14 +388,14 @@ func (pool *ShardPool) lockedReset(oldHead, newHead *types.Header) {
 
 // reset retrieves the current state of the blockchain and ensures the content
 // of the transaction pool is valid with regard to the chain state.
-func (pool *ShardPool) reset(oldHead, newHead *types.Header) {
+func (pool *ShardPool) reset(oldHead, newHead types.HeaderIntf) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.ShardBlockInfos
 
-	if oldHead != nil && oldHead.Hash() != newHead.ParentHash {
+	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
-		oldNum := oldHead.Number.Uint64()
-		newNum := newHead.Number.Uint64()
+		oldNum := oldHead.NumberU64()
+		newNum := newHead.NumberU64()
 
 		if depth := uint64(math.Abs(float64(oldNum) - float64(newNum))); depth > 64 {
 			log.Debug("Skipping deep transaction reorg", "depth", depth)
@@ -403,8 +404,8 @@ func (pool *ShardPool) reset(oldHead, newHead *types.Header) {
 			var discarded, included types.ShardBlockInfos
 
 			var (
-				rem = pool.chain.GetBlock(oldHead.Hash(), oldHead.Number.Uint64())
-				add = pool.chain.GetBlock(newHead.Hash(), newHead.Number.Uint64())
+				rem = pool.chain.GetBlock(oldHead.Hash(), oldHead.NumberU64())
+				add = pool.chain.GetBlock(newHead.Hash(), newHead.NumberU64())
 			)
 			for rem.NumberU64() > add.NumberU64() {
 				discarded = append(discarded, rem.ShardBlocks()...)
@@ -437,23 +438,23 @@ func (pool *ShardPool) reset(oldHead, newHead *types.Header) {
 	}
 	// Initialize the internal state to the current head
 	if newHead == nil {
-		newHead = pool.chain.CurrentBlock().Header() // Special case during testing
+		newHead = pool.chain.CurrentBlock().Header().ToHeader() // Special case during testing
 	}
-	statedb, err := pool.chain.StateAt(newHead.Root)
+	statedb, err := pool.chain.StateAt(newHead.Root())
 	if err != nil {
 		log.Error("Failed to reset txpool state", "err", err)
 		return
 	}
 	pool.currentState = statedb
 	//pool.pendingState = state.ManageState(statedb)
-	pool.currentMaxGas = newHead.GasLimit
+	pool.currentMaxGas = newHead.GasLimit()
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
 
 
 	//rebuild latest shard info
-	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ShardBlockHash)
+	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ShardBlockHash())
 	if err == nil {
 		pool.lastShards = latestShardInfo
 	}else {
@@ -540,7 +541,8 @@ func (pool *ShardPool)AddShardBlock(blk *types.SBlock) (bool,error){
 func (pool *ShardPool) addShardBlock(blk *types.SBlock) (bool, error) {
 	// If the transaction is already known, discard it
 	//hash := blk.Hash()
-	blockInfo := &types.ShardBlockInfo{shardId:blk.ShardId(),blockNumber:blk.NumberU64(),blockHash:blk.Hash(),difficulty:blk.Hash()}
+	blockInfo :=  new(types.ShardBlockInfo)
+	blockInfo.FillBy(&types.ShardBlockInfoStruct{ShardId:blk.ShardId(),BlockNumber:blk.NumberU64(),BlockHash:blk.Hash(),Difficulty:blk.Difficulty().Uint64()})
 	return pool.addShardBlockInfo(blockInfo)
 
 }
@@ -621,7 +623,8 @@ func (pool *ShardPool) removeShardBlock(hash common.Hash) {
 func (pool *ShardPool)purgeExpired() {
 	for shardId,manager := range pool.pendingBlocks {
 		if val,ok := pool.lastShards[shardId]; ok {
-			shardBlock := &types.ShardBlockInfo{shardId:val.ShardId,blockNumber:val.BlockNumber,blockHash:val.Hash,difficulty:val.Td}
+			shardBlock := new(types.ShardBlockInfo)
+			shardBlock.FillBy (&types.ShardBlockInfoStruct{ShardId:val.ShardId,BlockNumber:val.BlockNumber,BlockHash:val.Hash,Difficulty:val.Td})
 			manager.ReduceTo(shardBlock)
 		}
 

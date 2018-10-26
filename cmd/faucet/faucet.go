@@ -199,7 +199,7 @@ type faucet struct {
 
 	keystore *keystore.KeyStore // Keystore containing the single signer
 	account  accounts.Account   // Account funding user faucet requests
-	head     *types.Header      // Current head header of the faucet
+	head     types.HeaderIntf      // Current head header of the faucet
 	balance  *big.Int           // Current balance of the faucet
 	nonce    uint64             // Current pending nonce of the faucet
 	price    *big.Int           // Current gas price to issue funds with
@@ -323,7 +323,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 	}()
 	// Gather the initial stats from the network to report
 	var (
-		head    *types.Header
+		head    types.HeaderIntf
 		balance *big.Int
 		nonce   uint64
 		err     error
@@ -523,7 +523,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 
 // refresh attempts to retrieve the latest header from the chain and extract the
 // associated faucet balance and nonce for connectivity caching.
-func (f *faucet) refresh(head *types.Header) error {
+func (f *faucet) refresh(head types.HeaderIntf) error {
 	// Ensure a state update does not run for too long
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -566,7 +566,7 @@ func (f *faucet) refresh(head *types.Header) error {
 // websockets.
 func (f *faucet) loop() {
 	// Wait for chain events and push them to clients
-	heads := make(chan *types.Header, 16)
+	heads := make(chan types.HeaderIntf, 16)
 	sub, err := f.client.SubscribeNewHead(context.Background(), heads)
 	if err != nil {
 		log.Crit("Failed to subscribe to head events", "err", err)
@@ -574,7 +574,7 @@ func (f *faucet) loop() {
 	defer sub.Unsubscribe()
 
 	// Start a goroutine to update the state from head notifications in the background
-	update := make(chan *types.Header)
+	update := make(chan types.HeaderIntf)
 
 	go func() {
 		for head := range update {

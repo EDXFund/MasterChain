@@ -70,16 +70,16 @@ func errResp(code errCode, format string, v ...interface{}) error {
 type BlockChain interface {
 	Config() *params.ChainConfig
 	HasHeader(hash common.Hash, number uint64) bool
-	GetHeader(hash common.Hash, number uint64) *types.Header
-	GetHeaderByHash(hash common.Hash) *types.Header
-	CurrentHeader() *types.Header
+	GetHeader(hash common.Hash, number uint64) types.HeaderIntf
+	GetHeaderByHash(hash common.Hash) types.HeaderIntf
+	CurrentHeader() types.HeaderIntf
 	GetTd(hash common.Hash, number uint64) *big.Int
 	State() (*state.StateDB, error)
-	InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error)
+	InsertHeaderChain(chain []types.HeaderIntf, checkFreq int) (int, error)
 	Rollback(chain []common.Hash)
-	GetHeaderByNumber(number uint64) *types.Header
+	GetHeaderByNumber(number uint64) types.HeaderIntf
 	GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64)
-	Genesis() *types.Block
+	Genesis() types.BlockIntf
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 }
 
@@ -416,12 +416,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Gather headers until the fetch or network limits is reached
 		var (
 			bytes   common.StorageSize
-			headers []*types.Header
+			headers []types.HeaderIntf
 			unknown bool
 		)
 		for !unknown && len(headers) < int(query.Amount) && bytes < softResponseLimit {
 			// Retrieve the next header satisfying the query
-			var origin *types.Header
+			var origin types.HeaderIntf
 			if hashMode {
 				if first {
 					first = false
@@ -502,7 +502,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var resp struct {
 			ReqID, BV uint64
-			Headers   []*types.Header
+			Headers   []types.HeaderIntf
 		}
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)

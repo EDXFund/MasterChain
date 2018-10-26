@@ -179,7 +179,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 
 		var (
 			st     *state.StateDB
-			header *types.Header
+			header types.HeaderIntf
 			chain  core.ChainContext
 		)
 		if bc == nil {
@@ -268,7 +268,7 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	headers := make([]*types.Header, len(gchain))
+	headers := make([]types.HeaderIntf, len(gchain))
 	for i, block := range gchain {
 		headers[i] = block.Header()
 	}

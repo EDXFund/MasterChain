@@ -165,7 +165,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	// Construct the different synchronisation mechanisms
 	manager.downloader = downloader.New(mode, chaindb, manager.eventMux, blockchain, nil, manager.removePeer)
 
-	validator := func(header *types.Header) error {
+	validator := func(header types.HeaderIntf) error {
 		return engine.VerifyHeader(blockchain, header, true)
 	}
 	heighter := func() uint64 {
@@ -350,12 +350,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Gather headers until the fetch or network limits is reached
 		var (
 			bytes   common.StorageSize
-			headers []*types.Header
+			headers []types.HeaderIntf
 			unknown bool
 		)
 		for !unknown && len(headers) < int(query.Amount) && bytes < softResponseLimit && len(headers) < downloader.MaxHeaderFetch {
 			// Retrieve the next header satisfying the query
-			var origin *types.Header
+			var origin types.HeaderIntf
 			if hashMode {
 				if first {
 					first = false
@@ -426,7 +426,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 	case msg.Code == BlockHeadersMsg:
 		// A batch of headers arrived to one of our previous requests
-		var headers []*types.Header
+		var headers []types.HeaderIntf
 		if err := msg.Decode(&headers); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
@@ -517,7 +517,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
 			}
 			transactions := make([][]*types.ShardBlockInfo, len(request))
-			uncles := make([][]*types.Header, len(request))
+			uncles := make([][]types.HeaderIntf, len(request))
 			for i, body := range *bodyData {
 				transactions[i] = body.Transactions
 				uncles[i] = body.Uncles
@@ -540,7 +540,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 			// Deliver them all to the downloader for queuing
 			transactions := make([][]*types.Transaction, len(request))
-			//uncles := make([][]*types.Header, len(request))
+			//uncles := make([][]types.HeaderIntf, len(request))
 			for i, body := range *bodyData {
 				transactions[i] = body.Transactions
 
@@ -729,8 +729,8 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 	//peers of this shard
 	peers := pm.peers.ShardPeersWithoutBlock(shardId,hash)
 	//broadcast to all master chain peers
-	peers := pm.peers.ShardPeersWithoutBlock(types.ShardMaster,hash)
-
+	master_peers := pm.peers.ShardPeersWithoutBlock(types.ShardMaster,hash)
+	peers = append(peers,master_peers...)
 	// If propagation is requested, send to a subset of the peer
 	if propagate {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)

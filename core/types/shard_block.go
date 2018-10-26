@@ -38,6 +38,26 @@ type SHeader struct {
 	mixDigest   common.Hash `json:"mixHash"          gencodec:"required"`
 	nonce       BlockNonce  `json:"nonce"            gencodec:"required"`
 }
+type SHeaderStruct struct {
+	ShardId    uint16      `json:"shardId"			gencodec:"required"`
+	ParentHash common.Hash `json:"parentHash"       gencodec:"required"`
+
+
+	Coinbase common.Address `json:"miner"            gencodec:"required"`
+	Root     common.Hash    `json:"stateRoot,omitempty"        gencodec:"nil"`
+	TxHash   common.Hash    `json:"transactionsRoot,omitempty" gencodec:"nil"`
+	ReceiptHash common.Hash `json:"receiptsRoot,omitempty"     gencodec:"nil"`
+
+	Bloom       Bloom       `json:"logsBloom"        gencodec:"required"`
+	Difficulty  *big.Int    `json:"difficulty"       gencodec:"required"`
+	Number      *big.Int    `json:"number"           gencodec:"required"`
+	GasLimit    uint64      `json:"gasLimit"         gencodec:"required"`
+	GasUsed     uint64      `json:"gasUsed"          gencodec:"required"`
+	Time        *big.Int    `json:"timestamp"        gencodec:"required"`
+	Extra       []byte      `json:"extraData"        gencodec:"required"`
+	MixDigest   common.Hash `json:"mixHash"          gencodec:"required"`
+	Nonce       BlockNonce  `json:"nonce"            gencodec:"required"`
+}
 
 type SHeaderMarshal struct {
 	ShardId    uint16      `json:"shardId"			gencodec:"required"`
@@ -92,6 +112,26 @@ type scheaderMarshaling struct {
 // RLP encoding.
 func (h *SHeader) Hash() common.Hash {
 	return rlpHash(h)
+}
+func (h *SHeader) FillBy(h2 *SHeaderStruct)  {
+	h.shardId    = h2.ShardId
+	h.parentHash = h2.ParentHash
+
+
+	h.coinbase = h2.Coinbase
+	h.root  = h2.Root
+	h.txHash = h2.TxHash
+	h.receiptHash = h2.ReceiptHash
+
+	h.bloom  = h2.Bloom
+	h.difficulty = h2.Difficulty
+	h.number = h2.Number
+	h.gasLimit = h2.GasLimit
+	h.gasUsed = h2.GasUsed
+	h.time = h2.Time
+	h.extra = h2.Extra
+	h.mixDigest = h2.MixDigest
+	h.nonce = h2.Nonce
 }
 
 // Size returns the approximate memory used by all internal contents. It is used
@@ -399,7 +439,7 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 	return block
 }
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *SBlock) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []*Header,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
+func (b *SBlock) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []HeaderIntf,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
 
 	return b.WithBodyOfTransactions(transactions,receipts)
 }
