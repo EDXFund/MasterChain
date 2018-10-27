@@ -51,7 +51,6 @@ type bodyPackIntf interface {
 type bodyPack struct {
 	peerID       string
 	transactions [][]*types.Transaction
-	uncles       [][]types.HeaderIntf
 	shardBlocks  [][]*types.ShardBlockInfo
 	results		 [][]*types.ContractResult
 }

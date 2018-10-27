@@ -94,7 +94,7 @@ type headerFilterTask struct {
 type bodyFilterTask struct {
 	peer         string                 // The source peer of block bodies
 	shardBlocks [][]*types.ShardBlockInfo // Collection of transactions per block bodies
-	uncles       [][]types.HeaderIntf     // Collection of uncles per block bodies
+	receipts       [][]*types.Receipt     // Collection of uncles per block bodies
 	transactions [][]*types.Transaction // Collection of transactions per block bodies
 	contractResults       [][]*types.ContractResult      // Collection of contract results
 	time         time.Time              // Arrival time of the blocks' contents
@@ -252,8 +252,8 @@ func (f *Fetcher) FilterHeaders(peer string, headers []types.HeaderIntf, time ti
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]types.HeaderIntf, shardBlocks [][]*types.ShardBlockInfo, results [][]*types.ContractResult,time time.Time) ([][]*types.Transaction,[][]types.HeaderIntf, [][]*types.ShardBlockInfo, [][]*types.ContractResult) {
-	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions), "uncles", len(uncles))
+func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt ) {
+	log.Trace("Filtering bodies", "peer", peer, "txs", len(shardBlocks))
 
 	// Send the filter channel to the fetcher
 	filter := make(chan *bodyFilterTask)
@@ -261,30 +261,51 @@ func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction,
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil, nil,nil,nil
+		return nil,nil
 	}
-	if transactions != nil {
-		// Request the filtering of the body list
-		select {
-		case filter <- &bodyFilterTask{peer: peer, transactions: transactions, uncles: uncles, time: time}:
-		case <-f.quit:
-			return nil, nil,nil,nil
-		}
-	}else {
-		// Request the filtering of the body list
-		select {
-		case filter <- &bodyFilterTask{peer: peer, shardBlocks: shardBlocks, contractResults: results, time: time}:
-		case <-f.quit:
-			return nil, nil,nil,nil
-		}
+	// Request the filtering of the body list
+	select {
+	case filter <- &bodyFilterTask{peer: peer, shardBlocks: shardBlocks, receipts:receipts, time: time}:
+	case <-f.quit:
+		return nil,nil
 	}
 
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return task.transactions, nil, task.shardBlocks, task.contractResults
+		return task.shardBlocks, task.receipts
 	case <-f.quit:
-		return nil, nil,nil,nil
+		return nil, nil
+	}
+}
+
+
+// FilterBodies extracts all the block bodies that were explicitly requested by
+// the fetcher, returning those that should be handled differently.
+func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, results [][]*types.ContractResult,time time.Time) ([][]*types.Transaction,[][]*types.ContractResult ) {
+	log.Trace("Filtering bodies", "peer", peer, "txs", len(txs))
+
+	// Send the filter channel to the fetcher
+	filter := make(chan *bodyFilterTask)
+
+	select {
+	case f.bodyFilter <- filter:
+	case <-f.quit:
+		return nil,nil
+	}
+	// Request the filtering of the body list
+	select {
+	case filter <- &bodyFilterTask{peer: peer, transactions: txs, contractResults:results, time: time}:
+	case <-f.quit:
+		return nil,nil
+	}
+
+	// Retrieve the bodies remaining after filtering
+	select {
+	case task := <-filter:
+		return task.transactions, task.contractResults
+	case <-f.quit:
+		return nil, nil
 	}
 }
 
@@ -527,76 +548,13 @@ func (f *Fetcher) loop() {
 			case <-f.quit:
 				return
 			}
-			bodyFilterInMeter.Mark(int64(len(task.transactions)))
-
-			blocks := []types.BlockIntf{}
-			for i := 0; i < len(task.shardBlocks) && i < len(task.uncles); i++ {
-				// Match up a body to any possible completion request
-				matched := false
-
-				for hash, announce := range f.completing {
-					if f.queued[hash] == nil {
-
-						//recalc hash
-						txnHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
-						uncleHash := types.CalcUncleHash(task.uncles[i])
-
-						if txnHash == announce.header.Hash() && uncleHash == announce.header.UncleHash() && announce.origin == task.peer {
-							// Mark the body matched, reassemble if still unknown
-							matched = true
-
-							if f.getBlock(hash) == nil {
-								block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], task.uncles[i],nil,nil)
-								block.SetReceivedAt( task.time )
-
-								blocks = append(blocks, block)
-							} else {
-								f.forgetHash(hash)
-							}
-						}
-					}
-				}
-				if matched {
-					task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
-					task.uncles = append(task.uncles[:i], task.uncles[i+1:]...)
-					i--
-					continue
-				}
-			}
-			for i := 0; i < len(task.transactions) && i < len(task.contractResults); i++ {
-				matched := false
-
-				for hash, announce := range f.completing {
-					if f.queued[hash] == nil {
-
-						//recalc hash
-						txnHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
-						receiptHash := types.DeriveSha(types.ContractResults(task.contractResults[i]))
-
-						if txnHash == announce.header.Hash() && receiptHash == announce.header.ReceiptHash() && announce.origin == task.peer {
-							// Mark the body matched, reassemble if still unknown
-							matched = true
-
-							if f.getBlock(hash) == nil {
-								block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], task.uncles[i],task.transactions[i],task.contractResults[i])
-								block.SetReceivedAt (task.time)
-
-								blocks = append(blocks, block)
-							} else {
-								f.forgetHash(hash)
-							}
-						}
-					}
-				}
-				if matched {
-					task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
-					task.uncles = append(task.uncles[:i], task.uncles[i+1:]...)
-					i--
-					continue
-				}
+			var blocks []types.BlockIntf
+			if len (task.shardBlocks) > 0 {
+				blocks = procMasterBodies(task, f)
+			}else {
+				blocks = procShardBodies(task, f)
 			}
 
-			bodyFilterOutMeter.Mark(int64(len(task.transactions)))
 			select {
 			case filter <- task:
 			case <-f.quit:
@@ -610,6 +568,87 @@ func (f *Fetcher) loop() {
 			}
 		}
 	}
+}
+
+func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
+	bodyFilterInMeter.Mark(int64(len(task.shardBlocks)))
+	blocks := []types.BlockIntf{}
+	for i := 0; i < len(task.shardBlocks) ; i++ {
+		// Match up a body to any possible completion request
+		matched := false
+
+		for hash, announce := range f.completing {
+			if f.queued[hash] == nil {
+
+				//recalc hash
+				blockHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
+				//uncleHash := types.CalcUncleHash(task.uncles[i])
+
+				if blockHash == announce.header.TxHash()  && announce.origin == task.peer {
+					// Mark the body matched, reassemble if still unknown
+					matched = true
+
+					if f.getBlock(hash) == nil {
+						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
+						block.SetReceivedAt(task.time)
+
+						blocks = append(blocks, block)
+					} else {
+						f.forgetHash(hash)
+					}
+				}
+			}
+		}
+		if matched {
+			task.shardBlocks = append(task.shardBlocks[:i], task.shardBlocks[i+1:]...)
+			//task.uncles = append(task.uncles[:i], task.uncles[i+1:]...)
+			i--
+			continue
+		}
+	}
+
+	bodyFilterOutMeter.Mark(int64(len(task.shardBlocks)))
+	return blocks
+}
+func procShardBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
+	bodyFilterInMeter.Mark(int64(len(task.transactions)))
+	blocks := []types.BlockIntf{}
+	for i := 0; i < len(task.transactions) && i < len(task.contractResults); i++ {
+		// Match up a body to any possible completion request
+		matched := false
+
+		for hash, announce := range f.completing {
+			if f.queued[hash] == nil {
+
+				//recalc hash
+				txnHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
+				resultHash := types.DeriveSha(types.ContractResults(task.contractResults[i]))
+
+				if txnHash == announce.header.Hash() && resultHash == announce.header.ReceiptHash() && announce.origin == task.peer {
+					// Mark the body matched, reassemble if still unknown
+					matched = true
+
+					if f.getBlock(hash) == nil {
+						block := types.NewBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
+						block.SetReceivedAt(task.time)
+
+						blocks = append(blocks, block)
+					} else {
+						f.forgetHash(hash)
+					}
+				}
+			}
+		}
+		if matched {
+			task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
+			task.contractResults = append(task.contractResults[:i], task.contractResults[i+1:]...)
+			i--
+			continue
+		}
+	}
+
+	bodyFilterOutMeter.Mark(int64(len(task.transactions)))
+	return blocks
 }
 
 // rescheduleFetch resets the specified fetch timer to the next announce timeout.

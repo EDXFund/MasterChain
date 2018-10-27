@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -512,46 +513,48 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		if request.ShardId == types.ShardMaster {
 			// Deliver them all to the downloader for queuing
-			bodyData := new ([]blockMasterBody)
-			if err := rlp.Decode(request.Data, bodyData); err != nil {
+			bodyData := make ([]*blockMasterBody,1)
+			if err := rlp.Decode(bytes.NewReader(request.Data), bodyData); err != nil {
 				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
 			}
-			transactions := make([][]*types.ShardBlockInfo, len(request))
-			uncles := make([][]types.HeaderIntf, len(request))
-			for i, body := range *bodyData {
-				transactions[i] = body.Transactions
-				uncles[i] = body.Uncles
+			blocks := make([][]*types.ShardBlockInfo, len(bodyData))
+		//	uncles := make([][]types.HeaderIntf, len(bodyData))
+			for i, body := range bodyData {
+				blocks[i] = body.BlockInfos
+		//		uncles[i] = body.Uncles
 			}
 			// Filter out any explicitly requested bodies, deliver the rest to the downloader
-			filter := len(transactions) > 0 || len(uncles) > 0
+			filter := len(blocks) > 0
 			if filter {
-				transactions, uncles = pm.fetcher.FilterBodies(p.id, transactions, uncles, time.Now())
+				blocks,_ = pm.fetcher.FilterMasterBodies(p.id, blocks,nil, time.Now())
 			}
-			if len(transactions) > 0 || len(uncles) > 0 || !filter {
-				err := pm.downloader.DeliverMasterBodies(p.id, transactions, uncles)
+			if len(blocks) > 0 ||  !filter {
+				err := pm.downloader.DeliverMasterBodies(p.id, blocks, nil)
 				if err != nil {
 					log.Debug("Failed to deliver bodies", "err", err)
 				}
 			}
 		}else { //Shard Block Info
-			bodyData := new ([]blockShardBody)
-			if err := rlp.Decode(request.Data, bodyData); err != nil {
+			bodyData :=  []blockShardBody{}
+			if err := rlp.Decode(bytes.NewReader(request.Data), bodyData); err != nil {
 				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
 			}
 			// Deliver them all to the downloader for queuing
-			transactions := make([][]*types.Transaction, len(request))
+			transactions := make([][]*types.Transaction, len(bodyData))
+			results := make([][]*types.ContractResult,len(bodyData))
 			//uncles := make([][]types.HeaderIntf, len(request))
-			for i, body := range *bodyData {
+			for i, body := range bodyData {
 				transactions[i] = body.Transactions
+				results[i] = body.ContractResults
 
 			}
 			// Filter out any explicitly requested bodies, deliver the rest to the downloader
 			filter := len(transactions) > 0
 			if filter {
-				transactions = pm.fetcher.FilterShardBodies(p.id, transactions, time.Now())
+				transactions,results = pm.fetcher.FilterShardBodies(p.id, transactions, results,time.Now())
 			}
 			if len(transactions) > 0  || !filter {
-				err := pm.downloader.DeliverShardBodies(p.id, transactions, uncles)
+				err := pm.downloader.DeliverShardBodies(p.id, transactions, results)
 				if err != nil {
 					log.Debug("Failed to deliver bodies", "err", err)
 				}
@@ -621,7 +624,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// Retrieve the requested block's receipts, skipping if unknown to us
 			results := pm.blockchain.GetReceiptsByHash(hash)
 			if results == nil {
-				if header := pm.blockchain.GetHeaderByHash(hash); header == nil || header.ReceiptHash != types.EmptyRootHash {
+				if header := pm.blockchain.GetHeaderByHash(hash); header == nil || header.ReceiptHash() != types.EmptyRootHash {
 					continue
 				}
 			}
@@ -672,7 +675,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
-		request.Block.ReceivedAt = msg.ReceivedAt
+		request.Block.SetReceivedAt( msg.ReceivedAt)
 		request.Block.ReceivedFrom = p
 
 		// Mark the peer as owning the block and schedule it for import
@@ -753,7 +756,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 		for _, peer := range transfer {
 			peer.AsyncSendNewShardBlock(block, td)
 		}
-		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt())))
 		return
 	}
 	// Otherwise if the block is indeed in out own chain, announce it
@@ -761,7 +764,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 		for _, peer := range peers {
 			peer.AsyncSendNewShardBlockHash(block)
 		}
-		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt())))
 	}
 }
 // BroadcastBlock will either propagate a block to a subset of it's peers, or

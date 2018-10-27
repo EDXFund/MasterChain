@@ -181,13 +181,16 @@ type blockBody struct {
 	ShardId      uint16
 	Data      []byte
 }
+type masterBodiesData []*blockMasterBody
 type blockMasterBody struct {
-	Transactions []*types.ShardBlockInfo // Transactions contained within a block
+	BlockInfos []*types.ShardBlockInfo // Transactions contained within a block
 	Uncles       []types.HeaderIntf      // Uncles contained within a block
 }
+type shardBodiesData []*blockShardBody
 type blockShardBody struct {
 	Transactions []*types.Transaction // Transactions contained within a block
 	ContractResults []*types.ContractResult
 }
 // blockBodiesData is the network packet for block content distribution.
-type blockBodiesData []*blockBody
+type blockBodiesData blockBody
+

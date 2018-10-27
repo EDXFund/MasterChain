@@ -1569,12 +1569,12 @@ func (d *Downloader) DeliverHeaders(id string, headers []types.HeaderIntf) (err 
 }
 
 // DeliverBodies injects a new batch of block bodies received from a remote node.
-func (d *Downloader) DeliverMasterBodies(id string, transactions [][]*types.ShardBlockInfo, uncles [][]types.HeaderIntf) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, nil,uncles,transactions, nil}, bodyInMeter, bodyDropMeter)
+func (d *Downloader) DeliverMasterBodies(id string, transactions [][]*types.ShardBlockInfo) (err error) {
+	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions,nil,nil}, bodyInMeter, bodyDropMeter)
 }
 // DeliverBodies injects a new batch of block bodies received from a remote node.
-func (d *Downloader) DeliverShardBodies(id string, transactions [][]*types.Transaction, uncles [][]types.HeaderIntf) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, uncles,nil,nil}, bodyInMeter, bodyDropMeter)
+func (d *Downloader) DeliverShardBodies(id string, transactions [][]*types.Transaction, results [][]*types.ContractResult) (err error) {
+	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, nil,results}, bodyInMeter, bodyDropMeter)
 }
 
 // DeliverReceipts injects a new batch of receipts received from a remote node.
