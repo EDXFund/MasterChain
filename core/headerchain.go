@@ -108,7 +108,7 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 
 	return hc, nil
 }
-
+func (hc *HeaderChain) ShardId()  uint16 {return hc.shardId}
 // GetBlockNumber retrieves the block number belonging to the given hash
 // from the cache or database
 func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {

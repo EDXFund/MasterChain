@@ -123,16 +123,26 @@ func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, r
 // corresponding to the specified block hashes.
 func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 	var (
+		shardBlocks [][]*types.ShardBlockInfo
 		txs    [][]*types.Transaction
-		uncles [][]types.HeaderIntf
+		results [][]*types.ContractResult
+
+
 	)
 	for _, hash := range hashes {
 		block := rawdb.ReadBlock(p.db, hash, *p.hc.GetBlockNumber(hash))
 
 		txs = append(txs, block.Transactions())
-		uncles = append(uncles, block.Uncles())
+		shardBlocks = append(shardBlocks,block.ShardBlocks())
+		results = append(results,block.Results())
+
 	}
-	p.dl.DeliverShardBodies(p.id, txs, uncles)
+	if p.hc.ShardId() == types.ShardMaster {
+		p.dl.DeliverMasterBodies(p.id, shardBlocks, results)
+	}else {
+		p.dl.DeliverShardBodies(p.id,txs,nil)
+	}
+
 	return nil
 }
 

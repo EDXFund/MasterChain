@@ -374,12 +374,13 @@ func copyDb(ctx *cli.Context) error {
 	syncmode := *utils.GlobalTextMarshaler(ctx, utils.SyncModeFlag.Name).(*downloader.SyncMode)
 	dl := downloader.New(syncmode, chainDb, new(event.TypeMux), chain, nil, nil)
 
+
 	// Create a source peer to satisfy downloader requests from
 	db, err := ethdb.NewLDBDatabase(ctx.Args().First(), ctx.GlobalInt(utils.CacheFlag.Name), 256)
 	if err != nil {
 		return err
 	}
-	hc, err := core.NewHeaderChain(db, chain.Config(), chain.Engine(), func() bool { return false })
+	hc, err := core.NewHeaderChain(db, chain.Config(), chain.Engine(), func() bool { return false },uint16(ctx.GlobalInt(utils.ShardFlag.Name)))
 	if err != nil {
 		return err
 	}
@@ -391,7 +392,7 @@ func copyDb(ctx *cli.Context) error {
 	start := time.Now()
 
 	currentHeader := hc.CurrentHeader()
-	if err = dl.Synchronise("local", currentHeader.Hash(), hc.GetTd(currentHeader.Hash(), currentHeader.Number.Uint64()), syncmode); err != nil {
+	if err = dl.Synchronise("local", currentHeader.Hash(), hc.GetTd(currentHeader.Hash(), currentHeader.NumberU64()), syncmode); err != nil {
 		return err
 	}
 	for dl.Synchronising() {
@@ -443,7 +444,7 @@ func dump(ctx *cli.Context) error {
 	stack := makeFullNode(ctx)
 	chain, chainDb := utils.MakeChain(ctx, stack)
 	for _, arg := range ctx.Args() {
-		var block *types.Block
+		var block types.BlockIntf
 		if hashish(arg) {
 			block = chain.GetBlockByHash(common.HexToHash(arg))
 		} else {

@@ -81,6 +81,7 @@ type BlockChain interface {
 	GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64)
 	Genesis() types.BlockIntf
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
+	ShardId() uint16
 }
 
 type txPool interface {
@@ -253,7 +254,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		genesis = pm.blockchain.Genesis()
 		head    = pm.blockchain.CurrentHeader()
 		hash    = head.Hash()
-		number  = head.Number.Uint64()
+		number  = head.NumberU64()
 		td      = pm.blockchain.GetTd(hash, number)
 	)
 	if err := p.Handshake(td, hash, number, genesis.Hash(), pm.server); err != nil {
@@ -427,7 +428,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					first = false
 					origin = pm.blockchain.GetHeaderByHash(query.Origin.Hash)
 					if origin != nil {
-						query.Origin.Number = origin.Number.Uint64()
+						query.Origin.Number = origin.NumberU64()
 					}
 				} else {
 					origin = pm.blockchain.GetHeader(query.Origin.Hash, query.Origin.Number)
@@ -455,7 +456,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			case hashMode && !query.Reverse:
 				// Hash based traversal towards the leaf block
 				var (
-					current = origin.Number.Uint64()
+					current = origin.NumberU64()
 					next    = current + query.Skip + 1
 				)
 				if next <= current {
@@ -600,7 +601,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					if err != nil {
 						continue
 					}
-					account, err := pm.getAccount(statedb, header.Root, common.BytesToHash(req.AccKey))
+					account, err := pm.getAccount(statedb, header.Root(), common.BytesToHash(req.AccKey))
 					if err != nil {
 						continue
 					}
@@ -667,7 +668,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				results = rawdb.ReadReceipts(pm.chainDb, hash, *number)
 			}
 			if results == nil {
-				if header := pm.blockchain.GetHeaderByHash(hash); header == nil || header.ReceiptHash != types.EmptyRootHash {
+				if header := pm.blockchain.GetHeaderByHash(hash); header == nil || header.ReceiptHash() != types.EmptyRootHash {
 					continue
 				}
 			}
@@ -733,13 +734,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					}
 					var trie state.Trie
 					if len(req.AccKey) > 0 {
-						account, err := pm.getAccount(statedb, header.Root, common.BytesToHash(req.AccKey))
+						account, err := pm.getAccount(statedb, header.Root(), common.BytesToHash(req.AccKey))
 						if err != nil {
 							continue
 						}
 						trie, _ = statedb.Database().OpenStorageTrie(common.BytesToHash(req.AccKey), account.Root)
 					} else {
-						trie, _ = statedb.Database().OpenTrie(header.Root)
+						trie, _ = statedb.Database().OpenTrie(header.Root())
 					}
 					if trie != nil {
 						var proof light.NodeList
@@ -788,7 +789,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
 					if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
 						statedb, _ = pm.blockchain.State()
-						root = header.Root
+						root = header.Root()
 					}
 				}
 			}
@@ -1166,9 +1167,9 @@ func (pm *ProtocolManager) txStatus(hashes []common.Hash) []txStatus {
 
 		// If the transaction is unknown to the pool, try looking it up locally
 		if stat == core.TxStatusUnknown {
-			if block, number, index := rawdb.ReadTxLookupEntry(pm.chainDb, hashes[i]); block != (common.Hash{}) {
+			if shardId,block, number, index := rawdb.ReadTxLookupEntry(pm.chainDb, hashes[i]); block != (common.Hash{}) {
 				stats[i].Status = core.TxStatusIncluded
-				stats[i].Lookup = &rawdb.TxLookupEntry{BlockHash: block, BlockIndex: number, Index: index}
+				stats[i].Lookup = &rawdb.TxLookupEntry{ShardId:shardId, BlockHash: block, BlockIndex: number, Index: index}
 			}
 		}
 	}

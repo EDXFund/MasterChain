@@ -124,12 +124,12 @@ func (dl *downloadTester) makeChain(n int, seed byte, parent types.BlockIntf, pa
 			block.AddTx(tx)
 		}
 		// If the block number is a multiple of 5, add a bonus uncle to the block
-		if i > 0 && i%5 == 0 {
+		/*if i > 0 && i%5 == 0 {
 			block.AddUncle(&types.Header{
 				ParentHash: block.PrevBlock(i - 1).Hash(),
 				Number:     big.NewInt(block.Number().Int64() - 1),
 			})
-		}
+		}*/
 	})
 	// Convert the block-chain into a hash-chain and header/block maps
 	hashes := make([]common.Hash, n+1)
@@ -307,11 +307,11 @@ func (dl *downloadTester) InsertHeaderChain(headers []types.HeaderIntf, checkFre
 	defer dl.lock.Unlock()
 
 	// Do a quick check, as the blockchain.InsertHeaderChain doesn't insert anything in case of errors
-	if _, ok := dl.ownHeaders[headers[0].ParentHash]; !ok {
+	if _, ok := dl.ownHeaders[headers[0].ParentHash()]; !ok {
 		return 0, errors.New("unknown parent")
 	}
 	for i := 1; i < len(headers); i++ {
-		if headers[i].ParentHash != headers[i-1].Hash() {
+		if headers[i].ParentHash() != headers[i-1].Hash() {
 			return i, errors.New("unknown parent")
 		}
 	}
@@ -320,18 +320,18 @@ func (dl *downloadTester) InsertHeaderChain(headers []types.HeaderIntf, checkFre
 		if _, ok := dl.ownHeaders[header.Hash()]; ok {
 			continue
 		}
-		if _, ok := dl.ownHeaders[header.ParentHash]; !ok {
+		if _, ok := dl.ownHeaders[header.ParentHash()]; !ok {
 			return i, errors.New("unknown parent")
 		}
 		dl.ownHashes = append(dl.ownHashes, header.Hash())
 		dl.ownHeaders[header.Hash()] = header
-		dl.ownChainTd[header.Hash()] = new(big.Int).Add(dl.ownChainTd[header.ParentHash], header.Difficulty)
+		dl.ownChainTd[header.Hash()] = new(big.Int).Add(dl.ownChainTd[header.ParentHash()], header.Difficulty())
 	}
 	return len(headers), nil
 }
 
 // InsertChain injects a new batch of blocks into the simulated chain.
-func (dl *downloadTester) InsertChain(blocks types.Blocks) (int, error) {
+func (dl *downloadTester) InsertChain(blocks types.BlockIntfs) (int, error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
@@ -353,7 +353,7 @@ func (dl *downloadTester) InsertChain(blocks types.Blocks) (int, error) {
 }
 
 // InsertReceiptChain injects a new batch of receipts into the simulated chain.
-func (dl *downloadTester) InsertReceiptChain(blocks types.Blocks, receipts []types.Receipts) (int, error) {
+func (dl *downloadTester) InsertReceiptChain(blocks types.BlockIntfs, receipts []types.Receipts) (int, error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
@@ -413,7 +413,7 @@ func (dl *downloadTester) newSlowPeer(id string, version int, hashes []common.Ha
 		genesis := hashes[len(hashes)-1]
 		if header := headers[genesis]; header != nil {
 			dl.peerHeaders[id][genesis] = header
-			dl.peerChainTds[id][genesis] = header.Difficulty
+			dl.peerChainTds[id][genesis] = header.Difficulty()
 		}
 		if block := blocks[genesis]; block != nil {
 			dl.peerBlocks[id][genesis] = block
@@ -425,8 +425,8 @@ func (dl *downloadTester) newSlowPeer(id string, version int, hashes []common.Ha
 
 			if header, ok := headers[hash]; ok {
 				dl.peerHeaders[id][hash] = header
-				if _, ok := dl.peerHeaders[id][header.ParentHash]; ok {
-					dl.peerChainTds[id][hash] = new(big.Int).Add(header.Difficulty, dl.peerChainTds[id][header.ParentHash])
+				if _, ok := dl.peerHeaders[id][header.ParentHash()]; ok {
+					dl.peerChainTds[id][hash] = new(big.Int).Add(header.Difficulty(), dl.peerChainTds[id][header.ParentHash()])
 				}
 			}
 			if block, ok := blocks[hash]; ok {
@@ -545,16 +545,19 @@ func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash) error {
 
 	blocks := dlp.dl.peerBlocks[dlp.id]
 
+	shardInfos := make([][]*types.ShardBlockInfo, 0, len(hashes))
 	transactions := make([][]*types.Transaction, 0, len(hashes))
-	uncles := make([][]types.HeaderIntf, 0, len(hashes))
+	results := make([][]*types.ContractResult, 0, len(hashes))
+	//uncles := make([][]types.HeaderIntf, 0, len(hashes))
 
 	for _, hash := range hashes {
 		if block, ok := blocks[hash]; ok {
 			transactions = append(transactions, block.Transactions())
-			uncles = append(uncles, block.Uncles())
+			shardInfos = append(shardInfos, block.ShardBlocks())
+			results = append(results,block.Results())
 		}
 	}
-	go dlp.dl.downloader.DeliverBodies(dlp.id, transactions, uncles)
+	go dlp.dl.downloader.DeliverBodies(dlp.id, shardInfos,transactions, results)
 
 	return nil
 }
@@ -923,7 +926,7 @@ func TestInactiveDownloader62(t *testing.T) {
 	if err := tester.downloader.DeliverHeaders("bad peer", []types.HeaderIntf{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
-	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.Transaction{}, [][]types.HeaderIntf{}); err != errNoSyncActive {
+	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.ShardBlockInfo{}, [][]*types.Transaction{}, [][]types.HeaderIntf{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
 }
@@ -940,7 +943,7 @@ func TestInactiveDownloader63(t *testing.T) {
 	if err := tester.downloader.DeliverHeaders("bad peer", []types.HeaderIntf{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
-	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.Transaction{}, [][]types.HeaderIntf{}); err != errNoSyncActive {
+	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.ShardBlockInfo{}, [][]*types.Transaction{}, [][]types.HeaderIntf{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
 	if err := tester.downloader.DeliverReceipts("bad peer", [][]*types.Receipt{}); err != errNoSyncActive {

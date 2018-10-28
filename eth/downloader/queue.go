@@ -61,6 +61,7 @@ type fetchResult struct {
 	Uncles       []types.HeaderIntf
 	Transactions types.Transactions
 	Receipts     types.Receipts
+	Results      types.ContractResults
 }
 
 // queue represents hashes that are either need fetching or are being fetched
@@ -764,16 +765,23 @@ func (q *queue) DeliverHeaders(id string, headers []types.HeaderIntf, headerProc
 // DeliverBodies injects a block body retrieval response into the results queue.
 // The method returns the number of blocks bodies accepted from the delivery and
 // also wakes any threads waiting for data delivery.
-func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, uncleLists [][]types.HeaderIntf) (int, error) {
+func (q *queue) DeliverBodies(id string,shardBodies [][]*types.ShardBlockInfo, txLists [][]*types.Transaction, resultLists [][]*types.ContractResult) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
 	reconstruct := func(header types.HeaderIntf, index int, result *fetchResult) error {
-		if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash() || types.CalcUncleHash(uncleLists[index]) != header.UncleHash() {
-			return errInvalidBody
+		if header.ShardId() == types.ShardMaster {
+			if types.DeriveSha(types.ShardBlockInfos(shardBodies[index])) != header.TxHash()  {
+				return errInvalidBody
+			}
+		}else {
+			if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash() || types.DeriveSha(types.ContractResults(resultLists[index])) != header.ReceiptHash() {
+				return errInvalidBody
+			}
 		}
+
 		result.Transactions = txLists[index]
-		result.Uncles = uncleLists[index]
+		result.Results = resultLists[index]
 		return nil
 	}
 	return q.deliver(id, q.blockTaskPool, q.blockTaskQueue, q.blockPendPool, q.blockDonePool, bodyReqTimer, len(txLists), reconstruct)

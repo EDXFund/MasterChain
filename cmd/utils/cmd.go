@@ -126,7 +126,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 	stream := rlp.NewStream(reader, 0)
 
 	// Run actual the import.
-	blocks := make(types.Blocks, importBatchSize)
+	blocks := make(types.BlockIntfs, importBatchSize)
 	n := 0
 	for batch := 0; ; batch++ {
 		// Load a batch of RLP blocks.
@@ -168,7 +168,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 	return nil
 }
 
-func missingBlocks(chain *core.BlockChain, blocks []*types.Block) []*types.Block {
+func missingBlocks(chain *core.BlockChain, blocks []types.BlockIntf) []types.BlockIntf {
 	head := chain.CurrentBlock()
 	for i, block := range blocks {
 		// If we're behind the chain head, only check block, state is available at head

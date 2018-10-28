@@ -19,15 +19,15 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/rlp"
 	"math/big"
 	"sync"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/p2p"
-	"github.com/EDXFund/MasterChain/rlp"
+	"github.com/deckarep/golang-set"
 )
 
 var (
@@ -68,12 +68,7 @@ type PeerInfo struct {
 
 // propEvent is a block propagation, waiting for its turn in the broadcast queue.
 type propEvent struct {
-	block *types.Block
-	td    *big.Int
-}
-// propEvent is a block propagation, waiting for its turn in the broadcast queue.
-type propShardEvent struct {
-	block *types.SBlock
+	block types.BlockIntf
 	td    *big.Int
 }
 
@@ -94,9 +89,9 @@ type peer struct {
 	knownBlocks mapset.Set                // Set of block hashes known to be known by this peer
 	queuedTxs   chan []*types.Transaction // Queue of transactions to broadcast to the peer
 	queuedProps chan *propEvent           // Queue of blocks to broadcast to the peer
-	queuedShardProps chan *propShardEvent // Queue of blocks to broadcast to the peer
-	queuedAnns  chan *types.Block         // Queue of blocks to announce to the peer
-	queuedShardAnns  chan *types.SBlock         // Queue of blocks to announce to the peer
+//	queuedShardProps chan *propShardEvent // Queue of blocks to broadcast to the peer
+	queuedAnns  chan types.BlockIntf         // Queue of blocks to announce to the peer
+	//queuedShardAnns  chan *types.SBlock         // Queue of blocks to announce to the peer
 	term        chan struct{}             // Termination channel to stop the broadcaster
 }
 
@@ -111,7 +106,7 @@ func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 		knownBlocks: mapset.NewSet(),
 		queuedTxs:   make(chan []*types.Transaction, maxQueuedTxs),
 		queuedProps: make(chan *propEvent, maxQueuedProps),
-		queuedAnns:  make(chan *types.Block, maxQueuedAnns),
+		queuedAnns:  make(chan types.BlockIntf, maxQueuedAnns),
 		term:        make(chan struct{}),
 	}
 }
@@ -240,7 +235,7 @@ func (p *peer) SendNewBlockHashes(hashes []common.Hash, numbers []uint64) error 
 // AsyncSendNewBlockHash queues the availability of a block for propagation to a
 // remote peer. If the peer's broadcast queue is full, the event is silently
 // dropped.
-func (p *peer) AsyncSendNewBlockHash(block *types.Block) {
+func (p *peer) AsyncSendNewBlockHash(block types.BlockIntf) {
 	select {
 	case p.queuedAnns <- block:
 		p.knownBlocks.Add(block.Hash())
@@ -249,27 +244,16 @@ func (p *peer) AsyncSendNewBlockHash(block *types.Block) {
 	}
 }
 
-// AsyncSendNewBlockHash queues the availability of a block for propagation to a
-// remote peer. If the peer's broadcast queue is full, the event is silently
-// dropped.
-func (p *peer) AsyncSendNewShardBlockHash(block *types.SBlock) {
-	select {
-	case p.queuedShardAnns <- block:
-		p.knownBlocks.Add(block.Hash())
-	default:
-		p.Log().Debug("Dropping block announcement", "number", block.NumberU64(), "hash", block.Hash())
-	}
-}
 
 // SendNewBlock propagates an entire block to a remote peer.
-func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
+func (p *peer) SendNewBlock(block types.BlockIntf, td *big.Int) error {
 	p.knownBlocks.Add(block.Hash())
 	return p2p.Send(p.rw, NewBlockMsg, []interface{}{block, td})
 }
 
 // AsyncSendNewBlock queues an entire block for propagation to a remote peer. If
 // the peer's broadcast queue is full, the event is silently dropped.
-func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
+func (p *peer) AsyncSendNewBlock(block types.BlockIntf, td *big.Int) {
 	select {
 	case p.queuedProps <- &propEvent{block: block, td: td}:
 		p.knownBlocks.Add(block.Hash())
@@ -278,14 +262,7 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 	}
 }
 
-func (p *peer) AsyncSendNewShardBlock(block *types.SBlock, td *big.Int) {
-	select {
-	case p.queuedShardProps <- &propShardEvent{block: block, td: td}:
-		p.knownBlocks.Add(block.Hash())
-	default:
-		p.Log().Debug("Dropping block propagation", "number", block.NumberU64(), "hash", block.Hash())
-	}
-}
+
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []types.HeaderIntf) error {
@@ -293,10 +270,10 @@ func (p *peer) SendBlockHeaders(headers []types.HeaderIntf) error {
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
-func (p *peer) SendBlockBodies(bodies []*blockBody) error {
+/*func (p *peer) SendBlockBodies(bodies []*blockBody) error {
 	return p2p.Send(p.rw, BlockBodiesMsg, blockBodiesData(bodies))
 }
-
+*/
 // SendBlockBodiesRLP sends a batch of block contents to the remote peer from
 // an already RLP encoded format.
 func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
@@ -550,7 +527,7 @@ func (ps *peerSet) PeersWithoutShardBlock(shardId uint16,hash common.Hash) []*pe
 
 // PeersWithoutTx retrieves a list of peers that do not have a given transaction
 // in their set of known hashes.
-func (ps *peerSet) MasterMPeersWithoutTx(hash common.Hash) []*peer {
+func (ps *peerSet) MasterPeersWithoutTx(hash common.Hash) []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 

@@ -157,7 +157,7 @@ func (s *Service) loop() {
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
 	var (
 		quitCh = make(chan struct{})
-		headCh = make(chan *types.Block, 1)
+		headCh = make(chan types.BlockIntf, 1)
 		txCh   = make(chan struct{}, 1)
 	)
 	go func() {
@@ -490,17 +490,17 @@ type txStats struct {
 
 // uncleStats is a custom wrapper around an uncle array to force serializing
 // empty arrays instead of returning null for them.
-type uncleStats []*types.Header
+type uncleStats []types.HeaderIntf
 
 func (s uncleStats) MarshalJSON() ([]byte, error) {
-	if uncles := ([]*types.Header)(s); len(uncles) > 0 {
+	if uncles := ([]types.HeaderIntf)(s); len(uncles) > 0 {
 		return json.Marshal(uncles)
 	}
 	return []byte("[]"), nil
 }
 
 // reportBlock retrieves the current chain head and reports it to the stats server.
-func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
+func (s *Service) reportBlock(conn *websocket.Conn, block types.BlockIntf) error {
 	// Gather the block details from the header or block chain
 	details := s.assembleBlockStats(block)
 
@@ -519,13 +519,13 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 
 // assembleBlockStats retrieves any required metadata to report a single block
 // and assembles the block stats. If block is nil, the current head is processed.
-func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
+func (s *Service) assembleBlockStats(block types.BlockIntf) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
-		header *types.Header
+		header types.HeaderIntf
 		td     *big.Int
 		txs    []txStats
-		uncles []*types.Header
+		uncles []types.HeaderIntf
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
@@ -533,7 +533,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			block = s.eth.BlockChain().CurrentBlock()
 		}
 		header = block.Header()
-		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
+		td = s.eth.BlockChain().GetTd(header.Hash(), header.NumberU64())
 
 		txs = make([]txStats, len(block.Transactions()))
 		for i, tx := range block.Transactions() {
@@ -547,25 +547,25 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		} else {
 			header = s.les.BlockChain().CurrentHeader()
 		}
-		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
+		td = s.les.BlockChain().GetTd(header.Hash(), header.NumberU64())
 		txs = []txStats{}
 	}
 	// Assemble and return the block stats
 	author, _ := s.engine.Author(header)
 
 	return &blockStats{
-		Number:     header.Number,
+		Number:     header.Number(),
 		Hash:       header.Hash(),
-		ParentHash: header.ParentHash,
-		Timestamp:  header.Time,
+		ParentHash: header.ParentHash(),
+		Timestamp:  header.Time(),
 		Miner:      author,
-		GasUsed:    header.GasUsed,
-		GasLimit:   header.GasLimit,
-		Diff:       header.Difficulty.String(),
+		GasUsed:    header.GasUsed(),
+		GasLimit:   header.GasLimit(),
+		Diff:       header.Difficulty().String(),
 		TotalDiff:  td.String(),
 		Txs:        txs,
-		TxHash:     header.TxHash,
-		Root:       header.Root,
+		TxHash:     header.TxHash(),
+		Root:       header.Root(),
 		Uncles:     uncles,
 	}
 }
@@ -582,9 +582,9 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		// No indexes requested, send back the top ones
 		var head int64
 		if s.eth != nil {
-			head = s.eth.BlockChain().CurrentHeader().Number.Int64()
+			head = s.eth.BlockChain().CurrentHeader().Number().Int64()
 		} else {
-			head = s.les.BlockChain().CurrentHeader().Number.Int64()
+			head = s.les.BlockChain().CurrentHeader().Number().Int64()
 		}
 		start := head - historyUpdateRange + 1
 		if start < 0 {
@@ -598,7 +598,7 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 	history := make([]*blockStats, len(indexes))
 	for i, number := range indexes {
 		// Retrieve the next block if it's known to us
-		var block *types.Block
+		var block types.BlockIntf
 		if s.eth != nil {
 			block = s.eth.BlockChain().GetBlockByNumber(number)
 		} else {
@@ -687,13 +687,13 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		hashrate = int(s.eth.Miner().HashRate())
 
 		sync := s.eth.Downloader().Progress()
-		syncing = s.eth.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
+		syncing = s.eth.BlockChain().CurrentHeader().NumberU64() >= sync.HighestBlock
 
 		price, _ := s.eth.APIBackend.SuggestPrice(context.Background())
 		gasprice = int(price.Uint64())
 	} else {
 		sync := s.les.Downloader().Progress()
-		syncing = s.les.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
+		syncing = s.les.BlockChain().CurrentHeader().NumberU64() >= sync.HighestBlock
 	}
 	// Assemble the node stats and send it to the server
 	log.Trace("Sending node details to ethstats")

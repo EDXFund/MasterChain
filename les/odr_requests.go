@@ -114,12 +114,10 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if header == nil {
 		return errHeaderUnavailable
 	}
-	if header.TxHash != types.DeriveSha(types.Transactions(body.Transactions)) {
+	if header.TxHash() != types.DeriveSha(types.ShardBlockInfos(body.Transactions)) {
 		return errTxHashMismatch
 	}
-	if header.UncleHash != types.CalcUncleHash(body.Uncles) {
-		return errUncleHashMismatch
-	}
+
 	// Validations passed, encode and store RLP
 	data, err := rlp.EncodeToBytes(body)
 	if err != nil {
@@ -170,7 +168,7 @@ func (r *ReceiptsRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if header == nil {
 		return errHeaderUnavailable
 	}
-	if header.ReceiptHash != types.DeriveSha(receipt) {
+	if header.ReceiptHash() != types.DeriveSha(receipt) {
 		return errReceiptHashMismatch
 	}
 	// Validations passed, store and return
@@ -340,7 +338,7 @@ type ChtReq struct {
 
 // legacy LES/1
 type ChtResp struct {
-	Header *types.Header
+	Header types.HeaderIntf
 	Proof  []rlp.RawValue
 }
 
@@ -464,7 +462,7 @@ func (r *ChtRequest) Validate(db ethdb.Database, msg *Msg) error {
 		if node.Hash != header.Hash() {
 			return errCHTHashMismatch
 		}
-		if r.BlockNum != header.Number.Uint64() {
+		if r.BlockNum != header.NumberU64() {
 			return errCHTNumberMismatch
 		}
 		// Verifications passed, store and return

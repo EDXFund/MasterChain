@@ -62,12 +62,14 @@ type shardBodyPack struct {
 
 func (p *bodyPack) PeerId() string { return p.peerID }
 func (p *bodyPack) Items() int {
-	if len(p.transactions) <= len(p.uncles) {
+	if len(p.transactions) <= len(p.results) && len(p.transactions) <= len(p.shardBlocks) {
 		return len(p.transactions)
+	} else if len(p.shardBlocks) <= len(p.results) {
+		return len(p.shardBlocks)
 	}
-	return len(p.uncles)
+	return len(p.results)
 }
-func (p *bodyPack) Stats() string { return fmt.Sprintf("%d:%d", len(p.transactions), len(p.uncles)) }
+func (p *bodyPack) Stats() string { return fmt.Sprintf("%d:%d:%d", len(p.shardBlocks),len(p.transactions),len(p.results)) }
 
 
 func (p *shardBodyPack) PeerId() string { return p.peerID }

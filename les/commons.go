@@ -111,7 +111,7 @@ func (c *lesCommons) nodeInfo() interface{} {
 	hash := head.Hash()
 	return &NodeInfo{
 		Network:    c.config.NetworkId,
-		Difficulty: chain.GetTd(hash, head.Number.Uint64()),
+		Difficulty: chain.GetTd(hash, head.NumberU64()),
 		Genesis:    chain.Genesis().Hash(),
 		Config:     chain.Config(),
 		Head:       chain.CurrentHeader().Hash(),

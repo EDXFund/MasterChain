@@ -157,6 +157,11 @@ var (
 		Usage: "Document Root for HTTPClient file scheme",
 		Value: DirectoryString{homeDir()},
 	}
+	ShardFlag = cli.UintFlag{
+		Name:  "shard",
+		Value: 0xffff,
+		Usage: "shard id: 65535 for master node, 0-511 for verfication node",
+	}
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
 		Name:  "syncmode",
@@ -1146,7 +1151,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(NetworkIdFlag.Name) {
 		cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
 	}
-
+	if ctx.GlobalIsSet(ShardFlag.Name) {
+		cfg.ShardId = uint16(ctx.GlobalUint(ShardFlag.Name))
+	}else {
+		cfg.ShardId = 0xFFFF
+	}
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheDatabaseFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheDatabaseFlag.Name) / 100
 	}
@@ -1401,7 +1410,8 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		cache.TrieNodeLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
 	}
 	vmcfg := vm.Config{EnablePreimageRecording: ctx.GlobalBool(VMEnableDebugFlag.Name)}
-	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil)
+	shardId := uint16(ctx.GlobalInt(ShardFlag.Name))
+	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil,shardId)
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
 	}

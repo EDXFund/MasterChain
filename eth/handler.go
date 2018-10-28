@@ -730,10 +730,10 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 	hash := block.Hash()
 	shardId := block.ShardId()
 	//peers of this shard
-	peers := pm.peers.ShardPeersWithoutBlock(shardId,hash)
+	peers := pm.peers.PeersWithoutShardBlock(shardId,hash)
 	//broadcast to all master chain peers
-	master_peers := pm.peers.ShardPeersWithoutBlock(types.ShardMaster,hash)
-	peers = append(peers,master_peers...)
+	masterPeers := pm.peers.PeersWithoutShardBlock(types.ShardMaster,hash)
+	peers = append(peers,masterPeers...)
 	// If propagation is requested, send to a subset of the peer
 	if propagate {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
@@ -754,7 +754,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 		}
 		transfer := peers[:transferLen]
 		for _, peer := range transfer {
-			peer.AsyncSendNewShardBlock(block, td)
+			peer.AsyncSendNewBlock(block, td)
 		}
 		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt())))
 		return
@@ -762,7 +762,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 	// Otherwise if the block is indeed in out own chain, announce it
 	if pm.blockchain.HasBlock(hash, block.NumberU64()) {
 		for _, peer := range peers {
-			peer.AsyncSendNewShardBlockHash(block)
+			peer.AsyncSendNewBlockHash(block)
 		}
 		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt())))
 	}
@@ -795,7 +795,7 @@ func (pm *ProtocolManager) BroadcastBlock(block types.BlockIntf, propagate bool)
 		for _, peer := range transfer {
 			peer.AsyncSendNewBlock(block, td)
 		}
-		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt())))
 		return
 	}
 	// Otherwise if the block is indeed in out own chain, announce it
@@ -803,7 +803,7 @@ func (pm *ProtocolManager) BroadcastBlock(block types.BlockIntf, propagate bool)
 		for _, peer := range peers {
 			peer.AsyncSendNewBlockHash(block)
 		}
-		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
+		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt())))
 	}
 }
 
@@ -815,12 +815,11 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 	// Broadcast transactions to a batch of peers not knowing about it
 	for _, tx := range txs {
 		shardId := pm.blockchain.TxShardByHash(tx.Hash())
-		peers := pm.peers.PeersWithoutTx(tx.Hash())
+		peers := pm.peers.MasterPeersWithoutTx(tx.Hash())
+		peers = append(peers,pm.peers.ShardPeersWithoutTx(shardId,tx.Hash())...)
 		for _, peer := range peers {
 			//// must to do
-			if peer.ShardId() == types.ShardMaster || shardId == peer.ShardId() {
-				txset[peer] = append(txset[peer], tx)
-			}
+			txset[peer] = append(txset[peer], tx)
 
 		}
 		log.Trace("Broadcast transaction", "hash", tx.Hash(), "recipients", len(peers))

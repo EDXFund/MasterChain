@@ -58,6 +58,7 @@ var DefaultConfig = Config{
 		Blocks:     20,
 		Percentile: 60,
 	},
+	ShardId:0xFFFF,
 }
 
 func init() {
@@ -126,6 +127,7 @@ type Config struct {
 	EWASMInterpreter string
 	// Type of the EVM interpreter ("" for default)
 	EVMInterpreter string
+	ShardId   uint16
 }
 
 type configMarshaling struct {

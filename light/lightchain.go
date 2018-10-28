@@ -122,7 +122,9 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	}
 	return bc, nil
 }
-
+func (self *LightChain) ShardId() uint16 {
+	return self.shardId
+}
 // addTrustedCheckpoint adds a trusted checkpoint to the blockchain
 func (self *LightChain) addTrustedCheckpoint(cp *params.TrustedCheckpoint) {
 	if self.odr.ChtIndexer() != nil {
@@ -212,7 +214,7 @@ func (bc *LightChain) ResetWithGenesisBlock(genesis types.BlockIntf) {
 func (bc *LightChain) Engine() consensus.Engine { return bc.engine }
 
 // Genesis returns the genesis block
-func (bc *LightChain) Genesis() *types.Block {
+func (bc *LightChain) Genesis() types.BlockIntf {
 	return bc.genesisBlock
 }
 
