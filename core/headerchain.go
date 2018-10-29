@@ -23,6 +23,7 @@ import (
 	"math"
 	"math/big"
 	mrand "math/rand"
+	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -94,7 +95,7 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	}
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
-	if hc.genesisHeader == nil {
+	if  hc.genesisHeader == nil  || reflect.ValueOf(hc.genesisHeader).IsNil() {
 		return nil, ErrNoGenesis
 	}
 
@@ -305,14 +306,14 @@ func (hc *HeaderChain) InsertHeaderChain(chain []types.HeaderIntf, writeHeader W
 func (hc *HeaderChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []common.Hash {
 	// Get the origin header from which to fetch
 	header := hc.GetHeaderByHash(hash)
-	if header == nil {
+	if header == nil  || reflect.ValueOf(header).IsNil() {
 		return nil
 	}
 	// Iterate the headers until enough is collected or the genesis reached
 	chain := make([]common.Hash, 0, max)
 	for i := uint64(0); i < max; i++ {
 		next := header.ParentHash()
-		if header = hc.GetHeader(next, header.NumberU64()-1); header == nil {
+		if header = hc.GetHeader(next, header.NumberU64()-1); header == nil  || reflect.ValueOf(header).IsNil() {
 			break
 		}
 		chain = append(chain, next)
@@ -351,7 +352,7 @@ func (hc *HeaderChain) GetAncestor(hash common.Hash, number, ancestor uint64, ma
 		*maxNonCanonical--
 		ancestor--
 		header := hc.GetHeader(hash, number)
-		if header == nil {
+		if header == nil  || reflect.ValueOf(header).IsNil() {
 			return common.Hash{}, 0
 		}
 		hash = header.ParentHash()
@@ -486,8 +487,8 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	hc.headerCache.Purge()
 	hc.tdCache.Purge()
 	hc.numberCache.Purge()
-
-	if hc.CurrentHeader() == nil {
+	hch := hc.CurrentHeader()
+	if hch == nil  ||  reflect.ValueOf(hch).IsNil() {
 		hc.currentHeader.Store(hc.genesisHeader)
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()

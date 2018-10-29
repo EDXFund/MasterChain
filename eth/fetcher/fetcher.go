@@ -20,6 +20,7 @@ package fetcher
 import (
 	"errors"
 	"math/rand"
+	"reflect"
 	"time"
 
 	"github.com/EDXFund/MasterChain/common"
@@ -408,7 +409,8 @@ func (f *Fetcher) loop() {
 					f.forgetHash(hash)
 
 					// If the block still didn't arrive, queue for fetching
-					if f.getBlock(hash) == nil {
+					nBlock := f.getBlock(hash)
+					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
 						request[announce.origin] = append(request[announce.origin], hash)
 						f.fetching[hash] = announce
 					}
@@ -490,7 +492,8 @@ func (f *Fetcher) loop() {
 						continue
 					}
 					// Only keep if not imported by other means
-					if f.getBlock(hash) == nil {
+					nBlock := f.getBlock(hash)
+					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
 						announce.header = header
 						announce.time = task.time
 
@@ -588,7 +591,8 @@ func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
 
-					if f.getBlock(hash) == nil {
+					nBlock := f.getBlock(hash)
+					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
 						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
 						block.SetReceivedAt(task.time)
 
@@ -627,8 +631,8 @@ func procShardBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 				if txnHash == announce.header.Hash() && resultHash == announce.header.ReceiptHash() && announce.origin == task.peer {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
-
-					if f.getBlock(hash) == nil {
+					nBlock := f.getBlock(hash)
+					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
 						block := types.NewBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
 						block.SetReceivedAt(task.time)
 
@@ -732,7 +736,7 @@ func (f *Fetcher) insert(peer string, block types.BlockIntf) {
 
 		// If the parent's unknown, abort insertion
 		parent := f.getBlock(block.ParentHash())
-		if parent == nil {
+		if parent == nil || reflect.ValueOf(parent).IsNil() {
 			log.Debug("Unknown parent of propagated block", "peer", peer, "number", block.Number(), "hash", hash, "parent", block.ParentHash())
 			return
 		}

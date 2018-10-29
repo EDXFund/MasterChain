@@ -19,6 +19,7 @@ package gasprice
 import (
 	"context"
 	"math/big"
+	"reflect"
 	"sort"
 	"sync"
 
@@ -162,7 +163,7 @@ func (t transactionsByGasPrice) Less(i, j int) bool { return t[i].GasPrice().Cmp
 // and sends it to the result channel. If the block is empty, price is nil.
 func (gpo *Oracle) getBlockPrices(ctx context.Context, signer types.Signer, blockNum uint64, ch chan getBlockPricesResult) {
 	block, err := gpo.backend.BlockByNumber(ctx, rpc.BlockNumber(blockNum))
-	if block == nil {
+	if block == nil || reflect.ValueOf(block).IsNil() {
 		ch <- getBlockPricesResult{nil, err}
 		return
 	}

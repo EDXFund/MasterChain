@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"reflect"
 	"sync"
 	"time"
 
@@ -436,7 +437,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			} else {
 				origin = pm.blockchain.GetHeaderByNumber(query.Origin.Number)
 			}
-			if origin == nil {
+			if origin  == nil || reflect.ValueOf(origin).IsNil() {
 				break
 			}
 			headers = append(headers, origin)
@@ -668,7 +669,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				results = rawdb.ReadReceipts(pm.chainDb, hash, *number)
 			}
 			if results == nil {
-				if header := pm.blockchain.GetHeaderByHash(hash); header == nil || header.ReceiptHash() != types.EmptyRootHash {
+				if header := pm.blockchain.GetHeaderByHash(hash); header  == nil || reflect.ValueOf(header).IsNil() || header.ReceiptHash() != types.EmptyRootHash {
 					continue
 				}
 			}

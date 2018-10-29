@@ -19,6 +19,7 @@ package rawdb
 import (
 	"bytes"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/EDXFund/MasterChain/common"
@@ -34,17 +35,17 @@ func TestHeaderStorage(t *testing.T) {
 
 	// Create a test header to move around the database and make sure it's really new
 	header := &types.Header{Number: big.NewInt(42), Extra: []byte("test header")}
-	if entry := ReadHeader(db, header.Hash(), header.Number.Uint64()); entry != nil {
+	if entry := ReadHeader(db, header.Hash(), header.NumberU64()); reflect.ValueOf(entry).IsValid()  {
 		t.Fatalf("Non existent header returned: %v", entry)
 	}
 	// Write and verify the header in the database
 	WriteHeader(db, header)
-	if entry := ReadHeader(db, header.Hash(), header.Number.Uint64()); entry == nil {
+	if entry := ReadHeader(db, header.Hash(), header.NumberU64());entry == nil  || reflect.ValueOf(entry).IsNil()  {
 		t.Fatalf("Stored header not found")
 	} else if entry.Hash() != header.Hash() {
 		t.Fatalf("Retrieved header mismatch: have %v, want %v", entry, header)
 	}
-	if entry := ReadHeaderRLP(db, header.Hash(), header.Number.Uint64()); entry == nil {
+	if entry := ReadHeaderRLP(db, header.Hash(), header.NumberU64()); entry == nil {
 		t.Fatalf("Stored header RLP not found")
 	} else {
 		hasher := sha3.NewKeccak256()
@@ -55,8 +56,8 @@ func TestHeaderStorage(t *testing.T) {
 		}
 	}
 	// Delete the header and verify the execution
-	DeleteHeader(db, header.Hash(), header.Number.Uint64())
-	if entry := ReadHeader(db, header.Hash(), header.Number.Uint64()); entry != nil {
+	DeleteHeader(db, header.Hash(), header.NumberU64())
+	if entry := ReadHeader(db, header.Hash(), header.NumberU64()); entry != nil {
 		t.Fatalf("Deleted header returned: %v", entry)
 	}
 }
@@ -77,12 +78,12 @@ func TestBodyStorage(t *testing.T) {
 	}
 	// Write and verify the body in the database
 	WriteBody(db, hash, 0, body)
-	if entry := ReadBody(db, hash, 0); entry == nil {
+	if entry := ReadBody(db, hash, 0); entry == nil  || reflect.ValueOf(entry).IsNil()  {
 		t.Fatalf("Stored body not found")
 	} else if types.DeriveSha(types.Transactions(entry.Transactions)) != types.DeriveSha(types.Transactions(body.Transactions)) || types.CalcUncleHash(entry.Uncles) != types.CalcUncleHash(body.Uncles) {
 		t.Fatalf("Retrieved body mismatch: have %v, want %v", entry, body)
 	}
-	if entry := ReadBodyRLP(db, hash, 0); entry == nil {
+	if entry := ReadBodyRLP(db, hash, 0);reflect.ValueOf(entry).IsNil()  {
 		t.Fatalf("Stored body RLP not found")
 	} else {
 		hasher := sha3.NewKeccak256()
@@ -121,7 +122,7 @@ func TestBlockStorage(t *testing.T) {
 	}
 	// Write and verify the block in the database
 	WriteBlock(db, block)
-	if entry := ReadBlock(db, block.Hash(), block.NumberU64()); entry == nil {
+	if entry := ReadBlock(db, block.Hash(), block.NumberU64()); reflect.ValueOf(entry).IsNil()  {
 		t.Fatalf("Stored block not found")
 	} else if entry.Hash() != block.Hash() {
 		t.Fatalf("Retrieved block mismatch: have %v, want %v", entry, block)
@@ -176,7 +177,7 @@ func TestPartialBlockStorage(t *testing.T) {
 	WriteHeader(db, block.Header())
 	WriteBody(db, block.Hash(), block.NumberU64(), block.Body())
 
-	if entry := ReadBlock(db, block.Hash(), block.NumberU64()); entry == nil {
+	if entry := ReadBlock(db, block.Hash(), block.NumberU64()); reflect.ValueOf(entry).IsNil() {
 		t.Fatalf("Stored block not found")
 	} else if entry.Hash() != block.Hash() {
 		t.Fatalf("Retrieved block mismatch: have %v, want %v", entry, block)

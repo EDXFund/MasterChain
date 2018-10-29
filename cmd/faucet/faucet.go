@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -328,7 +329,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		nonce   uint64
 		err     error
 	)
-	for head == nil || balance == nil {
+	for head == nil  || reflect.ValueOf(head).IsNil() || balance == nil {
 		// Retrieve the current stats cached by the faucet
 		f.lock.RLock()
 		if f.head != nil {
@@ -340,7 +341,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		nonce = f.nonce
 		f.lock.RUnlock()
 
-		if head == nil || balance == nil {
+		if head == nil  || reflect.ValueOf(head).IsNil() || balance == nil {
 			// Report the faucet offline until initial stats are ready
 			if err = sendError(conn, errors.New("Faucet offline")); err != nil {
 				log.Warn("Failed to send faucet error to client", "err", err)
@@ -530,7 +531,7 @@ func (f *faucet) refresh(head types.HeaderIntf) error {
 
 	// If no header was specified, use the current chain head
 	var err error
-	if head == nil {
+	if head == nil  || reflect.ValueOf(head).IsNil() {
 		if head, err = f.client.HeaderByNumber(ctx, nil); err != nil {
 			return err
 		}

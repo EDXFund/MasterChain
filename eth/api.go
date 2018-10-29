@@ -24,6 +24,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -275,7 +276,7 @@ func (api *PublicDebugAPI) DumpBlock(blockNr rpc.BlockNumber) (state.Dump, error
 	} else {
 		block = api.eth.blockchain.GetBlockByNumber(uint64(blockNr))
 	}
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil()  {
 		return state.Dump{}, fmt.Errorf("block #%d not found", blockNr)
 	}
 	stateDb, err := api.eth.BlockChain().StateAt(block.Root())
@@ -394,19 +395,19 @@ func (api *PrivateDebugAPI) GetModifiedAccountsByNumber(startNum uint64, endNum 
 	var startBlock, endBlock types.BlockIntf
 
 	startBlock = api.eth.blockchain.GetBlockByNumber(startNum)
-	if startBlock == nil {
+	if startBlock == nil  || reflect.ValueOf(startBlock).IsNil()  {
 		return nil, fmt.Errorf("start block %x not found", startNum)
 	}
 
 	if endNum == nil {
 		endBlock = startBlock
 		startBlock = api.eth.blockchain.GetBlockByHash(startBlock.ParentHash())
-		if startBlock == nil {
+		if startBlock == nil  || reflect.ValueOf(startBlock).IsNil()  {
 			return nil, fmt.Errorf("block %x has no parent", endBlock.Number())
 		}
 	} else {
 		endBlock = api.eth.blockchain.GetBlockByNumber(*endNum)
-		if endBlock == nil {
+		if endBlock == nil  || reflect.ValueOf(endBlock).IsNil()  {
 			return nil, fmt.Errorf("end block %d not found", *endNum)
 		}
 	}
@@ -421,19 +422,19 @@ func (api *PrivateDebugAPI) GetModifiedAccountsByNumber(startNum uint64, endNum 
 func (api *PrivateDebugAPI) GetModifiedAccountsByHash(startHash common.Hash, endHash *common.Hash) ([]common.Address, error) {
 	var startBlock, endBlock types.BlockIntf
 	startBlock = api.eth.blockchain.GetBlockByHash(startHash)
-	if startBlock == nil {
+	if startBlock == nil  || reflect.ValueOf(startBlock).IsNil()  {
 		return nil, fmt.Errorf("start block %x not found", startHash)
 	}
 
 	if endHash == nil {
 		endBlock = startBlock
 		startBlock = api.eth.blockchain.GetBlockByHash(startBlock.ParentHash())
-		if startBlock == nil {
+		if startBlock == nil  || reflect.ValueOf(startBlock).IsNil()  {
 			return nil, fmt.Errorf("block %x has no parent", endBlock.Number())
 		}
 	} else {
 		endBlock = api.eth.blockchain.GetBlockByHash(*endHash)
-		if endBlock == nil {
+		if endBlock == nil  || reflect.ValueOf(endBlock).IsNil()  {
 			return nil, fmt.Errorf("end block %x not found", *endHash)
 		}
 	}

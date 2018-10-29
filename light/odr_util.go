@@ -19,6 +19,7 @@ package light
 import (
 	"bytes"
 	"context"
+	"reflect"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core"
@@ -36,7 +37,7 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (type
 	if (hash != common.Hash{}) {
 		// if there is a canonical hash, there is a header too
 		header := rawdb.ReadHeader(db, hash, number)
-		if header == nil {
+		if header  == nil || reflect.ValueOf(header).IsNil() {
 			panic("Canonical hash present but header not found")
 		}
 		return header, nil
@@ -113,7 +114,7 @@ func GetBody(ctx context.Context, odr OdrBackend, hash common.Hash, number uint6
 func GetBlock(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) (types.BlockIntf, error) {
 	// Retrieve the block header and body contents
 	header := rawdb.ReadHeader(odr.Database(), hash, number)
-	if header == nil {
+	if header  == nil || reflect.ValueOf(header).IsNil() {
 		return nil, ErrNoHeader
 	}
 	body, err := GetBody(ctx, odr, hash, number)

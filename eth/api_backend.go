@@ -19,6 +19,7 @@ package eth
 import (
 	"context"
 	"math/big"
+	"reflect"
 
 	"github.com/EDXFund/MasterChain/accounts"
 	"github.com/EDXFund/MasterChain/common"
@@ -94,7 +95,7 @@ func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.
 	}
 	// Otherwise resolve the block number and return its state
 	header, err := b.HeaderByNumber(ctx, blockNr)
-	if header == nil || err != nil {
+	if header == nil  || reflect.ValueOf(header).IsNil()  || err != nil {
 		return nil, nil, err
 	}
 	stateDb, err := b.eth.BlockChain().StateAt(header.Root())

@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -113,10 +114,10 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 		to = api.eth.blockchain.GetBlockByNumber(uint64(end))
 	}
 	// Trace the chain if we've found all our blocks
-	if from == nil {
+	if from == nil  || reflect.ValueOf(from).IsNil()  {
 		return nil, fmt.Errorf("starting block #%d not found", start)
 	}
-	if to == nil {
+	if to == nil  || reflect.ValueOf(to).IsNil()  {
 		return nil, fmt.Errorf("end block #%d not found", end)
 	}
 	if from.Number().Cmp(to.Number()) >= 0 {
@@ -142,7 +143,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end types.Blo
 
 	if number := start.NumberU64(); number > 0 {
 		start = api.eth.blockchain.GetBlock(start.ParentHash(), start.NumberU64()-1)
-		if start == nil {
+		if start == nil  || reflect.ValueOf(start).IsNil()  {
 			return nil, fmt.Errorf("parent block #%d not found", number-1)
 		}
 	}
@@ -156,7 +157,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end types.Blo
 		// Find the most recent block that has the state available
 		for i := uint64(0); i < reexec; i++ {
 			start = api.eth.blockchain.GetBlock(start.ParentHash(), start.NumberU64()-1)
-			if start == nil {
+			if start == nil  || reflect.ValueOf(start).IsNil() {
 				break
 			}
 			if statedb, err = state.New(start.Root(), database); err == nil {
@@ -263,7 +264,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end types.Blo
 			}
 			// Retrieve the next block to trace
 			block := api.eth.blockchain.GetBlockByNumber(number)
-			if block == nil {
+			if block == nil  || reflect.ValueOf(block).IsNil()  {
 				failed = fmt.Errorf("block #%d not found", number)
 				break
 			}
@@ -355,7 +356,7 @@ func (api *PrivateDebugAPI) TraceBlockByNumber(ctx context.Context, number rpc.B
 		block = api.eth.blockchain.GetBlockByNumber(uint64(number))
 	}
 	// Trace the block if it was found
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil()  {
 		return nil, fmt.Errorf("block #%d not found", number)
 	}
 	return api.traceBlock(ctx, block, config)
@@ -365,7 +366,7 @@ func (api *PrivateDebugAPI) TraceBlockByNumber(ctx context.Context, number rpc.B
 // EVM and returns them as a JSON object.
 func (api *PrivateDebugAPI) TraceBlockByHash(ctx context.Context, hash common.Hash, config *TraceConfig) ([]*txTraceResult, error) {
 	block := api.eth.blockchain.GetBlockByHash(hash)
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil()  {
 		return nil, fmt.Errorf("block #%x not found", hash)
 	}
 	return api.traceBlock(ctx, block, config)
@@ -409,7 +410,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block types.BlockInt
 		return nil, err
 	}
 	parent := api.eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
-	if parent == nil {
+	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
 		return nil, fmt.Errorf("parent %x not found", block.ParentHash())
 	}
 	reexec := defaultTraceReexec
@@ -496,7 +497,7 @@ func (api *PrivateDebugAPI) computeStateDB(block types.BlockIntf, reexec uint64)
 
 	for i := uint64(0); i < reexec; i++ {
 		block = api.eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
-		if block == nil {
+		if block == nil  || reflect.ValueOf(block).IsNil()  {
 			break
 		}
 		if statedb, err = state.New(block.Root(), database); err == nil {
@@ -524,7 +525,7 @@ func (api *PrivateDebugAPI) computeStateDB(block types.BlockIntf, reexec uint64)
 			logged = time.Now()
 		}
 		// Retrieve the next block to regenerate and process it
-		if block = api.eth.blockchain.GetBlockByNumber(block.NumberU64() + 1); block == nil {
+		if block = api.eth.blockchain.GetBlockByNumber(block.NumberU64() + 1); block == nil  || reflect.ValueOf(block).IsNil()  {
 			return nil, fmt.Errorf("block #%d not found", block.NumberU64()+1)
 		}
 		_, _, _, err := api.eth.blockchain.Processor().Process(block, statedb, vm.Config{})
@@ -635,11 +636,11 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, reexec uint64) (core.Message, vm.Context, *state.StateDB, error) {
 	// Create the parent state database
 	block := api.eth.blockchain.GetBlockByHash(blockHash)
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil()  {
 		return nil, vm.Context{}, nil, fmt.Errorf("block %x not found", blockHash)
 	}
 	parent := api.eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
-	if parent == nil {
+	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
 		return nil, vm.Context{}, nil, fmt.Errorf("parent %x not found", block.ParentHash())
 	}
 	statedb, err := api.computeStateDB(parent, reexec)

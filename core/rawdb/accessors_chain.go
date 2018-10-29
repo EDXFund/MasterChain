@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math/big"
+	"reflect"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
@@ -373,7 +374,7 @@ func DeleteReceipts(db DatabaseDeleter, hash common.Hash, number uint64) {
 // canonical hash can be stored in the database but the body data not (yet).
 func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) types.BlockIntf {
 	header := ReadHeader(db, hash, number)
-	if header == nil {
+	if header == nil || reflect.ValueOf(header).IsNil() {
 		return nil
 	}
 	body := ReadBody(db, hash, number)
@@ -401,23 +402,23 @@ func DeleteBlock(db DatabaseDeleter, hash common.Hash, number uint64) {
 func FindCommonAncestor(db DatabaseReader, a, b types.HeaderIntf) types.HeaderIntf {
 	for bn := b.NumberU64(); a.NumberU64() > bn; {
 		a = ReadHeader(db, a.ParentHash(), a.NumberU64()-1)
-		if a == nil {
+		if a == nil  || reflect.ValueOf(a).IsNil() {
 			return nil
 		}
 	}
 	for an := a.NumberU64(); an < b.NumberU64(); {
 		b = ReadHeader(db, b.ParentHash(), b.NumberU64()-1)
-		if b == nil {
+		if b == nil  || reflect.ValueOf(b).IsNil() {
 			return nil
 		}
 	}
 	for a.Hash() != b.Hash() {
 		a = ReadHeader(db, a.ParentHash(), a.NumberU64()-1)
-		if a == nil {
+		if a == nil  || reflect.ValueOf(a).IsNil() {
 			return nil
 		}
 		b = ReadHeader(db, b.ParentHash(), b.NumberU64()-1)
-		if b == nil {
+		if b == nil  || reflect.ValueOf(b).IsNil(){
 			return nil
 		}
 	}

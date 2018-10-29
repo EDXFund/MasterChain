@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/big"
 	mrand "math/rand"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,7 +181,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		return nil, err
 	}
 	bc.genesisBlock = bc.GetBlockByNumber(0)
-	if bc.genesisBlock == nil {
+	if bc.genesisBlock == nil  || reflect.ValueOf(bc.genesisBlock).IsNil()  {
 		return nil, ErrNoGenesis
 	}
 	if err := bc.loadLastState(); err != nil {
@@ -238,7 +239,7 @@ func (bc *BlockChain) loadLastState() error {
 	}
 	// Make sure the entire head block is available
 	currentBlock := bc.GetBlockByHash(head)
-	if currentBlock == nil {
+	if currentBlock == nil  || reflect.ValueOf(currentBlock).IsNil()  {
 		// Corrupt or empty database, init from scratch
 		log.Warn("Head block missing, resetting chain", "hash", head)
 		return bc.Reset()
@@ -278,7 +279,7 @@ func (bc *BlockChain) loadLastState() error {
 	blockTd := bc.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
 	fastTd := bc.GetTd(currentFastBlock.Hash(), currentFastBlock.NumberU64())
 
-	log.Info("Loaded most recent local header", "number", currentHeader.Number, "hash", currentHeader.Hash(), "td", headerTd, "age", common.PrettyAge(time.Unix(currentHeader.Time().Int64(), 0)))
+	log.Info("Loaded most recent local header", "number", currentHeader.Number(), "hash", currentHeader.Hash(), "td", headerTd, "age", common.PrettyAge(time.Unix(currentHeader.Time().Int64(), 0)))
 	log.Info("Loaded most recent local full block", "number", currentBlock.Number(), "hash", currentBlock.Hash(), "td", blockTd, "age", common.PrettyAge(time.Unix(currentBlock.Time().Int64(), 0)))
 	log.Info("Loaded most recent local fast block", "number", currentFastBlock.Number(), "hash", currentFastBlock.Hash(), "td", fastTd, "age", common.PrettyAge(time.Unix(currentFastBlock.Time().Int64(), 0)))
 
@@ -324,10 +325,10 @@ func (bc *BlockChain) SetHead(head uint64) error {
 		bc.currentFastBlock.Store(bc.GetBlock(currentHeader.Hash(), currentHeader.NumberU64()))
 	}
 	// If either blocks reached nil, reset to the genesis state
-	if currentBlock := bc.CurrentBlock(); currentBlock == nil {
+	if currentBlock := bc.CurrentBlock(); currentBlock == nil  || reflect.ValueOf(currentBlock).IsNil() {
 		bc.currentBlock.Store(bc.genesisBlock)
 	}
-	if currentFastBlock := bc.CurrentFastBlock(); currentFastBlock == nil {
+	if currentFastBlock := bc.CurrentFastBlock(); currentFastBlock == nil  || reflect.ValueOf(currentFastBlock).IsNil() {
 		bc.currentFastBlock.Store(bc.genesisBlock)
 	}
 	currentBlock := bc.CurrentBlock()
@@ -344,7 +345,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 func (bc *BlockChain) FastSyncCommitHead(hash common.Hash) error {
 	// Make sure that both the block as well at its state trie exists
 	block := bc.GetBlockByHash(hash)
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil() {
 		return fmt.Errorf("non existent block [%x…]", hash[:4])
 	}
 	if _, err := trie.NewSecure(block.Root(), bc.stateCache.TrieDB(), 0); err != nil {
@@ -482,7 +483,7 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 	start, reported := time.Now(), time.Now()
 	for nr := first; nr <= last; nr++ {
 		block := bc.GetBlockByNumber(nr)
-		if block == nil {
+		if block == nil  || reflect.ValueOf(block).IsNil() {
 			return fmt.Errorf("export failed on #%d: not found", nr)
 		}
 		if err := block.EncodeRLP(w); err != nil {
@@ -587,7 +588,7 @@ func (bc *BlockChain) HasState(hash common.Hash) bool {
 func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 	// Check first that the block itself is known
 	block := bc.GetBlock(hash, number)
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil() {
 		return false
 	}
 	return bc.HasState(block.Root())
@@ -601,7 +602,7 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf 
 		return block.(types.BlockIntf)
 	}
 	block := rawdb.ReadBlock(bc.db, hash, number)
-	if block == nil {
+	if block == nil  || reflect.ValueOf(block).IsNil() {
 		return nil
 	}
 	// Cache the found block for next time and return
@@ -653,7 +654,7 @@ func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) (blocks []types
 	}
 	for i := 0; i < n; i++ {
 		block := bc.GetBlock(hash, *number)
-		if block == nil {
+		if block == nil  || reflect.ValueOf(block).IsNil() {
 			break
 		}
 		blocks = append(blocks, block)
@@ -1361,10 +1362,10 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 			newChain = append(newChain, newBlock)
 		}
 	}
-	if oldBlock == nil {
+	if oldBlock == nil  || reflect.ValueOf(oldBlock).IsNil() {
 		return fmt.Errorf("Invalid old chain")
 	}
-	if newBlock == nil {
+	if newBlock == nil  || reflect.ValueOf(newBlock).IsNil() {
 		return fmt.Errorf("Invalid new chain")
 	}
 
@@ -1380,10 +1381,10 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 		collectLogs(oldBlock.Hash())
 
 		oldBlock, newBlock = bc.GetBlock(oldBlock.ParentHash(), oldBlock.NumberU64()-1), bc.GetBlock(newBlock.ParentHash(), newBlock.NumberU64()-1)
-		if oldBlock == nil {
+		if oldBlock == nil  || reflect.ValueOf(oldBlock).IsNil() {
 			return fmt.Errorf("Invalid old chain")
 		}
-		if newBlock == nil {
+		if newBlock == nil  || reflect.ValueOf(newBlock).IsNil() {
 			return fmt.Errorf("Invalid new chain")
 		}
 	}

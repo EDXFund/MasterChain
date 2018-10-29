@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -374,7 +375,7 @@ func (es *EventSystem) broadcast(filters filterIndex, ev interface{}) {
 func (es *EventSystem) lightFilterNewHead(newHeader types.HeaderIntf, callBack func(types.HeaderIntf, bool)) {
 	oldh := es.lastHead
 	es.lastHead = newHeader
-	if oldh == nil {
+	if oldh == nil || reflect.ValueOf(oldh).IsNil() {
 		return
 	}
 	newh := newHeader
@@ -388,7 +389,7 @@ func (es *EventSystem) lightFilterNewHead(newHeader types.HeaderIntf, callBack f
 		if oldh.NumberU64() < newh.NumberU64() {
 			newHeaders = append(newHeaders, newh)
 			newh = rawdb.ReadHeader(es.backend.ChainDb(), newh.ParentHash(), newh.NumberU64()-1)
-			if newh == nil {
+			if newh == nil || reflect.ValueOf(newh).IsNil() {
 				// happens when CHT syncing, nothing to do
 				newh = oldh
 			}

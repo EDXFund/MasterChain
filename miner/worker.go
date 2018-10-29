@@ -19,7 +19,9 @@ package miner
 import (
 	"bytes"
 	"errors"
+	//"github.com/golang/dep/gps"
 	"math/big"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -547,7 +549,7 @@ func (w *worker) resultLoop() {
 		select {
 		case block := <-w.resultCh:
 			// Short circuit when receiving empty result.
-			if block == nil {
+			if block == nil || reflect.ValueOf(block).IsNil() {
 				continue
 			}
 			// Short circuit when receiving duplicate result caused by resubmitting.

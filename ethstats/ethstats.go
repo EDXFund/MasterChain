@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -529,7 +530,7 @@ func (s *Service) assembleBlockStats(block types.BlockIntf) *blockStats {
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
-		if block == nil {
+		if block  == nil || reflect.ValueOf(block).IsNil() {
 			block = s.eth.BlockChain().CurrentBlock()
 		}
 		header = block.Header()

@@ -25,6 +25,7 @@ import (
 	"math/big"
 	"math/rand"
 	"net/http"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -250,13 +251,13 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 	// whether the solution was accepted or not (not can be both a bad pow as well as
 	// any other error, like no pending work or stale mining result).
 	submitWork := func(nonce types.BlockNonce, mixDigest common.Hash, sealhash common.Hash) bool {
-		if currentBlock == nil {
+		if currentBlock == nil  || reflect.ValueOf(currentBlock).IsNil()  {
 			log.Error("Pending work without block", "sealhash", sealhash)
 			return false
 		}
 		// Make sure the work submitted is present
 		block := works[sealhash]
-		if block == nil {
+		if block == nil  || reflect.ValueOf(block).IsNil()  {
 			log.Warn("Work submitted but none pending", "sealhash", sealhash, "curnumber", currentBlock.NumberU64())
 			return false
 		}
@@ -273,7 +274,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 			}
 		}
 		// Make sure the result channel is assigned.
-		if results == nil {
+		if results == nil  || reflect.ValueOf(results).IsNil()  {
 			log.Warn("Ethash result channel is empty, submitted mining result is rejected")
 			return false
 		}
@@ -315,7 +316,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 
 		case work := <-ethash.fetchWorkCh:
 			// Return current mining work to remote miner.
-			if currentBlock == nil {
+			if currentBlock == nil  || reflect.ValueOf(currentBlock).IsNil()  {
 				work.errc <- errNoMiningWork
 			} else {
 				work.res <- currentWork

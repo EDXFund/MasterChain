@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 	"runtime"
 	"time"
 
@@ -93,7 +94,7 @@ func (ethash *Ethash) VerifyHeader(chain consensus.ChainReader, header types.Hea
 		return nil
 	}
 	parent := chain.GetHeader(header.ParentHash(), number-1)
-	if parent == nil {
+	if parent == nil  ||  reflect.ValueOf(parent).IsNil()  {
 		return consensus.ErrUnknownAncestor
 	}
 	// Sanity checks passed, do a proper verification
@@ -173,7 +174,7 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 	} else if headers[index-1].Hash() == headers[index].ParentHash() {
 		parent = headers[index-1]
 	}
-	if parent == nil {
+	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
 		return consensus.ErrUnknownAncestor
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].NumberU64()) != nil {
@@ -199,7 +200,7 @@ func (ethash *Ethash) VerifyUncles(chain consensus.ChainReader, block types.Bloc
 	number, parent := block.NumberU64()-1, block.ParentHash()
 	for i := 0; i < 7; i++ {
 		ancestor := chain.GetBlock(parent, number)
-		if ancestor == nil {
+		if ancestor == nil  || reflect.ValueOf(ancestor).IsNil()  {
 			break
 		}
 		ancestors[ancestor.Hash()] = ancestor.Header()
@@ -224,7 +225,8 @@ func (ethash *Ethash) VerifyUncles(chain consensus.ChainReader, block types.Bloc
 		if ancestors[hash] != nil {
 			return errUncleIsAncestor
 		}
-		if ancestors[uncle.ParentHash()] == nil || uncle.ParentHash() == block.ParentHash() {
+		val := ancestors[uncle.ParentHash()]
+		if val == nil  || reflect.ValueOf(val).IsNil()  || uncle.ParentHash() == block.ParentHash() {
 			return errDanglingUncle
 		}
 		if err := ethash.verifyHeader(chain, uncle, ancestors[uncle.ParentHash()].ToHeader(), true, true); err != nil {
@@ -557,7 +559,7 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 // header to conform to the ethash protocol. The changes are done inline.
 func (ethash *Ethash) Prepare(chain consensus.ChainReader, header types.HeaderIntf) error {
 	parent := chain.GetHeader(header.ParentHash(), header.NumberU64()-1)
-	if parent == nil {
+	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
 		return consensus.ErrUnknownAncestor
 	}
 	header.SetDifficulty (ethash.CalcDifficulty(chain, header.Time().Uint64(), parent))

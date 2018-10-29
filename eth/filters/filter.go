@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"reflect"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core"
@@ -123,14 +124,14 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.Log, error) {
 		if err != nil {
 			return nil, err
 		}
-		if header == nil {
+		if  header == nil || reflect.ValueOf(header).IsNil(){
 			return nil, errors.New("unknown block")
 		}
 		return f.blockLogs(ctx, header)
 	}
 	// Figure out the limits of the filter range
 	header, _ := f.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
-	if header == nil {
+	if header == nil || reflect.ValueOf(header).IsNil() {
 		return nil, nil
 	}
 	head := header.NumberU64()
@@ -195,7 +196,7 @@ func (f *Filter) indexedLogs(ctx context.Context, end uint64) ([]*types.Log, err
 
 			// Retrieve the suggested block and pull any truly matching logs
 			header, err := f.backend.HeaderByNumber(ctx, rpc.BlockNumber(number))
-			if header == nil || err != nil {
+			if header == nil || reflect.ValueOf(header).IsNil() || err != nil {
 				return logs, err
 			}
 			found, err := f.checkMatches(ctx, header)
@@ -217,7 +218,7 @@ func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.Log, e
 
 	for ; f.begin <= int64(end); f.begin++ {
 		header, err := f.backend.HeaderByNumber(ctx, rpc.BlockNumber(f.begin))
-		if header == nil || err != nil {
+		if header == nil || reflect.ValueOf(header).IsNil() || err != nil {
 			return logs, err
 		}
 		found, err := f.blockLogs(ctx, header)

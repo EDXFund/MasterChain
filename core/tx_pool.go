@@ -24,6 +24,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"reflect"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/prque"
@@ -374,26 +375,26 @@ func (pool *TxPool) reset(oldHead, newHead types.HeaderIntf) {
 			)
 			for rem.NumberU64() > add.NumberU64() {
 				discarded = append(discarded, rem.Transactions()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil {
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 			}
 			for add.NumberU64() > rem.NumberU64() {
 				included = append(included, add.Transactions()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil {
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
 			}
 			for rem.Hash() != add.Hash() {
 				discarded = append(discarded, rem.Transactions()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil {
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 				included = append(included, add.Transactions()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil {
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
@@ -402,7 +403,7 @@ func (pool *TxPool) reset(oldHead, newHead types.HeaderIntf) {
 		}
 	}
 	// Initialize the internal state to the current head
-	if newHead == nil {
+	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
 		newHead = pool.chain.CurrentBlock().Header() // Special case during testing
 	}
 	statedb, err := pool.chain.StateAt(newHead.Root())

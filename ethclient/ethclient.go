@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 
 	"github.com/EDXFund/MasterChain"
 	"github.com/EDXFund/MasterChain/common"
@@ -133,7 +134,7 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 			if reqs[i].Error != nil {
 				return nil, reqs[i].Error
 			}
-			if uncles[i] == nil {
+			if uncles[i] == nil || reflect.ValueOf(uncles[i]).IsNil() {
 				return nil, fmt.Errorf("got null header for uncle %d of block %x", i, body.Hash[:])
 			}
 		}
@@ -153,7 +154,7 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 func (ec *Client) HeaderByHash(ctx context.Context, hash common.Hash) (types.HeaderIntf, error) {
 	var head types.HeaderIntf
 	err := ec.c.CallContext(ctx, &head, "eth_getBlockByHash", hash, false)
-	if err == nil && head == nil {
+	if err == nil && (head == nil || reflect.ValueOf(head).IsNil() ){
 		err = ethereum.NotFound
 	}
 	return head, err
@@ -164,7 +165,7 @@ func (ec *Client) HeaderByHash(ctx context.Context, hash common.Hash) (types.Hea
 func (ec *Client) HeaderByNumber(ctx context.Context, number *big.Int) (types.HeaderIntf, error) {
 	var head types.HeaderIntf
 	err := ec.c.CallContext(ctx, &head, "eth_getBlockByNumber", toBlockNumArg(number), false)
-	if err == nil && head == nil {
+	if err == nil && (head  == nil || reflect.ValueOf(head).IsNil()){
 		err = ethereum.NotFound
 	}
 	return head, err

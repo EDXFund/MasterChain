@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 
@@ -108,7 +109,7 @@ func odrGetBlock(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc
 	} else {
 		block, _ = lc.GetBlockByHash(ctx, bhash)
 	}
-	if block == nil {
+	if block  == nil || reflect.ValueOf(block).IsNil() {
 		return nil, nil
 	}
 	rlp, _ := rlp.EncodeToBytes(block)

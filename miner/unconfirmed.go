@@ -18,6 +18,7 @@ package miner
 
 import (
 	"container/ring"
+	"reflect"
 	"sync"
 
 	"github.com/EDXFund/MasterChain/common"
@@ -101,7 +102,7 @@ func (set *unconfirmedBlocks) Shift(height uint64) {
 		// Block seems to exceed depth allowance, check for canonical status
 		header := set.chain.GetHeaderByNumber(next.index)
 		switch {
-		case header == nil:
+		case header == nil || reflect.ValueOf(header).IsNil():
 			log.Warn("Failed to retrieve header of mined block", "number", next.index, "hash", next.hash)
 		case header.Hash() == next.hash:
 			log.Info("🔗 block reached canonical chain", "number", next.index, "hash", next.hash)

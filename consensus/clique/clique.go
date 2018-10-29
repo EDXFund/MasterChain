@@ -22,6 +22,7 @@ import (
 	"errors"
 	"math/big"
 	"math/rand"
+	"reflect"
 	"sync"
 	"time"
 
@@ -431,7 +432,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
-			if header == nil {
+			if header == nil  || reflect.ValueOf(header).IsNil()  {
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
@@ -576,7 +577,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header types.HeaderIntf) e
 
 	// Ensure the timestamp has the correct delay
 	parent := chain.GetHeader(header.ParentHash(), number-1)
-	if parent == nil {
+	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
 		return consensus.ErrUnknownAncestor
 	}
 	header.SetTime(new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(c.config.Period)))

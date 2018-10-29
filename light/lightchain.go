@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -490,7 +491,7 @@ func (self *LightChain) SyncCht(ctx context.Context) bool {
 		return false
 	}
 	// Retrieve the latest useful header and update to it
-	if header, err := GetHeaderByNumber(ctx, self.odr, latest); header != nil && err == nil {
+	if header, err := GetHeaderByNumber(ctx, self.odr, latest); header == nil || reflect.ValueOf(header).IsNil() && err == nil {
 		self.mu.Lock()
 		defer self.mu.Unlock()
 

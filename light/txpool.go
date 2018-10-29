@@ -19,6 +19,7 @@ package light
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -232,7 +233,7 @@ func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader types.HeaderIn
 		if oldh.NumberU64() < newh.NumberU64() {
 			newHashes = append(newHashes, newh.Hash())
 			newh = pool.chain.GetHeader(newh.ParentHash(), newh.NumberU64()-1).ToHeader()
-			if newh == nil {
+			if newh == nil || reflect.ValueOf(newh).IsNil() {
 				// happens when CHT syncing, nothing to do
 				newh = oldh.ToHeader()
 			}

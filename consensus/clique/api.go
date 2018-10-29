@@ -21,6 +21,7 @@ import (
 	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/rpc"
+	"reflect"
 )
 
 // API is a user facing RPC API to allow controlling the signer and voting
@@ -40,7 +41,7 @@ func (api *API) GetSnapshot(number *rpc.BlockNumber) (*Snapshot, error) {
 		header = api.chain.GetHeaderByNumber(uint64(number.Int64()))
 	}
 	// Ensure we have an actually valid block and return its snapshot
-	if header == nil {
+	if header == nil  || reflect.ValueOf(header).IsNil() {
 		return nil, errUnknownBlock
 	}
 	return api.clique.snapshot(api.chain, header.NumberU64(), header.Hash(), nil)
@@ -49,7 +50,7 @@ func (api *API) GetSnapshot(number *rpc.BlockNumber) (*Snapshot, error) {
 // GetSnapshotAtHash retrieves the state snapshot at a given block.
 func (api *API) GetSnapshotAtHash(hash common.Hash) (*Snapshot, error) {
 	header := api.chain.GetHeaderByHash(hash)
-	if header == nil {
+	if header == nil  || reflect.ValueOf(header).IsNil() {
 		return nil, errUnknownBlock
 	}
 	return api.clique.snapshot(api.chain, header.NumberU64(), header.Hash(), nil)
@@ -65,7 +66,7 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 		header = api.chain.GetHeaderByNumber(uint64(number.Int64()))
 	}
 	// Ensure we have an actually valid block and return the signers from its snapshot
-	if header == nil {
+	if header == nil  || reflect.ValueOf(header).IsNil()  {
 		return nil, errUnknownBlock
 	}
 	snap, err := api.clique.snapshot(api.chain, header.NumberU64(), header.Hash(), nil)
@@ -78,7 +79,7 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 // GetSignersAtHash retrieves the list of authorized signers at the specified block.
 func (api *API) GetSignersAtHash(hash common.Hash) ([]common.Address, error) {
 	header := api.chain.GetHeaderByHash(hash)
-	if header == nil {
+	if header == nil  || reflect.ValueOf(header).IsNil()  {
 		return nil, errUnknownBlock
 	}
 	snap, err := api.clique.snapshot(api.chain, header.NumberU64(), header.Hash(), nil)
