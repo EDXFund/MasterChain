@@ -96,6 +96,24 @@ func (h *Header) FillBy(h2 *HeaderStruct){
 	h.mixDigest = h2.MixDigest
 	h.nonce	    = h2.Nonce
 }
+func (h *Header) ToHeaderStruct() *HeaderStruct {
+	return &HeaderStruct{
+		ParentHash:h.parentHash,
+		Root:h.root,
+		TxHash:h.txHash,
+		ReceiptHash:h.receiptHash,
+		Bloom:h.bloom,
+		BloomReject:h.bloomReject,
+		Difficulty:h.difficulty,
+		Number:h.number,
+		GasUsed:h.gasUsed,
+		GasLimit:h.gasLimit,
+		Time:h.time,
+		Extra:h.extra,
+		MixDigest:h.mixDigest,
+		Nonce:h.nonce,
+	}
+}
 func (h *Header) ShardId() uint16 {
 	return ShardMaster
 }

@@ -296,12 +296,12 @@ func updateChart(metric string, data []float64, base *int, chart *termui.LineCha
 		realign, *base, *chart = true, unit, *createChart(chart.Height)
 	}
 	// Update the chart's data points with the scaled values
-	if cap(chart.Data) < len(data) {
-		chart.Data = make([]float64, len(data))
+	if cap(chart.Data[""]) < len(data) {
+		chart.Data[""] = make([]float64, len(data))
 	}
-	chart.Data = chart.Data[:len(data)]
+	chart.Data[""] = chart.Data[""][:len(data)]
 	for i, value := range data {
-		chart.Data[i] = value / scale
+		chart.Data[""][i] = value / scale
 	}
 	// Update the chart's label with the scale units
 	units := dataUnits
@@ -312,9 +312,9 @@ func updateChart(metric string, data []float64, base *int, chart *termui.LineCha
 	if len(units[unit]) > 0 {
 		chart.BorderLabel += " [" + units[unit] + "]"
 	}
-	chart.LineColor = colors[unit] | termui.AttrBold
+	chart.LineColor[""] = colors[unit] | termui.AttrBold
 	if err != nil {
-		chart.LineColor = termui.ColorRed | termui.AttrBold
+		chart.LineColor[""] = termui.ColorRed | termui.AttrBold
 	}
 	return
 }

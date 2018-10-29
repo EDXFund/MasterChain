@@ -133,6 +133,25 @@ func (h *SHeader) FillBy(h2 *SHeaderStruct)  {
 	h.mixDigest = h2.MixDigest
 	h.nonce = h2.Nonce
 }
+func (h *SHeader)ToStruct() *SHeaderStruct {
+	return &SHeaderStruct{
+		ShardId:h.shardId,
+		ParentHash:h.parentHash,
+		Coinbase:h.coinbase,
+		Root:h.root,
+		TxHash:h.txHash,
+		ReceiptHash:h.receiptHash,
+		Bloom:h.bloom,
+		Difficulty:h.difficulty,
+		Number:h.number,
+		GasLimit:h.gasLimit,
+		GasUsed:h.gasUsed,
+		Time:h.time,
+		Extra:h.extra,
+		MixDigest:h.mixDigest,
+		Nonce:h.nonce,
+	}
+}
 
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.

@@ -224,12 +224,7 @@
 			"revision": "a55dd0f50edd14c9c798d3564189eb4f53914309",
 			"revisionTime": "2017-10-09T17:24:46Z"
 		},
-		{
-			"checksumSHA1": "O4XpbSNeUhSIMD2FWtQximJiFIs=",
-			"path": "github.com/influxdata/influxdb/client/v2",
-			"revision": "b36b9f109f2da91c8941679caf5356e08eee0b2b",
-			"revisionTime": "2018-01-17T01:42:09Z"
-		},
+
 		{
 			"checksumSHA1": "cfumoC9gHEUROd+fA8qK3WLFAZQ=",
 			"path": "github.com/influxdata/influxdb/models",
@@ -910,12 +905,7 @@
 			"revision": "6e83acea0053641eff084973fee085f0c193c61a",
 			"revisionTime": "2017-02-13T14:20:43Z"
 		},
-		{
-			"checksumSHA1": "Yx1MU40fyGe7hhqW9+dkv8kXa60=",
-			"path": "gopkg.in/urfave/cli.v1",
-			"revision": "cfb38830724cc34fedffe9a2a29fb54fa9169cd1",
-			"revisionTime": "2017-08-11T01:42:03Z"
-		}
+
 	],
 	"rootPath": "github.com/ethereum/go-ethereum"
 }

@@ -336,7 +336,7 @@ type SuperBody struct {
 	Transactions []*Transaction
 
 	//receipts
-	Receipts ContractResults
+	Receipts []*ContractResult
 }
 
 func (sb *SuperBody) ToBody() *Body {

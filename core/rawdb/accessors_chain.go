@@ -153,17 +153,21 @@ func ReadHeader(db DatabaseReader, hash common.Hash, number uint64) types.Header
 	}
 	if header.ShardId == types.ShardMaster {
 		mheader := new (types.Header)
-		if err := rlp.Decode(bytes.NewReader(header.Header), mheader); err != nil {
+		headerstruct := new (types.HeaderStruct)
+		if err := rlp.Decode(bytes.NewReader(header.Header), headerstruct); err != nil {
 			log.Error("Invalid block header RLP", "hash", hash, "err", err)
 			return nil
 		}
+		mheader.FillBy(headerstruct)
 		return mheader
 	} else {
+		sheaderstruct := new (types.SHeaderStruct)
 		sheader := new (types.SHeader)
-		if err := rlp.Decode(bytes.NewReader(header.Header), sheader); err != nil {
+		if err := rlp.Decode(bytes.NewReader(header.Header), sheaderstruct); err != nil {
 			log.Error("Invalid block header RLP", "hash", hash, "err", err)
 			return nil
 		}
+		sheader.FillBy(sheaderstruct)
 		return sheader
 	}
 
@@ -187,9 +191,11 @@ func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 	 toEncode := types.HeadEncode{ShardId:shardId}
 	 if shardId == types.ShardMaster {
 
-		 toEncode.Header,_ = rlp.EncodeToBytes(header.ToHeader())
+		 bytes,_ := rlp.EncodeToBytes(header.ToHeader().ToHeaderStruct())
+		 toEncode.Header = bytes
 	 }else {
-		 toEncode.Header,_ = rlp.EncodeToBytes(header.ToSHeader())
+		 bytes,_ := rlp.EncodeToBytes(*header.ToSHeader().ToStruct())
+		 toEncode.Header = bytes
 	 }
 
 	data, err := rlp.EncodeToBytes(toEncode)
@@ -245,19 +251,19 @@ func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.SuperBo
 		return nil
 	}
 	if body.ShardId == types.ShardMaster {
-		bodyres := new (types.Body)
-		if err := rlp.Decode(bytes.NewReader(data), bodyres); err != nil {
+		bodyres := new (types.SuperBody)
+		if err := rlp.Decode(bytes.NewReader(body.Body), bodyres); err != nil {
 			log.Error("Invalid block body RLP", "hash", hash, "err", err)
 			return nil
 		}
-		return &types.SuperBody{bodyres.Transactions,bodyres.Uncles,nil,nil}
+		return bodyres;//&types.SuperBody{bodyres.Transactions,bodyres.Uncles,nil,nil}
 	}else {
-		bodyres := new (types.SBody)
-		if err := rlp.Decode(bytes.NewReader(data), bodyres); err != nil {
+		bodyres := new (types.SuperBody)
+		if err := rlp.Decode(bytes.NewReader(body.Body), bodyres); err != nil {
 			log.Error("Invalid block body RLP", "hash", hash, "err", err)
 			return nil
 		}
-		return &types.SuperBody{nil,nil,bodyres.Transactions,bodyres.Receipts}
+		return bodyres;//&types.SuperBody{nil,nil,bodyres.Transactions,bodyres.Receipts}
 	}
 
 }
