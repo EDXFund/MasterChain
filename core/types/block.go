@@ -137,7 +137,7 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-	return rlpHash(h)
+	return rlpHash(h.ToHeaderStruct())
 }
 
 // Size returns the approximate memory used by all internal contents. It is used
@@ -150,8 +150,8 @@ func (h *Header) Size() common.StorageSize {
 func (b *Header) Number() *big.Int     { return new(big.Int).Set(b.number) }
 func (b *Header) GasLimit() uint64     { return b.gasLimit }
 func (b *Header) GasUsed() uint64      { return b.gasUsed }
-func (b *Header) Difficulty() *big.Int { return new(big.Int).Set(b.difficulty) }
-func (b *Header) Time() *big.Int       { return new(big.Int).Set(b.time) }
+func (b *Header) Difficulty() *big.Int { if(b.difficulty == nil ){return nil } else {return new(big.Int).Set(b.difficulty) }}
+func (b *Header) Time() *big.Int       {  if b.time == nil {return nil } else {return new(big.Int).Set(b.time)} }
 
 func (b *Header) NumberU64() uint64        { return b.number.Uint64() }
 func (b *Header) MixDigest() common.Hash   { return b.mixDigest }

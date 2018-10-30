@@ -205,7 +205,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 		}
 		if b.engine != nil {
 			// Finalize and seal the block
-			block, _ := b.engine.Finalize(b.chainReader, b.header, statedb,b.blocks,b.results, b.txs, b.receipts)
+			block, err := b.engine.Finalize(b.chainReader, b.header, statedb,b.blocks,b.results, b.txs, b.receipts)
 
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number()))

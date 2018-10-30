@@ -92,9 +92,10 @@ func testChainIndexer(t *testing.T, count int) {
 	}
 	// inject inserts a new random canonical header into the database directly
 	inject := func(number uint64) {
-		header := &types.Header{Number: big.NewInt(int64(number)), Extra: big.NewInt(rand.Int63()).Bytes()}
+		header := new (types.Header)
+		header.FillBy(&types.HeaderStruct{Number: big.NewInt(int64(number)), Extra: big.NewInt(rand.Int63()).Bytes()})
 		if number > 0 {
-			header.ParentHash = rawdb.ReadCanonicalHash(db, number-1)
+			header.SetParentHash ( rawdb.ReadCanonicalHash(db, number-1) )
 		}
 		rawdb.WriteHeader(db, header)
 		rawdb.WriteCanonicalHash(db, header.Hash(), number)
@@ -217,7 +218,7 @@ func (b *testChainIndexBackend) Reset(ctx context.Context, section uint64, prevH
 	return nil
 }
 
-func (b *testChainIndexBackend) Process(ctx context.Context, header *types.Header) error {
+func (b *testChainIndexBackend) Process(ctx context.Context, header types.HeaderIntf) error {
 	b.headerCnt++
 	if b.headerCnt > b.indexer.sectionSize {
 		b.t.Error("Processing too many headers")
@@ -226,7 +227,7 @@ func (b *testChainIndexBackend) Process(ctx context.Context, header *types.Heade
 	select {
 	case <-time.After(10 * time.Second):
 		b.t.Fatal("Unexpected call to Process")
-	case b.processCh <- header.Number.Uint64():
+	case b.processCh <- header.NumberU64():
 	}
 	return nil
 }

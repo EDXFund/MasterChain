@@ -180,6 +180,7 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 	if chain.GetHeader(headers[index].Hash(), headers[index].NumberU64()) != nil {
 		return nil // known block
 	}
+	fmt.Println("header:",headers[index].NumberU64(),"\tparent:",parent.NumberU64())
 	return ethash.verifyHeader(chain, headers[index], parent, false, seals[index])
 }
 
@@ -258,19 +259,20 @@ func (ethash *Ethash) verifyHeader(chain consensus.ChainReader, header, parent t
 		return errZeroBlockTime
 	}
 	// Verify the block's difficulty based in it's timestamp and parent's difficulty
-	expected := ethash.CalcDifficulty(chain, header.Time().Uint64(), parent)
 
+	expected := ethash.CalcDifficulty(chain, header.Time().Uint64(), parent)
+	fmt.Println("parent d:",parent.Difficulty(),"\t this d:",header.Difficulty(),"\t expected:",expected)
 	if expected.Cmp(header.Difficulty()) != 0 {
-		return fmt.Errorf("invalid difficulty: have %v, want %v", header.Difficulty, expected)
+		return fmt.Errorf("invalid difficulty: have %v, want %v", header.Difficulty(), expected)
 	}
 	// Verify that the gas limit is <= 2^63-1
 	cap := uint64(0x7fffffffffffffff)
 	if header.GasLimit() > cap {
-		return fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, cap)
+		return fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit(), cap)
 	}
 	// Verify that the gasUsed is <= gasLimit
 	if header.GasUsed() > header.GasLimit() {
-		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
+		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed(), header.GasLimit())
 	}
 
 	// Verify that the gas limit remains within allowed bounds
@@ -361,11 +363,11 @@ func makeDifficultyCalculator(bombDelay *big.Int) func(time uint64, parent types
 		// (2 if len(parent_uncles) else 1) - (block_timestamp - parent_timestamp) // 9
 		x.Sub(bigTime, bigParentTime)
 		x.Div(x, big9)
-		if parent.UncleHash() == types.EmptyUncleHash{
+		/*if parent.UncleHash() == types.EmptyUncleHash{*/
 			x.Sub(big1, x)
-		} else {
+		/*} else {
 			x.Sub(big2, x)
-		}
+		}*/
 		// max((2 if len(parent_uncles) else 1) - (block_timestamp - parent_timestamp) // 9, -99)
 		if x.Cmp(bigMinus99) < 0 {
 			x.Set(bigMinus99)
@@ -545,6 +547,8 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 	}
 	// Verify the calculated values against the ones provided in the header
 	digestHeader := header.MixDigest();
+	fmt.Println("digest:",digest)
+	fmt.Println("header:",digestHeader)
 	if !bytes.Equal(digestHeader[:], digest) {
 		return errInvalidMixDigest
 	}
@@ -597,21 +601,39 @@ func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.He
 func (ethash *Ethash) SealHash(header types.HeaderIntf) (hash common.Hash) {
 	hasher := sha3.NewKeccak256()
 
-	rlp.Encode(hasher, []interface{}{
-		header.ParentHash(),
-		header.UncleHash(),
-		header.Coinbase(),
-		header.Root(),
-		header.TxHash(),
-		header.ReceiptHash(),
-		header.Bloom(),
-		header.Difficulty(),
-		header.Number(),
-		header.GasLimit(),
-		header.GasUsed(),
-		header.Time(),
-		header.Extra(),
-	})
+	if header.ShardId() == types.ShardMaster{
+		rlp.Encode(hasher, []interface{}{
+			header.ParentHash(),
+			header.UncleHash(),
+			header.Coinbase(),
+			header.Root(),
+			header.TxHash(),
+			header.ReceiptHash(),
+			header.Bloom(),
+			header.Difficulty(),
+			header.Number(),
+			header.GasLimit(),
+			header.GasUsed(),
+			header.Time(),
+			header.Extra(),
+		})
+	} 	else {
+		rlp.Encode(hasher, []interface{}{
+			header.ShardId(),
+			header.ParentHash(),
+			header.Coinbase(),
+			header.Root(),
+			header.TxHash(),
+			header.ReceiptHash(),
+			header.Bloom(),
+			header.Difficulty(),
+			header.Number(),
+			header.GasLimit(),
+			header.GasUsed(),
+			header.Time(),
+			header.Extra(),
+		})
+	}
 	hasher.Sum(hash[:0])
 	return hash
 }
@@ -636,7 +658,7 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 	}
 	// Accumulate the rewards for the miner and any included uncles
 	reward := new(big.Int).Set(blockReward)
-	r := new(big.Int)
+	/*r := new(big.Int)
 	for _, uncle := range uncles {
 		r.Add(uncle.Number(), big8)
 		r.Sub(r, header.Number())
@@ -646,6 +668,6 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 
 		r.Div(blockReward, big32)
 		reward.Add(reward, r)
-	}
+	}*/
 	state.AddBalance(header.Coinbase(), reward)
 }

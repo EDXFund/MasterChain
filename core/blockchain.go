@@ -1112,6 +1112,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		seals[i] = true
 	}
 	abort, results := bc.engine.VerifyHeaders(bc, headers, seals)
+
 	defer close(abort)
 
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)

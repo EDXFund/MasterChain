@@ -40,7 +40,7 @@ import (
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rlp"
 	"github.com/EDXFund/MasterChain/rpc"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -318,6 +318,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header types.HeaderIn
 	}
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest() != (common.Hash{}) {
+
 		return errInvalidMixDigest
 	}
 	// Ensure that the block doesn't contain any uncles which are meaningless in PoA
@@ -592,7 +593,8 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header types.HeaderIntf) e
 func (c *Clique) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,results []*types.ContractResult, txs []*types.Transaction,  receipts []*types.Receipt) (types.BlockIntf, error) {
 	if header.ShardId() == types.ShardMaster {
 		// No block rewards in PoA, so the state remains as is and uncles are dropped
-		return c.finalizeMaster(chain,header,state,blks,receipts)
+		result,err := c.finalizeMaster(chain,header,state,blks,receipts)
+		return result,err
 	}else {
 		return c.finalizeShard(chain,header,state,txs,results)
 	}

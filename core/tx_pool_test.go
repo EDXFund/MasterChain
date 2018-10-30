@@ -50,13 +50,15 @@ type testBlockChain struct {
 	chainHeadFeed *event.Feed
 }
 
-func (bc *testBlockChain) CurrentBlock() *types.Block {
-	return types.NewBlock(&types.Header{
+func (bc *testBlockChain) CurrentBlock() types.BlockIntf {
+	header := new(types.Header)
+	header.FillBy(&types.HeaderStruct{
 		GasLimit: bc.gasLimit,
-	}, nil, nil, nil)
+	})
+	return types.NewBlock(header, nil, nil, nil)
 }
 
-func (bc *testBlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
+func (bc *testBlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf {
 	return bc.CurrentBlock()
 }
 

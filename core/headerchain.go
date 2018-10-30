@@ -216,8 +216,8 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []types.HeaderIntf, checkFreq i
 	        chaini_1_hash := chain[i-1].Hash().Bytes()
 	        chaini_hash := chain[i].Hash().Bytes()
 	        chaini_p_hash := chain[i].ParentHash()
-			return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x…], item %d is #%d [%x…] (parent [%x…])", i-1, chain[i-1].Number,
-				chaini_1_hash[:4], i, chain[i].Number, chaini_hash[:4], chaini_p_hash[:4])
+			return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x…], item %d is #%d [%x…] (parent [%x…])", i-1, chain[i-1].Number(),
+				chaini_1_hash[:4], i, chain[i].Number(), chaini_hash[:4], chaini_p_hash[:4])
 		}
 	}
 
@@ -369,7 +369,7 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 		return cached.(*big.Int)
 	}
 	td := rawdb.ReadTd(hc.chainDb, hash, number)
-	if td == nil {
+	if td == nil || reflect.ValueOf(td).IsNil() {
 		return nil
 	}
 	// Cache the found body for next time and return

@@ -73,12 +73,15 @@ func TestCalcDifficulty(t *testing.T) {
 	config := &params.ChainConfig{HomesteadBlock: big.NewInt(1150000)}
 
 	for name, test := range tests {
+		header := new (types.Header)
 		number := new(big.Int).Sub(test.CurrentBlocknumber, big.NewInt(1))
-		diff := CalcDifficulty(config, test.CurrentTimestamp, &types.Header{
+		header.FillBy(&types.HeaderStruct{
 			Number:     number,
 			Time:       new(big.Int).SetUint64(test.ParentTimestamp),
 			Difficulty: test.ParentDifficulty,
 		})
+
+		diff := CalcDifficulty(config, test.CurrentTimestamp, header)
 		if diff.Cmp(test.CurrentDifficulty) != 0 {
 			t.Error(name, "failed. Expected", test.CurrentDifficulty, "and calculated", diff)
 		}

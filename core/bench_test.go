@@ -138,10 +138,10 @@ func genTxRing(naccounts int) func(int, *BlockGen) {
 func genUncles(i int, gen *BlockGen) {
 	if i >= 6 {
 		b2 := gen.PrevBlock(i - 6).Header()
-		b2.Extra = []byte("foo")
+		b2.SetExtra ( []byte("foo"))
 		gen.AddUncle(b2)
 		b3 := gen.PrevBlock(i - 6).Header()
-		b3.Extra = []byte("bar")
+		b3.SetExtra ([]byte("bar"))
 		gen.AddUncle(b3)
 	}
 }
@@ -175,7 +175,7 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 
 	// Time the insertion of the new chain.
 	// State and blocks are stored in the same DB.
-	chainman, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil)
+	chainman, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil,types.ShardMaster)
 	defer chainman.Stop()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -226,7 +226,8 @@ func BenchmarkChainWrite_full_500k(b *testing.B) {
 func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 	var hash common.Hash
 	for n := uint64(0); n < count; n++ {
-		header := &types.Header{
+		header := new (types.Header)
+		header.FillBy(&types.HeaderStruct{
 			Coinbase:    common.Address{},
 			Number:      big.NewInt(int64(n)),
 			ParentHash:  hash,
@@ -234,7 +235,7 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 			UncleHash:   types.EmptyUncleHash,
 			TxHash:      types.EmptyRootHash,
 			ReceiptHash: types.EmptyRootHash,
-		}
+		})
 		hash = header.Hash()
 
 		rawdb.WriteHeader(db, header)
@@ -243,7 +244,7 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 
 		if full || n == 0 {
 			block := types.NewBlockWithHeader(header)
-			rawdb.WriteBody(db, hash, n, block.Body())
+			rawdb.WriteBody(db, hash, block.ShardId(), n, block.Body())
 			rawdb.WriteReceipts(db, hash, n, nil)
 		}
 	}
@@ -287,7 +288,7 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 		if err != nil {
 			b.Fatalf("error opening database at %v: %v", dir, err)
 		}
-		chain, err := NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil)
+		chain, err := NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil,types.ShardMaster)
 		if err != nil {
 			b.Fatalf("error creating chain: %v", err)
 		}

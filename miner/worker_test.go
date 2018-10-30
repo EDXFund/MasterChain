@@ -74,7 +74,7 @@ type testWorkerBackend struct {
 	txPool     *core.TxPool
 	chain      *core.BlockChain
 	testTxFeed event.Feed
-	uncleBlock *types.Block
+	uncleBlock types.BlockIntf
 }
 
 func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
@@ -96,7 +96,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	}
 	genesis := gspec.MustCommit(db)
 
-	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,0xFFFF)
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
 	// Generate a small n-block chain and an uncle block for it
@@ -243,8 +243,8 @@ func TestStreamUncleBlock(t *testing.T) {
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 2 {
 			if taskIndex == 2 {
-				have := task.block.Header().UncleHash
-				want := types.CalcUncleHash([]*types.Header{b.uncleBlock.Header()})
+				have := task.block.Header().UncleHash()
+				want := types.CalcUncleHash([]types.HeaderIntf{b.uncleBlock.Header()})
 				if have != want {
 					t.Errorf("uncle hash mismatch: have %s, want %s", have.Hex(), want.Hex())
 				}

@@ -53,7 +53,8 @@ func (ap *testerAccountPool) checkpoint(header types.HeaderIntf, signers []strin
 	}
 	sort.Sort(signersAscending(auths))
 	for i, auth := range auths {
-		copy(header.Extra[extraVanity+i*common.AddressLength:], auth.Bytes())
+		extra := header.Extra()
+		copy(extra[extraVanity+i*common.AddressLength:], auth.Bytes())
 	}
 }
 
@@ -81,7 +82,8 @@ func (ap *testerAccountPool) sign(header types.HeaderIntf, signer string) {
 	}
 	// Sign the header and embed the signature in extra data
 	sig, _ := crypto.Sign(sigHash(header).Bytes(), ap.accounts[signer])
-	copy(header.Extra[len(header.Extra)-extraSeal:], sig)
+	extra := header.Extra()
+	copy(extra[len(extra)-extraSeal:], sig)
 }
 
 // testerVote represents a single block signed by a parcitular account, where
@@ -426,14 +428,14 @@ func TestClique(t *testing.T) {
 			// Geth the header and prepare it for signing
 			header := block.Header()
 			if j > 0 {
-				header.ParentHash = blocks[j-1].Hash()
+				header.SetParentHash( blocks[j-1].Hash())
 			}
-			header.Extra = make([]byte, extraVanity+extraSeal)
+			header.SetExtra (make([]byte, extraVanity+extraSeal))
 			if auths := tt.votes[j].checkpoint; auths != nil {
-				header.Extra = make([]byte, extraVanity+len(auths)*common.AddressLength+extraSeal)
+				header.SetExtra (make([]byte, extraVanity+len(auths)*common.AddressLength+extraSeal))
 				accounts.checkpoint(header, auths)
 			}
-			header.Difficulty = diffInTurn // Ignored, we just need a valid number
+			header.SetDifficulty (diffInTurn) // Ignored, we just need a valid number
 
 			// Generate the signature, embed it into the header and the block
 			accounts.sign(header, tt.votes[j].signer)
@@ -448,15 +450,15 @@ func TestClique(t *testing.T) {
 			batches[len(batches)-1] = append(batches[len(batches)-1], block)
 		}
 		// Pass all the headers through clique and ensure tallying succeeds
-		chain, err := core.NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
+		chain, err := core.NewBlockChain(db, nil, &config, engine, vm.Config{}, nil,types.ShardMaster)
 		if err != nil {
-			t.Errorf("test %d: failed to create test chain: %v", i, err)
+			t.Errorf("1test %d: failed to create test chain: %v", i, err)
 			continue
 		}
 		failed := false
 		for j := 0; j < len(batches)-1; j++ {
 			if k, err := chain.InsertChain(batches[j]); err != nil {
-				t.Errorf("test %d: failed to import batch %d, block %d: %v", i, j, k, err)
+				t.Errorf("2test %d: failed to import batch %d, block %d: %v", i, j, k, err)
 				failed = true
 				break
 			}
@@ -465,7 +467,7 @@ func TestClique(t *testing.T) {
 			continue
 		}
 		if _, err = chain.InsertChain(batches[len(batches)-1]); err != tt.failure {
-			t.Errorf("test %d: failure mismatch: have %v, want %v", i, err, tt.failure)
+			t.Errorf("3test %d: failure mismatch: have %v, want %v", i, err, tt.failure)
 		}
 		if tt.failure != nil {
 			continue

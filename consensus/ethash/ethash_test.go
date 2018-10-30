@@ -32,20 +32,22 @@ import (
 
 // Tests that ethash works correctly in test mode.
 func TestTestMode(t *testing.T) {
-	header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
+
+	header := new(types.Header);
+	header.FillBy(&types.HeaderStruct{Number: big.NewInt(1), Difficulty: big.NewInt(100)});
 
 	ethash := NewTester(nil, false)
 	defer ethash.Close()
 
-	results := make(chan *types.Block)
+	results := make(chan types.BlockIntf)
 	err := ethash.Seal(nil, types.NewBlockWithHeader(header), results, nil)
 	if err != nil {
 		t.Fatalf("failed to seal block: %v", err)
 	}
 	select {
 	case block := <-results:
-		header.Nonce = types.EncodeNonce(block.Nonce())
-		header.MixDigest = block.MixDigest()
+		header.SetNonce ( types.EncodeNonce(block.Nonce().Uint64()))
+		header.SetMixDigest (block.MixDigest())
 		if err := ethash.VerifySeal(nil, header); err != nil {
 			t.Fatalf("unexpected verification error: %v", err)
 		}
@@ -85,7 +87,8 @@ func verifyTest(wg *sync.WaitGroup, e *Ethash, workerIndex, epochs int) {
 		if block < 0 {
 			block = 0
 		}
-		header := &types.Header{Number: big.NewInt(block), Difficulty: big.NewInt(100)}
+		header := new(types.Header)
+		header.FillBy(&types.HeaderStruct{Number: big.NewInt(block), Difficulty: big.NewInt(100)})
 		e.VerifySeal(nil, header)
 	}
 }
@@ -98,12 +101,13 @@ func TestRemoteSealer(t *testing.T) {
 	if _, err := api.GetWork(); err != errNoMiningWork {
 		t.Error("expect to return an error indicate there is no mining work")
 	}
-	header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
+	header := new(types.Header)
+	header.FillBy(&types.HeaderStruct{Number: big.NewInt(1), Difficulty: big.NewInt(100)})
 	block := types.NewBlockWithHeader(header)
 	sealhash := ethash.SealHash(header)
 
 	// Push new work.
-	results := make(chan *types.Block)
+	results := make(chan types.BlockIntf)
 	ethash.Seal(nil, block, results, nil)
 
 	var (
@@ -118,7 +122,8 @@ func TestRemoteSealer(t *testing.T) {
 		t.Error("expect to return false when submit a fake solution")
 	}
 	// Push new block with same block number to replace the original one.
-	header = &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(1000)}
+	header = new(types.Header)
+	header.FillBy(&types.HeaderStruct{Number: big.NewInt(1), Difficulty: big.NewInt(1000)})
 	block = types.NewBlockWithHeader(header)
 	sealhash = ethash.SealHash(header)
 	ethash.Seal(nil, block, results, nil)

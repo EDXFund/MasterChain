@@ -57,7 +57,8 @@ func TestRemoteNotify(t *testing.T) {
 	defer ethash.Close()
 
 	// Stream a work task and ensure the notification bubbles out
-	header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
+	header :=new (types.Header)
+	header.FillBy(&types.HeaderStruct{Number: big.NewInt(1), Difficulty: big.NewInt(100)})
 	block := types.NewBlockWithHeader(header)
 
 	ethash.Seal(nil, block, nil, nil)
@@ -66,10 +67,10 @@ func TestRemoteNotify(t *testing.T) {
 		if want := ethash.SealHash(header).Hex(); work[0] != want {
 			t.Errorf("work packet hash mismatch: have %s, want %s", work[0], want)
 		}
-		if want := common.BytesToHash(SeedHash(header.Number.Uint64())).Hex(); work[1] != want {
+		if want := common.BytesToHash(SeedHash(header.NumberU64())).Hex(); work[1] != want {
 			t.Errorf("work packet seed mismatch: have %s, want %s", work[1], want)
 		}
-		target := new(big.Int).Div(new(big.Int).Lsh(big.NewInt(1), 256), header.Difficulty)
+		target := new(big.Int).Div(new(big.Int).Lsh(big.NewInt(1), 256), header.Difficulty())
 		if want := common.BytesToHash(target.Bytes()).Hex(); work[2] != want {
 			t.Errorf("work packet target mismatch: have %s, want %s", work[2], want)
 		}
@@ -112,7 +113,8 @@ func TestRemoteMultiNotify(t *testing.T) {
 
 	// Stream a lot of work task and ensure all the notifications bubble out
 	for i := 0; i < cap(sink); i++ {
-		header := &types.Header{Number: big.NewInt(int64(i)), Difficulty: big.NewInt(100)}
+		header := new(types.Header)
+		header.FillBy(&types.HeaderStruct{Number: big.NewInt(int64(i)), Difficulty: big.NewInt(100)})
 		block := types.NewBlockWithHeader(header)
 
 		ethash.Seal(nil, block, nil, nil)
@@ -135,13 +137,13 @@ func TestStaleSubmission(t *testing.T) {
 	fakeNonce, fakeDigest := types.BlockNonce{0x01, 0x02, 0x03}, common.HexToHash("deadbeef")
 
 	testcases := []struct {
-		headers     []*types.Header
+		headers     []*types.HeaderStruct
 		submitIndex int
 		submitRes   bool
 	}{
 		// Case1: submit solution for the latest mining package
 		{
-			[]*types.Header{
+			[]*types.HeaderStruct{
 				{ParentHash: common.BytesToHash([]byte{0xa}), Number: big.NewInt(1), Difficulty: big.NewInt(100000000)},
 			},
 			0,
@@ -149,7 +151,7 @@ func TestStaleSubmission(t *testing.T) {
 		},
 		// Case2: submit solution for the previous package but have same parent.
 		{
-			[]*types.Header{
+			[]*types.HeaderStruct{
 				{ParentHash: common.BytesToHash([]byte{0xb}), Number: big.NewInt(2), Difficulty: big.NewInt(100000000)},
 				{ParentHash: common.BytesToHash([]byte{0xb}), Number: big.NewInt(2), Difficulty: big.NewInt(100000001)},
 			},
@@ -158,7 +160,7 @@ func TestStaleSubmission(t *testing.T) {
 		},
 		// Case3: submit stale but acceptable solution
 		{
-			[]*types.Header{
+			[]*types.HeaderStruct{
 				{ParentHash: common.BytesToHash([]byte{0xc}), Number: big.NewInt(3), Difficulty: big.NewInt(100000000)},
 				{ParentHash: common.BytesToHash([]byte{0xd}), Number: big.NewInt(9), Difficulty: big.NewInt(100000000)},
 			},
@@ -167,7 +169,7 @@ func TestStaleSubmission(t *testing.T) {
 		},
 		// Case4: submit very old solution
 		{
-			[]*types.Header{
+			[]*types.HeaderStruct{
 				{ParentHash: common.BytesToHash([]byte{0xe}), Number: big.NewInt(10), Difficulty: big.NewInt(100000000)},
 				{ParentHash: common.BytesToHash([]byte{0xf}), Number: big.NewInt(17), Difficulty: big.NewInt(100000000)},
 			},
@@ -175,13 +177,17 @@ func TestStaleSubmission(t *testing.T) {
 			false,
 		},
 	}
-	results := make(chan *types.Block, 16)
+	results := make(chan types.BlockIntf, 16)
 
 	for id, c := range testcases {
 		for _, h := range c.headers {
-			ethash.Seal(nil, types.NewBlockWithHeader(h), results, nil)
+			header := new(types.Header)
+			header.FillBy(h)
+			ethash.Seal(nil, types.NewBlockWithHeader(header), results, nil)
 		}
-		if res := api.SubmitWork(fakeNonce, ethash.SealHash(c.headers[c.submitIndex]), fakeDigest); res != c.submitRes {
+		header := new(types.Header)
+		header.FillBy(c.headers[c.submitIndex])
+		if res := api.SubmitWork(fakeNonce, ethash.SealHash(header), fakeDigest); res != c.submitRes {
 			t.Errorf("case %d submit result mismatch, want %t, get %t", id+1, c.submitRes, res)
 		}
 		if !c.submitRes {
@@ -189,20 +195,20 @@ func TestStaleSubmission(t *testing.T) {
 		}
 		select {
 		case res := <-results:
-			if res.Header().Nonce != fakeNonce {
-				t.Errorf("case %d block nonce mismatch, want %s, get %s", id+1, fakeNonce, res.Header().Nonce)
+			if res.Header().Nonce() != fakeNonce {
+				t.Errorf("case %d block nonce mismatch, want %s, get %s", id+1, fakeNonce, res.Header().Nonce())
 			}
-			if res.Header().MixDigest != fakeDigest {
-				t.Errorf("case %d block digest mismatch, want %s, get %s", id+1, fakeDigest, res.Header().MixDigest)
+			if res.Header().MixDigest() != fakeDigest {
+				t.Errorf("case %d block digest mismatch, want %s, get %s", id+1, fakeDigest, res.Header().MixDigest())
 			}
-			if res.Header().Difficulty.Uint64() != c.headers[c.submitIndex].Difficulty.Uint64() {
-				t.Errorf("case %d block difficulty mismatch, want %d, get %d", id+1, c.headers[c.submitIndex].Difficulty, res.Header().Difficulty)
+			if res.Header().Difficulty().Uint64() != c.headers[c.submitIndex].Difficulty.Uint64() {
+				t.Errorf("case %d block difficulty mismatch, want %d, get %d", id+1, c.headers[c.submitIndex].Difficulty, res.Header().Difficulty())
 			}
-			if res.Header().Number.Uint64() != c.headers[c.submitIndex].Number.Uint64() {
-				t.Errorf("case %d block number mismatch, want %d, get %d", id+1, c.headers[c.submitIndex].Number.Uint64(), res.Header().Number.Uint64())
+			if res.Header().Number().Uint64() != c.headers[c.submitIndex].Number.Uint64() {
+				t.Errorf("case %d block number mismatch, want %d, get %d", id+1, c.headers[c.submitIndex].Number.Uint64(), res.Header().NumberU64())
 			}
-			if res.Header().ParentHash != c.headers[c.submitIndex].ParentHash {
-				t.Errorf("case %d block parent hash mismatch, want %s, get %s", id+1, c.headers[c.submitIndex].ParentHash.Hex(), res.Header().ParentHash.Hex())
+			if res.Header().ParentHash() != c.headers[c.submitIndex].ParentHash {
+				t.Errorf("case %d block parent hash mismatch, want %s, get %s", id+1, c.headers[c.submitIndex].ParentHash.Hex(), res.Header().ParentHash().Hex())
 			}
 		case <-time.NewTimer(time.Second).C:
 			t.Errorf("case %d fetch ethash result timeout", id+1)
