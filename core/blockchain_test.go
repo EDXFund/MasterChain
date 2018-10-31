@@ -412,10 +412,12 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 		easyHeaders := make([]types.HeaderIntf, len(easyBlocks))
 		for i, block := range easyBlocks {
 			easyHeaders[i] = block.Header()
+			fmt.Println(" easy no:",i,"\t diff:",block.Difficulty())
 		}
 		diffHeaders := make([]types.HeaderIntf, len(diffBlocks))
 		for i, block := range diffBlocks {
 			diffHeaders[i] = block.Header()
+			fmt.Println(" diff no:",i,"\t diff:",block.Difficulty())
 		}
 		if _, err := blockchain.InsertHeaderChain(easyHeaders, 1); err != nil {
 			t.Fatalf("failed to insert easy chain: %v", err)
@@ -442,6 +444,7 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 	}
 	// Make sure the chain total difficulty is the correct one
 	want := new(big.Int).Add(blockchain.genesisBlock.Difficulty(), big.NewInt(td))
+	fmt.Println("gen:",blockchain.genesisBlock.Difficulty().Uint64(),"\tdd:",td,"\twant",want.Uint64())
 	if full {
 		if have := blockchain.GetTdByHash(blockchain.CurrentBlock().Hash()); have.Cmp(want) != 0 {
 			t.Errorf("total difficulty mismatch: have %v, want %v", have, want)

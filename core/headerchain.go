@@ -370,7 +370,7 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	}
 	td := rawdb.ReadTd(hc.chainDb, hash, number)
 	if td == nil || reflect.ValueOf(td).IsNil() {
-		return nil
+		return big.NewInt(0)
 	}
 	// Cache the found body for next time and return
 	hc.tdCache.Add(hash, td)
@@ -390,6 +390,7 @@ func (hc *HeaderChain) GetTdByHash(hash common.Hash) *big.Int {
 // WriteTd stores a block's total difficulty into the database, also caching it
 // along the way.
 func (hc *HeaderChain) WriteTd(hash common.Hash, number uint64, td *big.Int) error {
+	fmt.Println(" Write TD:",number,td.Uint64())
 	rawdb.WriteTd(hc.chainDb, hash, number, td)
 	hc.tdCache.Add(hash, new(big.Int).Set(td))
 	return nil

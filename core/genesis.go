@@ -235,7 +235,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	}
 	root := statedb.IntermediateRoot(false)
 	head := new (types.Header)
-	head.FillBy(&types.HeaderStruct{
+	head_ := &types.HeaderStruct{
 		Number:     new(big.Int).SetUint64(g.Number),
 		Nonce:      types.EncodeNonce(g.Nonce),
 		Time:       new(big.Int).SetUint64(g.Timestamp),
@@ -247,7 +247,9 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 		MixDigest:  g.Mixhash,
 		Coinbase:   g.Coinbase,
 		Root:       root,
-	})
+	}
+	head.FillBy(head_)
+
 	if g.GasLimit == 0 {
 		head.SetGasLimit (params.GenesisGasLimit)
 	}
@@ -268,6 +270,7 @@ func (g *Genesis) Commit(db ethdb.Database) (types.BlockIntf, error) {
 		return nil, fmt.Errorf("can't commit genesis block with number > 0")
 	}
 	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), g.Difficulty)
+	fmt.Println("number:",block.NumberU64(),"\ttd:",g.Difficulty)
 	rawdb.WriteBlock(db, block)
 	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())

@@ -356,3 +356,20 @@ type BodyEncode struct {
 	ShardId uint16
 	Body    []byte
 }
+// TxDifference returns a new set which is the difference between a and b.
+func ShardInfoDifference(a, b ShardBlockInfos) ShardBlockInfos {
+	keep := make(ShardBlockInfos, 0, len(a))
+
+	remove := make(map[common.Hash]struct{})
+	for _, tx := range b {
+		remove[tx.Hash()] = struct{}{}
+	}
+
+	for _, tx := range a {
+		if _, ok := remove[tx.Hash()]; !ok {
+			keep = append(keep, tx)
+		}
+	}
+
+	return keep
+}

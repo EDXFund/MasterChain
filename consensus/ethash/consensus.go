@@ -261,7 +261,7 @@ func (ethash *Ethash) verifyHeader(chain consensus.ChainReader, header, parent t
 	// Verify the block's difficulty based in it's timestamp and parent's difficulty
 
 	expected := ethash.CalcDifficulty(chain, header.Time().Uint64(), parent)
-	fmt.Println("parent d:",parent.Difficulty(),"\t this d:",header.Difficulty(),"\t expected:",expected)
+
 	if expected.Cmp(header.Difficulty()) != 0 {
 		return fmt.Errorf("invalid difficulty: have %v, want %v", header.Difficulty(), expected)
 	}
@@ -345,6 +345,7 @@ var (
 func makeDifficultyCalculator(bombDelay *big.Int) func(time uint64, parent types.HeaderIntf) *big.Int {
 	// Note, the calculations below looks at the parent number, which is 1 below
 	// the block number. Thus we remove one from the delay given
+
 	bombDelayFromParent := new(big.Int).Sub(bombDelay, big1)
 	return func(time uint64, parent types.HeaderIntf) *big.Int {
 		// https://github.com/ethereum/EIPs/issues/100.
@@ -412,6 +413,7 @@ func calcDifficultyHomestead(time uint64, parent types.HeaderIntf) *big.Int {
 	//         (parent_diff / 2048 * max(1 - (block_timestamp - parent_timestamp) // 10, -99))
 	//        ) + 2^(periodCount - 2)
 
+
 	bigTime := new(big.Int).SetUint64(time)
 	bigParentTime := new(big.Int).Set(parent.Time())
 
@@ -448,6 +450,7 @@ func calcDifficultyHomestead(time uint64, parent types.HeaderIntf) *big.Int {
 		y.Exp(big2, y, nil)
 		x.Add(x, y)
 	}
+	fmt.Println("new Difficulty:",x.Uint64()," prev:",parent.Difficulty())
 	return x
 }
 
@@ -481,6 +484,7 @@ func calcDifficultyFrontier(time uint64, parent types.HeaderIntf) *big.Int {
 		diff.Add(diff, expDiff)
 		diff = math.BigMax(diff, params.MinimumDifficulty)
 	}
+	fmt.Println("2 new Difficulty:",diff.Uint64()," prev:",parent.Difficulty())
 	return diff
 }
 

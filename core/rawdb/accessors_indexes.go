@@ -17,6 +17,7 @@
 package rawdb
 
 import (
+	"reflect"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/log"
@@ -79,21 +80,24 @@ func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.
 func WriteTxLookupEntries(db DatabaseWriter, block *types.SBlock) {
-	for i, tx := range block.Transactions() {
-		entry := TxLookupEntry{
-			ShardId:    block.ShardId(),
-			BlockHash:  block.Hash(),
-			BlockIndex: block.NumberU64(),
-			Index:      uint64(i),
-		}
-		data, err := rlp.EncodeToBytes(entry)
-		if err != nil {
-			log.Crit("Failed to encode transaction lookup entry", "err", err)
-		}
-		if err := db.Put(txLookupKey(tx.Hash()), data); err != nil {
-			log.Crit("Failed to store transaction lookup entry", "err", err)
+	if block != nil && !reflect.ValueOf(block).IsNil() {
+		for i, tx := range block.Transactions() {
+			entry := TxLookupEntry{
+				ShardId:    block.ShardId(),
+				BlockHash:  block.Hash(),
+				BlockIndex: block.NumberU64(),
+				Index:      uint64(i),
+			}
+			data, err := rlp.EncodeToBytes(entry)
+			if err != nil {
+				log.Crit("Failed to encode transaction lookup entry", "err", err)
+			}
+			if err := db.Put(txLookupKey(tx.Hash()), data); err != nil {
+				log.Crit("Failed to store transaction lookup entry", "err", err)
+			}
 		}
 	}
+
 }
 
 // DeleteTxLookupEntry removes all transaction data associated with a hash.
