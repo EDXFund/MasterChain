@@ -55,6 +55,7 @@ func (v *ShardBlockValidator) ValidateBody(block *types.Block) error {
 	}
 	if !v.bc.HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
 		if !v.bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
+			fmt.Println("5")
 			return consensus.ErrUnknownAncestor
 		}
 		return consensus.ErrPrunedAncestor

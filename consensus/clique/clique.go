@@ -20,6 +20,7 @@ package clique
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"reflect"
@@ -357,6 +358,7 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header types
 		parent = chain.GetHeader(header.ParentHash(), number-1)
 	}
 	if parent == nil || parent.NumberU64() != number-1 || parent.Hash() != header.ParentHash() {
+		fmt.Println("2")
 		return consensus.ErrUnknownAncestor
 	}
 	if parent.Time().Uint64()+c.config.Period > header.Time().Uint64() {
@@ -427,6 +429,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			// If we have explicit parents, pick from there (enforced)
 			header = parents[len(parents)-1]
 			if header.Hash() != hash || header.NumberU64() != number {
+				fmt.Println("33")
 				return nil, consensus.ErrUnknownAncestor
 			}
 			parents = parents[:len(parents)-1]
@@ -434,6 +437,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
 			if header == nil  || reflect.ValueOf(header).IsNil()  {
+				fmt.Println("4")
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
@@ -579,6 +583,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header types.HeaderIntf) e
 	// Ensure the timestamp has the correct delay
 	parent := chain.GetHeader(header.ParentHash(), number-1)
 	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
+		fmt.Println("5")
 		return consensus.ErrUnknownAncestor
 	}
 	header.SetTime(new(big.Int).Add(parent.Time(), new(big.Int).SetUint64(c.config.Period)))

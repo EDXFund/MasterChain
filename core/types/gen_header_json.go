@@ -16,11 +16,11 @@ func (h HeaderStruct) MarshalJSON() ([]byte, error) {
 		ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
 		UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 		Coinbase       common.Address `json:"miner"            gencodec:"required"`
-		ShardBlockHash common.Hash    `json:"shardHash"		gencodec:"required"`
+		LastBlocksHash common.Hash    `json:"shardHash"		gencodec:"required"`
 		ShardMaskEp    uint16         `json:"shardHash"		gencodec:"required"`
 		ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"`
 		Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
-		TxHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
+		ShardTxsHash   common.Hash    `json:"transactionsRoot" gencodec:"required"`
 		ReceiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 		Bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
 		BloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"`
@@ -37,11 +37,11 @@ func (h HeaderStruct) MarshalJSON() ([]byte, error) {
 	enc.ParentHash = h.ParentHash
 	enc.UncleHash = h.UncleHash
 	enc.Coinbase = h.Coinbase
-	enc.ShardBlockHash = h.ShardBlockHash
+	enc.LastBlocksHash = h.LastBlocksHash
 	enc.ShardMaskEp = h.ShardMaskEp
 	enc.ShardEnabled = h.ShardEnabled
 	enc.Root = h.Root
-	enc.TxHash = h.TxHash
+	enc.ShardTxsHash = h.ShardTxsHash
 	enc.ReceiptHash = h.ReceiptHash
 	enc.Bloom = h.Bloom
 	enc.BloomReject = h.BloomReject
@@ -62,11 +62,11 @@ func (h *HeaderStruct) UnmarshalJSON(input []byte) error {
 		ParentHash     *common.Hash    `json:"parentHash"       gencodec:"required"`
 		UncleHash      *common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 		Coinbase       *common.Address `json:"miner"            gencodec:"required"`
-		ShardBlockHash *common.Hash    `json:"shardHash"		gencodec:"required"`
+		LastBlocksHash *common.Hash    `json:"shardHash"		gencodec:"required"`
 		ShardMaskEp    *uint16         `json:"shardHash"		gencodec:"required"`
 		ShardEnabled   [32]byte          `json:"shardHash"		gencodec:"required"`
 		Root           *common.Hash    `json:"stateRoot"        gencodec:"required"`
-		TxHash         *common.Hash    `json:"transactionsRoot" gencodec:"required"`
+		ShardTxsHash   *common.Hash    `json:"transactionsRoot" gencodec:"required"`
 		ReceiptHash    *common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 		Bloom          *Bloom          `json:"logsBloom"        gencodec:"required"`
 		BloomReject    *Bloom          `json:"rjLogsBloom"        gencodec:"required"`
@@ -95,23 +95,23 @@ func (h *HeaderStruct) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'miner' for HeaderStruct")
 	}
 	h.Coinbase = *dec.Coinbase
-	if dec.ShardBlockHash != nil {
-		h.ShardBlockHash = *dec.ShardBlockHash
+	if dec.LastBlocksHash != nil {
+		h.LastBlocksHash = *dec.LastBlocksHash
 	}
 	if dec.ShardMaskEp != nil {
 		h.ShardMaskEp = *dec.ShardMaskEp
 	}
-	if dec.ShardEnabled != [32]byte{0} {
+	//if dec.ShardEnabled != nil {
 		h.ShardEnabled = dec.ShardEnabled
-	}
+	//}
 	if dec.Root == nil {
 		return errors.New("missing required field 'stateRoot' for HeaderStruct")
 	}
 	h.Root = *dec.Root
-	if dec.TxHash == nil {
+	if dec.ShardTxsHash == nil {
 		return errors.New("missing required field 'transactionsRoot' for HeaderStruct")
 	}
-	h.TxHash = *dec.TxHash
+	h.ShardTxsHash = *dec.ShardTxsHash
 	if dec.ReceiptHash == nil {
 		return errors.New("missing required field 'receiptsRoot' for HeaderStruct")
 	}

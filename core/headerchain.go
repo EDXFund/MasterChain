@@ -142,6 +142,7 @@ func (hc *HeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatus,
 	// Calculate the total difficulty of the header
 	ptd := hc.GetTd(header.ParentHash(), number-1)
 	if ptd == nil {
+		fmt.Println("41")
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().NumberU64())
@@ -390,7 +391,6 @@ func (hc *HeaderChain) GetTdByHash(hash common.Hash) *big.Int {
 // WriteTd stores a block's total difficulty into the database, also caching it
 // along the way.
 func (hc *HeaderChain) WriteTd(hash common.Hash, number uint64, td *big.Int) error {
-	fmt.Println(" Write TD:",number,td.Uint64())
 	rawdb.WriteTd(hc.chainDb, hash, number, td)
 	hc.tdCache.Add(hash, new(big.Int).Set(td))
 	return nil

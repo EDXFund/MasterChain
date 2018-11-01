@@ -455,7 +455,7 @@ func (pool *ShardPool) reset(oldHead, newHead types.HeaderIntf) {
 
 
 	//rebuild latest shard info
-	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ToHeader().ShardBlockHash())
+	latestShardInfo,err := rawdb.ReadShardLatestEntry(pool.chaindb,newHead.ToHeader().LastBlocksHash())
 	if err == nil {
 		pool.lastShards = latestShardInfo
 	}else {
@@ -543,7 +543,7 @@ func (pool *ShardPool) addShardBlock(blk *types.SBlock) (bool, error) {
 	// If the transaction is already known, discard it
 	//hash := blk.Hash()
 	blockInfo :=  new(types.ShardBlockInfo)
-	blockInfo.FillBy(&types.ShardBlockInfoStruct{ShardId:blk.ShardId(),BlockNumber:blk.NumberU64(),BlockHash:blk.Hash(),Difficulty:blk.Difficulty().Uint64()})
+	blockInfo.FillBy(&types.ShardBlockInfoStruct{ShardId:blk.ShardId(),BlockNumber:blk.NumberU64(),BlockHash:blk.Hash(),Td:blk.Difficulty().Uint64()})
 	return pool.addShardBlockInfo(blockInfo)
 
 }
@@ -625,7 +625,7 @@ func (pool *ShardPool)purgeExpired() {
 	for shardId,manager := range pool.pendingBlocks {
 		if val,ok := pool.lastShards[shardId]; ok {
 			shardBlock := new(types.ShardBlockInfo)
-			shardBlock.FillBy (&types.ShardBlockInfoStruct{ShardId:val.ShardId,BlockNumber:val.BlockNumber,BlockHash:val.Hash,Difficulty:val.Td})
+			shardBlock.FillBy (&types.ShardBlockInfoStruct{ShardId:val.ShardId,BlockNumber:val.BlockNumber,BlockHash:val.Hash,Td:val.Td})
 			manager.ReduceTo(shardBlock)
 		}
 

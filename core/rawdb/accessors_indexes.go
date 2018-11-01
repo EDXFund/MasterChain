@@ -41,20 +41,23 @@ func ReadShardBlockLookupEntry(db DatabaseReader, hash common.Hash) (uint16, com
 // WriteShardBlockEntries stores a positional metadata for every shardBlock from
 // a master block, enabling hash based transaction and receipt lookups.
 func WriteShardBlockEntries(db DatabaseWriter, block types.BlockIntf) {
-	for i, shardBlock := range block.ShardBlocks() {
-		entry := TxLookupEntry{
-			BlockHash:  block.Hash(),
-			BlockIndex: block.NumberU64(),
-			Index:      uint64(i),
-		}
-		data, err := rlp.EncodeToBytes(entry)
-		if err != nil {
-			log.Crit("Failed to encode transaction lookup entry", "err", err)
-		}
-		if err := db.Put(txLookupKey(shardBlock.Hash()), data); err != nil {
-			log.Crit("Failed to store transaction lookup entry", "err", err)
+	if block != nil && !reflect.ValueOf(block).IsNil() {
+		for i, shardBlock := range block.ShardBlocks() {
+			entry := TxLookupEntry{
+				BlockHash:  block.Hash(),
+				BlockIndex: block.NumberU64(),
+				Index:      uint64(i),
+			}
+			data, err := rlp.EncodeToBytes(entry)
+			if err != nil {
+				log.Crit("Failed to encode transaction lookup entry", "err", err)
+			}
+			if err := db.Put(txLookupKey(shardBlock.Hash()), data); err != nil {
+				log.Crit("Failed to store transaction lookup entry", "err", err)
+			}
 		}
 	}
+
 }
 
 // DeleteTxLookupEntry removes all transaction data associated with a hash.

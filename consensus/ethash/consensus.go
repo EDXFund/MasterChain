@@ -95,6 +95,7 @@ func (ethash *Ethash) VerifyHeader(chain consensus.ChainReader, header types.Hea
 	}
 	parent := chain.GetHeader(header.ParentHash(), number-1)
 	if parent == nil  ||  reflect.ValueOf(parent).IsNil()  {
+		fmt.Println("1")
 		return consensus.ErrUnknownAncestor
 	}
 	// Sanity checks passed, do a proper verification
@@ -175,7 +176,13 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 		parent = headers[index-1]
 	}
 	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
+		fmt.Printf("3，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+		fmt.Println("")
 		return consensus.ErrUnknownAncestor
+	} else {
+		fmt.Printf("K，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+		fmt.Println("")
+
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].NumberU64()) != nil {
 		return nil // known block
@@ -568,6 +575,7 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 func (ethash *Ethash) Prepare(chain consensus.ChainReader, header types.HeaderIntf) error {
 	parent := chain.GetHeader(header.ParentHash(), header.NumberU64()-1)
 	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
+		fmt.Println("4")
 		return consensus.ErrUnknownAncestor
 	}
 	header.SetDifficulty (ethash.CalcDifficulty(chain, header.Time().Uint64(), parent))
@@ -588,10 +596,11 @@ func (ethash *Ethash) Finalize(chain consensus.ChainReader, header types.HeaderI
 func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,  txs []*types.Transaction ,results []*types.ContractResult) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
 	/*accumulateRewards(chain.Config(), state, header, nil)
-	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
+
 */
+	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, nil, nil, nil), nil
+	return types.NewSBlock(header, txs, results), nil
 }
 func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,  receipts []*types.Receipt) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root

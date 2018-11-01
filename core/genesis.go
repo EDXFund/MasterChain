@@ -262,6 +262,54 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	return types.NewBlock(head, nil, nil, nil)
 }
 
+// ToBlock creates the genesis block and writes state of a genesis specification
+// to the given database (or discards it if nil).
+func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
+	if db == nil {
+		db = ethdb.NewMemDatabase()
+	}
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
+	for addr, account := range g.Alloc {
+		statedb.AddBalance(addr, account.Balance)
+		statedb.SetCode(addr, account.Code)
+		statedb.SetNonce(addr, account.Nonce)
+		for key, value := range account.Storage {
+			statedb.SetState(addr, key, value)
+		}
+	}
+	root := statedb.IntermediateRoot(false)
+	head := new (types.SHeader)
+	head_ := &types.SHeaderStruct{
+		ShardId:shardId,
+		Number:     new(big.Int).SetUint64(g.Number),
+		Nonce:      types.EncodeNonce(g.Nonce),
+		Time:       new(big.Int).SetUint64(g.Timestamp),
+		ParentHash: g.ParentHash,
+		Extra:      g.ExtraData,
+		GasLimit:   g.GasLimit,
+		GasUsed:    g.GasUsed,
+		Difficulty: g.Difficulty,
+		MixDigest:  g.Mixhash,
+		Coinbase:   g.Coinbase,
+		Root:       root,
+	}
+	head.FillBy(head_)
+
+	if g.GasLimit == 0 {
+		head.SetGasLimit (params.GenesisGasLimit)
+	}
+	if g.Difficulty == nil {
+		head.SetDifficulty (params.GenesisDifficulty)
+	}
+	statedb.Commit(false)
+	statedb.Database().TrieDB().Commit(root, true)
+
+	return types.NewSBlock(head, nil, nil)
+}
+
+
+
+
 // Commit writes the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
 func (g *Genesis) Commit(db ethdb.Database) (types.BlockIntf, error) {

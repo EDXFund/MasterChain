@@ -40,11 +40,11 @@ type Header struct {
 	parentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
 	uncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	coinbase       common.Address `json:"miner"            gencodec:"required"`
-	shardBlockHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
+	lastBlocksHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
 	shardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
 	shardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
 	root           common.Hash    `json:"stateRoot"        gencodec:"required"`
-	txHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	shardTxsHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	receiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
 	bloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
@@ -62,11 +62,11 @@ type HeaderStruct struct {
 	ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
 	UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase       common.Address `json:"miner"            gencodec:"required"`
-	ShardBlockHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
+	LastBlocksHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
 	ShardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
 	ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
 	Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
-	TxHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ShardTxsHash         common.Hash    `json:"transactionsRoot" gencodec:"required"`  //hash of all included shardinfo
 	ReceiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
 	BloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
@@ -83,7 +83,8 @@ type HeaderStruct struct {
 func (h *Header) FillBy(h2 *HeaderStruct){
 	h.parentHash = h2.ParentHash
 	h.root = h2.Root
-	h.txHash = h2.TxHash
+	h.lastBlocksHash = h2.LastBlocksHash
+	h.shardTxsHash = h2.ShardTxsHash
 	h.receiptHash = h2.ReceiptHash
 	h.bloom = h2.Bloom
 	h.bloomReject = h2.BloomReject
@@ -100,7 +101,8 @@ func (h *Header) ToHeaderStruct() *HeaderStruct {
 	return &HeaderStruct{
 		ParentHash:h.parentHash,
 		Root:h.root,
-		TxHash:h.txHash,
+		LastBlocksHash:h.lastBlocksHash,
+		ShardTxsHash:h.shardTxsHash,
 		ReceiptHash:h.receiptHash,
 		Bloom:h.bloom,
 		BloomReject:h.bloomReject,
@@ -161,10 +163,12 @@ func (b Header) BloomRejected() Bloom     { return b.bloomReject }
 func (b *Header) Coinbase() common.Address { return b.coinbase }
 func (b *Header) Root() common.Hash        { return b.root }
 func (b *Header) ParentHash() common.Hash  { return b.parentHash }
-func (b *Header) TxHash() common.Hash      { return b.txHash }
+func (b *Header) TxHash() common.Hash      { return b.shardTxsHash}
+func (b *Header) ShardTxsHash() common.Hash {return b.shardTxsHash}
 func (b *Header) ReceiptHash() common.Hash { return b.receiptHash }
 func (b *Header) UncleHash() common.Hash   { return b.uncleHash }
 func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
+func (b *Header) LastBlocksHash() common.Hash {return b.lastBlocksHash}
 
 func (b *Header) ShardExp() uint16      { return b.shardMaskEp }
 func (b *Header) ShardEnabled() [32]byte { return b.shardEnabled }
@@ -176,7 +180,8 @@ func (b *Header) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v)}
 func (b *Header) SetParentHash(v common.Hash){b.parentHash = v}
 func (b *Header) SetUncleHash(v common.Hash){b.uncleHash = v}
 func (b *Header) SetReceiptHash(v common.Hash){b.receiptHash =v }
-func (b *Header) SetTxHash(v common.Hash){b.txHash = v}
+func (b *Header) SetTxHash(v common.Hash){}
+func (b *Header) SetShardTxHash(v common.Hash){b.shardTxsHash = v}
 func (b *Header) SetExtra(v []byte){b.extra = common.CopyBytes(v)}
 func (b *Header) SetTime(v *big.Int){b.time = v}
 func (b *Header) SetCoinbase(v common.Address) {b.coinbase = v}
@@ -187,38 +192,39 @@ func (b *Header) SetGasLimit(v  uint64) { b.gasLimit = v}
 func (b *Header) SetGasUsed(v uint64) { b.gasUsed = v}
 func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v}
 func (b *Header) SetNonce(v BlockNonce) {b.nonce = v}
-func (b *Header) ShardBlockHash() common.Hash {return b.shardBlockHash}
+func (b *Header) SetLastBlocksHash(v common.Hash ) { b.lastBlocksHash =v }
+
 
 type ShardBlockInfo struct {
 	shardId     uint16
 	blockNumber uint64
 	blockHash   common.Hash
-	parentHash  common.Hash
-	difficulty  uint64
+	parentHash  common.Hash  //for easy check parents hash
+	td  uint64
 }
 type ShardBlockInfoStruct struct {
 	ShardId     uint16
 	BlockNumber uint64
 	BlockHash   common.Hash
 	ParentHash  common.Hash
-	Difficulty  uint64
+	Td  uint64
 }
-
+func (t *ShardBlockInfo)FillBy(t1 *ShardBlockInfoStruct) {
+	t.shardId = t1.ShardId
+	t.blockNumber = t1.BlockNumber
+	t.blockHash = t1.BlockHash
+	t.parentHash = t1.ParentHash
+	t.td = t1.Td
+}
 func (t *ShardBlockInfo) ShardId() uint16         { return t.shardId }
 func (t *ShardBlockInfo) BlockNumber() uint64     { return t.blockNumber }
 func (t *ShardBlockInfo) Number() *big.Int        { return new(big.Int).SetUint64(t.blockNumber) }
 func (t *ShardBlockInfo) NumberU64() uint64       { return t.blockNumber }
 func (t *ShardBlockInfo) Hash() common.Hash       { return t.blockHash }
 func (t *ShardBlockInfo) ParentHash() common.Hash { return t.parentHash }
-func (t *ShardBlockInfo) Difficulty() *big.Int    { return new(big.Int).SetUint64(t.difficulty) }
-func (t *ShardBlockInfo) DifficultyU64() uint64   { return t.difficulty }
-func (t *ShardBlockInfo) FillBy(ss* ShardBlockInfoStruct)    {
-	t.shardId    = ss.ShardId
-	t.blockNumber = ss.BlockNumber
-	t.blockHash   = ss.BlockHash
-	t.parentHash  = ss.ParentHash
-	t.difficulty  = ss.Difficulty
-}
+func (t *ShardBlockInfo) Difficulty() *big.Int    { return new(big.Int).SetUint64(t.td) }
+func (t *ShardBlockInfo) DifficultyU64() uint64   { return t.td }
+
 // Transactions is a Transaction slice type for basic sorting.
 type ShardBlockInfos []*ShardBlockInfo
 
@@ -311,12 +317,13 @@ func NewBlock(header HeaderIntf, blks []*ShardBlockInfo, uncles []HeaderIntf, re
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(blks) == 0 {
-		b.header.txHash = EmptyRootHash
+		b.header.shardTxsHash = EmptyRootHash
 	} else {
-		b.header.txHash = DeriveSha(ShardBlockInfos(blks))
+		b.header.shardTxsHash = DeriveSha(ShardBlockInfos(blks))
 		b.shardBlocks = make(ShardBlockInfos, len(blks))
 		copy(b.shardBlocks, blks)
 	}
+
 
 	if len(receipts) == 0 {
 		b.header.receiptHash = EmptyRootHash
@@ -437,7 +444,7 @@ func (b Block) BloomRejected() Bloom     { return b.header.bloomReject }
 func (b *Block) Coinbase() common.Address { return b.header.coinbase }
 func (b *Block) Root() common.Hash        { return b.header.root }
 func (b *Block) ParentHash() common.Hash  { return b.header.parentHash }
-func (b *Block) TxHash() common.Hash      { return b.header.txHash }
+func (b *Block) TxHash() common.Hash      { return b.header.shardTxsHash }
 func (b *Block) ReceiptHash() common.Hash { return b.header.receiptHash }
 func (b *Block) UncleHash() common.Hash   { return b.header.uncleHash }
 func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.extra) }

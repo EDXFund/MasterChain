@@ -233,7 +233,7 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 			ParentHash:  hash,
 			Difficulty:  big.NewInt(1),
 			UncleHash:   types.EmptyUncleHash,
-			TxHash:      types.EmptyRootHash,
+			ShardTxsHash:      types.EmptyRootHash,
 			ReceiptHash: types.EmptyRootHash,
 		})
 		hash = header.Hash()

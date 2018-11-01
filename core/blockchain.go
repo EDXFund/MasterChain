@@ -936,6 +936,7 @@ func (bc *BlockChain) WriteBlockWithState(block types.BlockIntf, receipts []*typ
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
+		fmt.Println("31")
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
@@ -1158,6 +1159,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 			continue
 
 		case err == consensus.ErrUnknownAncestor && bc.futureBlocks.Contains(block.ParentHash()):
+			fmt.Println("32")
 			bc.futureBlocks.Add(block.Hash(), block)
 			stats.queued++
 			continue

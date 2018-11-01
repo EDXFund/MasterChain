@@ -62,6 +62,7 @@ func (v *BlockValidator) validateSBody(block *types.SBlock) error {
 	}
 	if !v.bc.HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
 		if !v.bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
+			fmt.Println("22")
 			return consensus.ErrUnknownAncestor
 		}
 		return consensus.ErrPrunedAncestor
@@ -89,6 +90,7 @@ func (v *BlockValidator) validateBody(block *types.Block) error {
 	}
 	if !v.bc.HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
 		if !v.bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
+			fmt.Println("23")
 			return consensus.ErrUnknownAncestor
 		}
 		return consensus.ErrPrunedAncestor
