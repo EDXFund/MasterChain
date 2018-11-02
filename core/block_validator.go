@@ -62,7 +62,6 @@ func (v *BlockValidator) validateSBody(block *types.SBlock) error {
 	}
 	if !v.bc.HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
 		if !v.bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
-			fmt.Println("22")
 			return consensus.ErrUnknownAncestor
 		}
 		return consensus.ErrPrunedAncestor
@@ -75,8 +74,8 @@ func (v *BlockValidator) validateSBody(block *types.SBlock) error {
 	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash() {
 		return fmt.Errorf("uncle root hash mismatch: have %x, want %x", hash, header.UncleHash)
 	}*/
-	if hash := types.DeriveSha(types.ShardBlockInfos(block.ShardBlocks())); hash != header.TxHash() {
-		return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
+	if hash := types.DeriveSha(types.Transactions(block.Transactions())); hash != header.TxHash() {
+		return fmt.Errorf("1transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
 	}
 	return nil
 }
@@ -104,7 +103,7 @@ func (v *BlockValidator) validateBody(block *types.Block) error {
 		return fmt.Errorf("uncle root hash mismatch: have %x, want %x", hash, header.UncleHash())
 	}
 	if hash := types.DeriveSha(types.ShardBlockInfos(block.ShardBlocks())); hash != header.TxHash() {
-		return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
+		return fmt.Errorf("2transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
 	}
 	return nil
 }
@@ -112,7 +111,8 @@ func (v *BlockValidator) ValidateState(block, parent types.BlockIntf, statedb *s
 	if block.ShardId() == types.ShardMaster {
 		return v.validateState(block.ToBlock(),parent.ToBlock(),statedb,receipts,usedGas)
 	}else {
-		return v.validateShardState(block.ToSBlock(),parent.ToSBlock(),statedb,receipts,usedGas)
+		//no receipts in shard
+		return v.validateShardState(block.ToSBlock(),parent.ToSBlock(),statedb,nil,usedGas)
 	}
 }
 // ValidateState validates the various changes that happen after a state

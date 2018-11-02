@@ -262,7 +262,7 @@ func (bc *BlockChain) loadLastState() error {
 			currentHeader = header
 		}
 	}
-	bc.hc.SetCurrentHeader(currentHeader.ToHeader())
+	bc.hc.SetCurrentHeader(currentHeader)
 
 	// Restore the last known head fast block
 	bc.currentFastBlock.Store(currentBlock)

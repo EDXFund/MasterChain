@@ -381,7 +381,12 @@ func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) types.BlockIn
 	if body == nil {
 		return nil
 	}
-	return types.NewBlockWithHeader(header).WithBody(body.ShardBlocks,nil,body.Transactions, body.Receipts)
+	if(header.ShardId() == types.ShardMaster ) {
+		return types.NewBlockWithHeader(header).WithBody(body.ShardBlocks,nil,body.Transactions, body.Receipts)
+	}else{
+		return types.NewSBlockWithHeader(header).WithBody(body.ShardBlocks,nil,body.Transactions, body.Receipts)
+	}
+
 }
 
 // WriteBlock serializes a block into the database, header and body separately.

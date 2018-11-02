@@ -150,7 +150,7 @@ func (e *GenesisMismatchError) Error() string {
 // error is a *params.ConfigCompatError and the new, unwritten config is returned.
 //
 // The returned chain configuration is never nil.
-func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
+func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && genesis.Config == nil {
 		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
 	}
@@ -164,7 +164,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig
 		} else {
 			log.Info("Writing custom genesis block")
 		}
-		block, err := genesis.Commit(db)
+		block, err := genesis.Commit(db,shardId)
 		return genesis.Config, block.Hash(), err
 	}
 
@@ -312,13 +312,19 @@ func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
 
 // Commit writes the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
-func (g *Genesis) Commit(db ethdb.Database) (types.BlockIntf, error) {
-	block := g.ToBlock(db)
+func (g *Genesis) Commit(db ethdb.Database,shardId uint16) (types.BlockIntf, error) {
+	var block types.BlockIntf
+	if(shardId == types.ShardMaster){
+		block = g.ToBlock(db)
+	}else {
+		block = g.ToSBlock(db,shardId)
+	}
+
 	if block.Number().Sign() != 0 {
 		return nil, fmt.Errorf("can't commit genesis block with number > 0")
 	}
 	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), g.Difficulty)
-	fmt.Println("number:",block.NumberU64(),"\ttd:",g.Difficulty)
+	fmt.Printf("number: %v,\t td:%v, hash:%v",block.NumberU64(),g.Difficulty, block.Hash())
 	rawdb.WriteBlock(db, block)
 	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
@@ -335,8 +341,8 @@ func (g *Genesis) Commit(db ethdb.Database) (types.BlockIntf, error) {
 
 // MustCommit writes the genesis block and state to db, panicking on error.
 // The block is committed as the canonical head block.
-func (g *Genesis) MustCommit(db ethdb.Database) types.BlockIntf {
-	block, err := g.Commit(db)
+func (g *Genesis) MustCommit(db ethdb.Database,shardId uint16) types.BlockIntf {
+	block, err := g.Commit(db,shardId)
 	if err != nil {
 		panic(err)
 	}
@@ -344,9 +350,9 @@ func (g *Genesis) MustCommit(db ethdb.Database) types.BlockIntf {
 }
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
-func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) types.BlockIntf {
+func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int,shardId uint16) types.BlockIntf {
 	g := Genesis{Alloc: GenesisAlloc{addr: {Balance: balance}}}
-	return g.MustCommit(db)
+	return g.MustCommit(db,shardId)
 }
 
 // DefaultGenesisBlock returns the Ethereum main net genesis block.

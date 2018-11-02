@@ -154,7 +154,8 @@ func (b *Header) GasLimit() uint64     { return b.gasLimit }
 func (b *Header) GasUsed() uint64      { return b.gasUsed }
 func (b *Header) Difficulty() *big.Int { if(b.difficulty == nil ){return nil } else {return new(big.Int).Set(b.difficulty) }}
 func (b *Header) Time() *big.Int       {  if b.time == nil {return nil } else {return new(big.Int).Set(b.time)} }
-
+func (b *Header) GasUsedPtr() *uint64      { return &b.gasUsed }
+func (b *Header) CoinbasePtr() *common.Address { return &b.coinbase }
 func (b *Header) NumberU64() uint64        { return b.number.Uint64() }
 func (b *Header) MixDigest() common.Hash   { return b.mixDigest }
 func (b *Header) Nonce() BlockNonce            { return b.nonce }
@@ -435,7 +436,8 @@ func (b *Block) GasLimit() uint64     { return b.header.gasLimit }
 func (b *Block) GasUsed() uint64      { return b.header.gasUsed }
 func (b *Block) Difficulty() *big.Int { return new(big.Int).Set(b.header.difficulty) }
 func (b *Block) Time() *big.Int       { return new(big.Int).Set(b.header.time) }
-
+func (b *Block) GasUsedPtr() *uint64      { return &b.header.gasUsed }
+func (b *Block) CoinbasePtr() *common.Address { return &b.header.coinbase }
 func (b *Block) NumberU64() uint64        { return b.header.number.Uint64() }
 func (b *Block) MixDigest() common.Hash   { return b.header.mixDigest }
 func (b *Block) Nonce() BlockNonce            { return b.header.nonce }

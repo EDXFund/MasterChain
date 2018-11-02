@@ -309,7 +309,8 @@ type HeaderIntf interface {
 	MixDigest() common.Hash
 	Nonce() BlockNonce
 
-
+	GasUsedPtr() *uint64
+	CoinbasePtr() *common.Address
 	SetShardId( uint16)
 	SetNumber( *big.Int)
 	SetParentHash( common.Hash)

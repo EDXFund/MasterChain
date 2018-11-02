@@ -111,7 +111,7 @@ type scheaderMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *SHeader) Hash() common.Hash {
-	return rlpHash(h)
+	return rlpHash(h.ToStruct())
 }
 func (h *SHeader) FillBy(h2 *SHeaderStruct)  {
 	h.shardId    = h2.ShardId
@@ -170,6 +170,8 @@ func (b *SHeader) ShardId() uint16      { return b.shardId }
 func (b *SHeader) Number() *big.Int     { return new(big.Int).Set(b.number) }
 func (b *SHeader) GasLimit() uint64     { return b.gasLimit }
 func (b *SHeader) GasUsed() uint64      { return b.gasUsed }
+func (b *SHeader) GasUsedPtr() *uint64      { return &b.gasUsed }
+func (b *SHeader) CoinbasePtr() *common.Address { return &b.coinbase }
 func (b *SHeader) Difficulty() *big.Int { return new(big.Int).Set(b.difficulty) }
 func (b *SHeader) Time() *big.Int       { return new(big.Int).Set(b.time) }
 func (b *SHeader) UncleHash() common.Hash { return common.Hash{}}
@@ -324,8 +326,8 @@ func NewSBlock(header HeaderIntf, txs []*Transaction, receipts []*ContractResult
 // NewBlockWithHeader creates a block with the given header data. The
 // header data is copied, changes to header and to the field values
 // will not affect the block.
-func NewSBlockWithHeader(header *SHeader) *SBlock {
-	return &SBlock{header: CopySHeader(header)}
+func NewSBlockWithHeader(header HeaderIntf) *SBlock {
+	return &SBlock{header: CopySHeader(header.ToSHeader())}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from

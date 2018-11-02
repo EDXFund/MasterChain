@@ -34,28 +34,28 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 	// Generate a common prefix for both pro-forkers and non-forkers
 	db := ethdb.NewMemDatabase()
 	gspec := new(Genesis)
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, 0)
 	prefix, _ := GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, int(forkBlock.Int64()-1), func(i int, gen *BlockGen) {})
 
 	// Create the concurrent, conflicting two nodes
 	proDb := ethdb.NewMemDatabase()
-	gspec.MustCommit(proDb)
+	gspec.MustCommit(proDb, 0)
 
 	proConf := *params.TestChainConfig
 	proConf.DAOForkBlock = forkBlock
 	proConf.DAOForkSupport = true
 
-	proBc, _ := NewBlockChain(proDb, nil, &proConf, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+	proBc, _ := NewBlockChain(proDb, nil, &proConf, ethash.NewFaker(), vm.Config{}, nil,0)
 	defer proBc.Stop()
 
 	conDb := ethdb.NewMemDatabase()
-	gspec.MustCommit(conDb)
+	gspec.MustCommit(conDb, 0)
 
 	conConf := *params.TestChainConfig
 	conConf.DAOForkBlock = forkBlock
 	conConf.DAOForkSupport = false
 
-	conBc, _ := NewBlockChain(conDb, nil, &conConf, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+	conBc, _ := NewBlockChain(conDb, nil, &conConf, ethash.NewFaker(), vm.Config{}, nil,0)
 	defer conBc.Stop()
 
 	if _, err := proBc.InsertChain(prefix); err != nil {
@@ -68,8 +68,8 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 	for i := int64(0); i < params.DAOForkExtraRange.Int64(); i++ {
 		// Create a pro-fork block, and try to feed into the no-fork chain
 		db = ethdb.NewMemDatabase()
-		gspec.MustCommit(db)
-		bc, _ := NewBlockChain(db, nil, &conConf, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+		gspec.MustCommit(db,0)
+		bc, _ := NewBlockChain(db, nil, &conConf, ethash.NewFaker(), vm.Config{}, nil,0)
 		defer bc.Stop()
 
 		blocks := conBc.GetBlocksFromHash(conBc.CurrentBlock().Hash(), int(conBc.CurrentBlock().NumberU64()))
@@ -93,8 +93,8 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 		}
 		// Create a no-fork block, and try to feed into the pro-fork chain
 		db = ethdb.NewMemDatabase()
-		gspec.MustCommit(db)
-		bc, _ = NewBlockChain(db, nil, &proConf, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+		gspec.MustCommit(db, 0)
+		bc, _ = NewBlockChain(db, nil, &proConf, ethash.NewFaker(), vm.Config{}, nil,0)
 		defer bc.Stop()
 
 		blocks = proBc.GetBlocksFromHash(proBc.CurrentBlock().Hash(), int(proBc.CurrentBlock().NumberU64()))
@@ -119,8 +119,8 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 	}
 	// Verify that contra-forkers accept pro-fork extra-datas after forking finishes
 	db = ethdb.NewMemDatabase()
-	gspec.MustCommit(db)
-	bc, _ := NewBlockChain(db, nil, &conConf, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+	gspec.MustCommit(db, 0)
+	bc, _ := NewBlockChain(db, nil, &conConf, ethash.NewFaker(), vm.Config{}, nil,0)
 	defer bc.Stop()
 
 	blocks := conBc.GetBlocksFromHash(conBc.CurrentBlock().Hash(), int(conBc.CurrentBlock().NumberU64()))
@@ -139,8 +139,8 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 	}
 	// Verify that pro-forkers accept contra-fork extra-datas after forking finishes
 	db = ethdb.NewMemDatabase()
-	gspec.MustCommit(db)
-	bc, _ = NewBlockChain(db, nil, &proConf, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+	gspec.MustCommit(db, 0)
+	bc, _ = NewBlockChain(db, nil, &proConf, ethash.NewFaker(), vm.Config{}, nil,0)
 	defer bc.Stop()
 
 	blocks = proBc.GetBlocksFromHash(proBc.CurrentBlock().Hash(), int(proBc.CurrentBlock().NumberU64()))

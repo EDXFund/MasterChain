@@ -35,12 +35,11 @@ func TestHeaderVerification(t *testing.T) {
 	var (
 		testdb    = ethdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
-		_   = gspec.MustCommit(testdb)
-		gen_block = gspec.ToBlock(testdb)
-		blocks, _ = GenerateChain(params.TestChainConfig, gen_block, ethash.NewFaker(), testdb, 8, nil)
+
+		blocks, _ = GenerateChain(params.TestChainConfig, gspec.MustCommit(testdb,0xFFFF), ethash.NewFaker(), testdb, 8, nil)
 	)
 
-	fmt.Println("gen blk：",gen_block.Header().NumberU64(),"\t hash:",gen_block.Header().Hash(),"\tparent Hash:",gen_block.Hash())
+//	fmt.Println("gen blk：",gen_block.Header().NumberU64(),"\t hash:",gen_block.Header().Hash(),"\tparent Hash:",gen_block.Hash())
 
 	headers := make([]types.HeaderIntf, len(blocks))
 	for i, block := range blocks {
@@ -92,7 +91,7 @@ func testHeaderConcurrentVerification(t *testing.T, threads int) {
 	var (
 		testdb    = ethdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
-		genesis   = gspec.MustCommit(testdb)
+		genesis   = gspec.MustCommit(testdb,types.ShardMaster)
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), testdb, 8, nil)
 	)
 	headers := make([]types.HeaderIntf, len(blocks))
@@ -164,7 +163,7 @@ func testHeaderConcurrentAbortion(t *testing.T, threads int) {
 	var (
 		testdb    = ethdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
-		genesis   = gspec.MustCommit(testdb)
+		genesis   = gspec.MustCommit(testdb,types.ShardMaster)
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), testdb, 1024, nil)
 	)
 	headers := make([]types.HeaderIntf, len(blocks))

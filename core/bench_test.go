@@ -35,40 +35,40 @@ import (
 )
 
 func BenchmarkInsertChain_empty_memdb(b *testing.B) {
-	benchInsertChain(b, false, nil)
+	benchInsertChain(b, false, 0xFFFF,nil)
 }
 func BenchmarkInsertChain_empty_diskdb(b *testing.B) {
-	benchInsertChain(b, true, nil)
+	benchInsertChain(b, true, 0xFFFF,nil)
 }
 func BenchmarkInsertChain_valueTx_memdb(b *testing.B) {
-	benchInsertChain(b, false, genValueTx(0))
+	benchInsertChain(b, false, 0xFFFF,genValueTx(0))
 }
 func BenchmarkInsertChain_valueTx_diskdb(b *testing.B) {
-	benchInsertChain(b, true, genValueTx(0))
+	benchInsertChain(b, true, 0xFFFF,genValueTx(0))
 }
 func BenchmarkInsertChain_valueTx_100kB_memdb(b *testing.B) {
-	benchInsertChain(b, false, genValueTx(100*1024))
+	benchInsertChain(b, false, 0xFFFF,genValueTx(100*1024))
 }
 func BenchmarkInsertChain_valueTx_100kB_diskdb(b *testing.B) {
-	benchInsertChain(b, true, genValueTx(100*1024))
+	benchInsertChain(b, true, 0xFFFF,genValueTx(100*1024))
 }
 func BenchmarkInsertChain_uncles_memdb(b *testing.B) {
-	benchInsertChain(b, false, genUncles)
+	benchInsertChain(b, false, 0xFFFF,genUncles)
 }
 func BenchmarkInsertChain_uncles_diskdb(b *testing.B) {
-	benchInsertChain(b, true, genUncles)
+	benchInsertChain(b, true, 0xFFFF,genUncles)
 }
 func BenchmarkInsertChain_ring200_memdb(b *testing.B) {
-	benchInsertChain(b, false, genTxRing(200))
+	benchInsertChain(b, false, 0xFFFF,genTxRing(200))
 }
 func BenchmarkInsertChain_ring200_diskdb(b *testing.B) {
-	benchInsertChain(b, true, genTxRing(200))
+	benchInsertChain(b, true, 0xFFFF,genTxRing(200))
 }
 func BenchmarkInsertChain_ring1000_memdb(b *testing.B) {
-	benchInsertChain(b, false, genTxRing(1000))
+	benchInsertChain(b, false,0xFFFF, genTxRing(1000))
 }
 func BenchmarkInsertChain_ring1000_diskdb(b *testing.B) {
-	benchInsertChain(b, true, genTxRing(1000))
+	benchInsertChain(b, true,0xFFFF, genTxRing(1000))
 }
 
 var (
@@ -146,7 +146,7 @@ func genUncles(i int, gen *BlockGen) {
 	}
 }
 
-func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
+func benchInsertChain(b *testing.B, disk bool,shardId uint16, gen func(int, *BlockGen)) {
 	// Create the database in memory or in a temporary directory.
 	var db ethdb.Database
 	if !disk {
@@ -170,7 +170,7 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 		Config: params.TestChainConfig,
 		Alloc:  GenesisAlloc{benchRootAddr: {Balance: benchRootFunds}},
 	}
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db,shardId)
 	chain, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, b.N, gen)
 
 	// Time the insertion of the new chain.

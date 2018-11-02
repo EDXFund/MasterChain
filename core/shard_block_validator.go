@@ -69,7 +69,7 @@ func (v *ShardBlockValidator) ValidateBody(block *types.Block) error {
 		return fmt.Errorf("uncle root hash mismatch: have %x, want %x", hash, header.UncleHash())
 	}
 	if hash := types.DeriveSha(types.ShardBlockInfos(block.ShardBlocks())); hash != header.TxHash() {
-		return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
+		return fmt.Errorf("3transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
 	}
 	return nil
 }
