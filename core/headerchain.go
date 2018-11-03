@@ -407,6 +407,8 @@ func (hc *HeaderChain) GetHeader(hash common.Hash, number uint64) types.HeaderIn
 	if header == nil {
 		return nil
 	}
+
+
 	// Cache the found header for next time and return
 	hc.headerCache.Add(hash, header)
 	return header
@@ -452,6 +454,8 @@ func (hc *HeaderChain) SetCurrentHeader(head types.HeaderIntf) {
 
 	hc.currentHeader.Store(head)
 	hc.currentHeaderHash = head.Hash()
+
+
 }
 
 // DeleteCallback is a callback function that is called by SetHead before
@@ -495,6 +499,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
 
 	rawdb.WriteHeadHeaderHash(hc.chainDb, hc.currentHeaderHash)
+
 }
 
 // SetGenesis sets a new genesis block header for the chain

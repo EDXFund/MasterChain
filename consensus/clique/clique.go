@@ -261,7 +261,12 @@ func (c *Clique) VerifyHeaders(chain consensus.ChainReader, headers []types.Head
 		for i, header := range headers {
 			rawHeaders := make([]types.HeaderIntf,len(headers[:i]))
 			for key,val := range headers[:i] {
-				rawHeaders[key] = val.ToHeader()
+				if val.ShardId() == types.ShardMaster {
+					rawHeaders[key] = val.ToHeader()
+				}else {
+					rawHeaders[key] = val.ToSHeader()
+				}
+
 			}
 			err := c.verifyHeader(chain, header, rawHeaders)
 
@@ -333,7 +338,7 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header types.HeaderIn
 		}
 	}
 	// If all checks passed, validate any special fields for hard forks
-	if err := misc.VerifyForkHashes(chain.Config(), header.ToHeader(), false); err != nil {
+	if err := misc.VerifyForkHashes(chain.Config(), header, false); err != nil {
 		return err
 	}
 	// All basic checks passed, verify cascading fields
@@ -437,7 +442,6 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
 			if header == nil  || reflect.ValueOf(header).IsNil()  {
-				fmt.Println("4")
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
@@ -455,7 +459,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 	c.recents.Add(snap.Hash, snap)
 
 	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
+	if snap.Number % checkpointInterval == 0 && len(headers) > 0 {
 		if err = snap.store(c.db); err != nil {
 			return nil, err
 		}
@@ -564,18 +568,19 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header types.HeaderIntf) e
 	// Set the correct difficulty
 	header.SetDifficulty ( CalcDifficulty(snap, c.signer))
 
+	extra := header.Extra()
 	// Ensure the extra data has all it's components
-	if len(header.Extra()) < extraVanity {
-		header.SetExtra ( append(header.Extra(), bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra()))...))
+	if len(extra) < extraVanity {
+		header.SetExtra ( append(extra, bytes.Repeat([]byte{0x00}, extraVanity-len(extra))...))
 	}
-	header.SetExtra (header.Extra()[:extraVanity])
+	//header.SetExtra (header.Extra()[:extraVanity])
 
 	if number%c.config.Epoch == 0 {
 		for _, signer := range snap.signers() {
-			header.SetExtra (append(header.Extra(), signer[:]...))
+			header.SetExtra (append(extra, signer[:]...))
 		}
 	}
-	header.SetExtra (append(header.Extra(), make([]byte, extraSeal)...))
+	header.SetExtra (append(extra, make([]byte, extraSeal)...))
 
 	// Mix digest is reserved for now, set to empty
 	header.SetMixDigest ( common.Hash{})
@@ -613,7 +618,7 @@ func (c *Clique) finalizeShard(chain consensus.ChainReader, header types.HeaderI
 	header.SetUncleHash (types.CalcUncleHash(nil))
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, nil, nil, nil), nil
+	return types.NewSBlock(header, txs, results), nil
 }
 func (c *Clique) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo, receipts []*types.Receipt) (types.BlockIntf, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
@@ -621,7 +626,7 @@ func (c *Clique) finalizeMaster(chain consensus.ChainReader,header types.HeaderI
 	header.SetUncleHash (types.CalcUncleHash(nil))
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, nil, nil, receipts), nil
+	return types.NewBlock(header, blks, nil, receipts), nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
@@ -637,7 +642,12 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Clique) Seal(chain consensus.ChainReader, block types.BlockIntf, results chan<- types.BlockIntf, stop <-chan struct{}) error {
-	header := block.Header().ToHeader()
+	var header types.HeaderIntf
+	if block.ShardId() == types.ShardMaster {
+		header =block.Header().ToHeader()
+	} else {
+		header = block.Header().ToSHeader()
+	}
 
 	// Sealing the genesis block is not supported
 	number := header.NumberU64()
@@ -686,7 +696,11 @@ func (c *Clique) Seal(chain consensus.ChainReader, block types.BlockIntf, result
 	if err != nil {
 		return err
 	}
-	copy(header.Extra()[len(header.Extra())-extraSeal:], sighash)
+	result := header.Extra()
+	fmt.Println("before:",result)
+	copy(result[len(header.Extra())-extraSeal:], sighash)
+	header.SetExtra(result)
+	fmt.Println("after:",header.Extra())
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
@@ -697,9 +711,9 @@ func (c *Clique) Seal(chain consensus.ChainReader, block types.BlockIntf, result
 		}
 
 		select {
-		case results <- block.WithSeal(header.ToHeader()).ToBlock():
+		case results <- block.WithSeal(header):
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", c.SealHash(header.ToHeader()))
+			log.Warn("Sealing result is not read by miner", "sealhash", c.SealHash(header))
 		}
 	}()
 

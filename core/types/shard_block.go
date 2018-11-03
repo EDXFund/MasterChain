@@ -1,6 +1,7 @@
 package types
 
 import (
+	//"github.com/ethereum/go-ethereum/core/types"
 	"io"
 	"math/big"
 	"sort"
@@ -174,7 +175,7 @@ func (b *SHeader) GasUsedPtr() *uint64      { return &b.gasUsed }
 func (b *SHeader) CoinbasePtr() *common.Address { return &b.coinbase }
 func (b *SHeader) Difficulty() *big.Int { return new(big.Int).Set(b.difficulty) }
 func (b *SHeader) Time() *big.Int       { return new(big.Int).Set(b.time) }
-func (b *SHeader) UncleHash() common.Hash { return common.Hash{}}
+func (b *SHeader) UncleHash() common.Hash { return CalcUncleHash(nil) }
 func (b *SHeader) NumberU64() uint64        { return b.number.Uint64() }
 func (b *SHeader) MixDigest() common.Hash   { return b.mixDigest }
 func (b *SHeader) Nonce() BlockNonce            { return b.nonce }
@@ -195,7 +196,9 @@ func (b *SHeader) SetParentHash(v common.Hash){b.parentHash = v}
 func (b *SHeader) SetUncleHash(v common.Hash){}
 func (b *SHeader) SetReceiptHash(v common.Hash){b.receiptHash =v }
 func (b *SHeader) SetTxHash(v common.Hash){b.txHash = v}
-func (b *SHeader) SetExtra(v []byte){b.extra = common.CopyBytes(v)}
+func (b *SHeader) SetExtra(v []byte){
+	b.extra = common.CopyBytes(v)
+	}
 func (b *SHeader) SetTime(v *big.Int){b.time = v}
 func (b *SHeader) SetCoinbase(v common.Address) {b.coinbase = v}
 func (b *SHeader) SetRoot(v common.Hash){b.root = v}

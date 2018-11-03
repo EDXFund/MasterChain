@@ -314,7 +314,7 @@ func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
 // The block is committed as the canonical head block.
 func (g *Genesis) Commit(db ethdb.Database,shardId uint16) (types.BlockIntf, error) {
 	var block types.BlockIntf
-	if(shardId == types.ShardMaster){
+	if shardId == types.ShardMaster {
 		block = g.ToBlock(db)
 	}else {
 		block = g.ToSBlock(db,shardId)
@@ -324,7 +324,7 @@ func (g *Genesis) Commit(db ethdb.Database,shardId uint16) (types.BlockIntf, err
 		return nil, fmt.Errorf("can't commit genesis block with number > 0")
 	}
 	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), g.Difficulty)
-	fmt.Printf("number: %v,\t td:%v, hash:%v",block.NumberU64(),g.Difficulty, block.Hash())
+	//fmt.Printf("number: %v,\t td:%v, hash:%v",block.NumberU64(),g.Difficulty, block.Hash())
 	rawdb.WriteBlock(db, block)
 	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())

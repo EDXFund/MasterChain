@@ -308,7 +308,7 @@ type HeaderIntf interface {
 	GasUsed() uint64
 	MixDigest() common.Hash
 	Nonce() BlockNonce
-
+	//func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
 	GasUsedPtr() *uint64
 	CoinbasePtr() *common.Address
 	SetShardId( uint16)

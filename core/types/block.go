@@ -82,14 +82,20 @@ type HeaderStruct struct {
 
 func (h *Header) FillBy(h2 *HeaderStruct){
 	h.parentHash = h2.ParentHash
+	h.uncleHash = h2.UncleHash
+	h.coinbase = h2.Coinbase
 	h.root = h2.Root
 	h.lastBlocksHash = h2.LastBlocksHash
+	h.shardMaskEp = h2.ShardMaskEp
+	h.shardEnabled = h2.ShardEnabled
+
 	h.shardTxsHash = h2.ShardTxsHash
 	h.receiptHash = h2.ReceiptHash
 	h.bloom = h2.Bloom
 	h.bloomReject = h2.BloomReject
 	h.difficulty = h2.Difficulty
 	h.number = h2.Number
+
 	h.gasLimit = h2.GasLimit
 	h.gasUsed = h2.GasUsed
 	h.time    = h2.Time
@@ -100,9 +106,14 @@ func (h *Header) FillBy(h2 *HeaderStruct){
 func (h *Header) ToHeaderStruct() *HeaderStruct {
 	return &HeaderStruct{
 		ParentHash:h.parentHash,
+		UncleHash:h.uncleHash,
+		Coinbase:h.coinbase,
 		Root:h.root,
+
 		LastBlocksHash:h.lastBlocksHash,
 		ShardTxsHash:h.shardTxsHash,
+		ShardMaskEp:h.shardMaskEp,
+		ShardEnabled:h.shardEnabled,
 		ReceiptHash:h.receiptHash,
 		Bloom:h.bloom,
 		BloomReject:h.bloomReject,
@@ -169,6 +180,7 @@ func (b *Header) ShardTxsHash() common.Hash {return b.shardTxsHash}
 func (b *Header) ReceiptHash() common.Hash { return b.receiptHash }
 func (b *Header) UncleHash() common.Hash   { return b.uncleHash }
 func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
+func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
 func (b *Header) LastBlocksHash() common.Hash {return b.lastBlocksHash}
 
 func (b *Header) ShardExp() uint16      { return b.shardMaskEp }
@@ -185,7 +197,9 @@ func (b *Header) SetTxHash(v common.Hash){}
 func (b *Header) SetShardTxHash(v common.Hash){b.shardTxsHash = v}
 func (b *Header) SetExtra(v []byte){b.extra = common.CopyBytes(v)}
 func (b *Header) SetTime(v *big.Int){b.time = v}
-func (b *Header) SetCoinbase(v common.Address) {b.coinbase = v}
+func (b *Header) SetCoinbase(v common.Address) {
+	b.coinbase = v
+	}
 func (b *Header) SetRoot(v common.Hash){b.root = v}
 func (b *Header) SetBloom(v Bloom){b.bloom = v}
 func (b *Header) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64())}
