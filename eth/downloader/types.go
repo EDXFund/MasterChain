@@ -53,6 +53,7 @@ type bodyPack struct {
 	transactions [][]*types.Transaction
 	shardBlocks  [][]*types.ShardBlockInfo
 	results		 [][]*types.ContractResult
+	receipts     [][]*types.Receipt
 }
 type shardBodyPack struct {
 	peerID       string

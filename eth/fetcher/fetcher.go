@@ -250,10 +250,16 @@ func (f *Fetcher) FilterHeaders(peer string, headers []types.HeaderIntf, time ti
 		return nil
 	}
 }
-
+func (f *Fetcher) FilterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,txs [][]*types.Transaction,results [][]*types.ContractResult, time time.Time, shardId uint16) ([][]*types.ShardBlockInfo,[][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult ) {
+	if shardId == types.ShardMaster {
+		return f.FilterMasterBodies(peer,shardBlocks,receipts,time)
+	}else {
+		return f.FilterShardBodies(peer,txs,results,time)
+	}
+}
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt ) {
+func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult ) {
 	log.Trace("Filtering bodies", "peer", peer, "txs", len(shardBlocks))
 
 	// Send the filter channel to the fetcher
@@ -262,28 +268,28 @@ func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBl
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil,nil
+		return nil,nil,nil,nil
 	}
 	// Request the filtering of the body list
 	select {
 	case filter <- &bodyFilterTask{peer: peer, shardBlocks: shardBlocks, receipts:receipts, time: time}:
 	case <-f.quit:
-		return nil,nil
+		return nil,nil,nil,nil
 	}
 
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return task.shardBlocks, task.receipts
+		return task.shardBlocks, task.receipts,nil,nil
 	case <-f.quit:
-		return nil, nil
+		return nil, nil,nil,nil
 	}
 }
 
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, results [][]*types.ContractResult,time time.Time) ([][]*types.Transaction,[][]*types.ContractResult ) {
+func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, results [][]*types.ContractResult,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt,[][]*types.Transaction,[][]*types.ContractResult ) {
 	log.Trace("Filtering bodies", "peer", peer, "txs", len(txs))
 
 	// Send the filter channel to the fetcher
@@ -292,21 +298,21 @@ func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, res
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil,nil
+		return nil,nil,nil,nil
 	}
 	// Request the filtering of the body list
 	select {
 	case filter <- &bodyFilterTask{peer: peer, transactions: txs, contractResults:results, time: time}:
 	case <-f.quit:
-		return nil,nil
+		return nil,nil,nil,nil
 	}
 
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return task.transactions, task.contractResults
+		return nil,nil,task.transactions, task.contractResults
 	case <-f.quit:
-		return nil, nil
+		return nil, nil,nil,nil
 	}
 }
 

@@ -120,14 +120,21 @@ type statusData struct {
 }
 
 // newBlockHashesData is the network packet for the block announcements.
-type newBlockHashesData []struct {
+type newBlockHashesData struct {
 	ShardId uint16
+	HashData []hashesData
+}
+type hashesData struct {
 	Hash   common.Hash // Hash of one particular block being announced
 	Number uint64      // Number of one particular block being announced
+
 }
+
+
 
 // getBlockHeadersData represents a block header query.
 type getBlockHeadersData struct {
+	ShardId uint16
 	Origin  hashOrNumber // Block from which to retrieve headers
 	Amount  uint64       // Maximum number of headers to retrieve
 	Skip    uint64       // Blocks to skip between consecutive headers
@@ -172,10 +179,14 @@ func (hn *hashOrNumber) DecodeRLP(s *rlp.Stream) error {
 
 // newBlockData is the network packet for the block propagation message.
 type newBlockData struct {
+	ShardId uint16
+	TD    *big.Int
+	Data []byte
+}
+/*type newBlockData struct {
 	Block *types.Block
 	TD    *big.Int
-}
-
+}*/
 // blockBody represents the data content of a single block.
 type blockBody struct {
 	ShardId      uint16
@@ -184,7 +195,7 @@ type blockBody struct {
 type masterBodiesData []*blockMasterBody
 type blockMasterBody struct {
 	BlockInfos []*types.ShardBlockInfo // Transactions contained within a block
-	Uncles       []types.HeaderIntf      // Uncles contained within a block
+	Receipts       []*types.Receipt      // Uncles contained within a block
 }
 type shardBodiesData []*blockShardBody
 type blockShardBody struct {
@@ -194,3 +205,7 @@ type blockShardBody struct {
 // blockBodiesData is the network packet for block content distribution.
 type blockBodiesData blockBody
 
+type blockHeaderMsgData struct {
+	ShardId uint16
+	Headers []types.HeaderIntf
+}

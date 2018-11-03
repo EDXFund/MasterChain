@@ -112,7 +112,7 @@ func doTestCliqueAsCommon(t *testing.T,shardId uint16) {
 		results []string
 		failure error
 	}{
-		/*{
+		{
 			// Single signer, no votes cast
 			signers: []string{"A"},
 			votes:   []testerVote{{signer: "A"}},
@@ -139,7 +139,7 @@ func doTestCliqueAsCommon(t *testing.T,shardId uint16) {
 				{signer: "B", voted: "E", auth: true},
 			},
 			results: []string{"A", "B", "C", "D"},
-		},*/ {
+		}, {
 			// Single signer, dropping itself (weird, but one less cornercase by explicitly allowing this)
 			signers: []string{"A"},
 			votes: []testerVote{

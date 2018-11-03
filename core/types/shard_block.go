@@ -424,14 +424,14 @@ func (b *SBlock) Root() common.Hash        { return b.header.root }
 func (b *SBlock) ParentHash() common.Hash  { return b.header.parentHash }
 func (b *SBlock) TxHash() common.Hash      { return b.header.txHash }
 func (b *SBlock) ReceiptHash() common.Hash { return b.header.receiptHash }
-
+func (b *SBlock) SetReceivedFrom(val interface{})            { b.ReceivedFrom = val }
 //func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
 func (b *SBlock) Extra() []byte                 { return common.CopyBytes(b.header.extra) }
 
 func (b *SBlock) Header() HeaderIntf               { return b.header }
 
 // Body returns the non-header content of the block.
-func (b *SBlock) Body() *SuperBody { return &SuperBody{nil,nil,b.transactions, b.results} }
+func (b *SBlock) Body() *SuperBody { return &SuperBody{nil,nil,b.transactions, nil,b.results} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -471,9 +471,9 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 	return block
 }
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *SBlock) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []HeaderIntf,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
+func (b *SBlock) WithBody(shardBlocksInfos []*ShardBlockInfo, receipts []*Receipt, transactions []*Transaction, results []*ContractResult) BlockIntf {
 
-	return b.WithBodyOfTransactions(transactions,receipts)
+	return b.WithBodyOfTransactions(transactions,results)
 }
 func (b *SBlock)WithBodyOfShardBlocks(shardBlocksInfos []*ShardBlockInfo, uncles []*Header) *Block{
 	return nil

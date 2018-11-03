@@ -265,7 +265,7 @@ type BlockIntf interface {
 	Body() *SuperBody
 	Size() common.StorageSize
 	WithSeal(header HeaderIntf) BlockIntf
-	WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []HeaderIntf, transactions []*Transaction, receipts []*ContractResult) BlockIntf
+	WithBody(shardBlocksInfos []*ShardBlockInfo, receipts []*Receipt, transactions []*Transaction, results []*ContractResult) BlockIntf
 	//extract as block
 	ToBlock() *Block
 	//extract as shard block
@@ -278,6 +278,7 @@ type BlockIntf interface {
 	//
 	ReceivedAt() time.Time
 	SetReceivedAt(tm time.Time)
+	SetReceivedFrom(interface{})
 
 	Transactions() []*Transaction
 
@@ -335,9 +336,10 @@ type SuperBody struct {
 	Uncles []*Header
 
 	Transactions []*Transaction
+	Receipts   []*Receipt
 
 	//receipts
-	Receipts []*ContractResult
+	Results []*ContractResult
 }
 
 func (sb *SuperBody) ToBody() *Body {
@@ -345,7 +347,7 @@ func (sb *SuperBody) ToBody() *Body {
 }
 
 func (sb *SuperBody) ToSBody() *SBody {
-	return &SBody{Transactions: sb.Transactions, Receipts: sb.Receipts}
+	return &SBody{Transactions: sb.Transactions, Receipts: sb.Results}
 }
 
 type HeadEncode struct {

@@ -34,6 +34,7 @@ var (
 	errClosed            = errors.New("peer set is closed")
 	errAlreadyRegistered = errors.New("peer is already registered")
 	errNotRegistered     = errors.New("peer is not registered")
+	errEmpty			 = errors.New( "empty data")
 )
 
 const (
@@ -61,6 +62,7 @@ const (
 // PeerInfo represents a short summary of the Ethereum sub-protocol metadata known
 // about a connected peer.
 type PeerInfo struct {
+	ShardId    uint16   `json:"shardId"`
 	Version    int      `json:"version"`    // Ethereum protocol version negotiated
 	Difficulty *big.Int `json:"difficulty"` // Total difficulty of the peer's blockchain
 	Head       string   `json:"head"`       // SHA3 hash of the peer's best owned block
@@ -130,7 +132,7 @@ func (p *peer) broadcast() {
 			p.Log().Trace("Propagated block", "number", prop.block.Number(), "hash", prop.block.Hash(), "td", prop.td)
 
 		case block := <-p.queuedAnns:
-			if err := p.SendNewBlockHashes([]common.Hash{block.Hash()}, []uint64{block.NumberU64()}); err != nil {
+			if err := p.SendNewBlockHashes(block.ShardId(), []common.Hash{block.Hash()}, []uint64{block.NumberU64()}); err != nil {
 				return
 			}
 			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
@@ -151,6 +153,7 @@ func (p *peer) Info() *PeerInfo {
 	hash, td := p.Head()
 
 	return &PeerInfo{
+		ShardId: p.shardId,
 		Version:    p.version,
 		Difficulty: td,
 		Head:       hash.Hex(),
@@ -174,6 +177,7 @@ func (p *peer) SetHead(hash common.Hash, td *big.Int) {
 
 	copy(p.head[:], hash[:])
 	p.td.Set(td)
+	//p.shardId = shardId
 }
 
 // MarkBlock marks a block as known for the peer, ensuring that the block will
@@ -202,7 +206,7 @@ func (p *peer) SendTransactions(txs types.Transactions) error {
 	for _, tx := range txs {
 		p.knownTxs.Add(tx.Hash())
 	}
-	return p2p.Send(p.rw, TxMsg, txs)
+	return p2p.Send(p.rw, TxMsg,  txs)
 }
 
 // AsyncSendTransactions queues list of transactions propagation to a remote
@@ -220,14 +224,17 @@ func (p *peer) AsyncSendTransactions(txs []*types.Transaction) {
 
 // SendNewBlockHashes announces the availability of a number of blocks through
 // a hash notification.
-func (p *peer) SendNewBlockHashes(hashes []common.Hash, numbers []uint64) error {
+func (p *peer) SendNewBlockHashes(shardId uint16, hashes []common.Hash, numbers []uint64) error {
 	for _, hash := range hashes {
 		p.knownBlocks.Add(hash)
 	}
-	request := make(newBlockHashesData, len(hashes))
+	request := newBlockHashesData{ShardId:shardId}
+
+	request.HashData = make([]hashesData, len(hashes))
 	for i := 0; i < len(hashes); i++ {
-		request[i].Hash = hashes[i]
-		request[i].Number = numbers[i]
+
+		request.HashData[i].Hash = hashes[i]
+		request.HashData[i].Number = numbers[i]
 	}
 	return p2p.Send(p.rw, NewBlockHashesMsg, request)
 }
@@ -248,6 +255,7 @@ func (p *peer) AsyncSendNewBlockHash(block types.BlockIntf) {
 // SendNewBlock propagates an entire block to a remote peer.
 func (p *peer) SendNewBlock(block types.BlockIntf, td *big.Int) error {
 	p.knownBlocks.Add(block.Hash())
+
 	return p2p.Send(p.rw, NewBlockMsg, []interface{}{block, td})
 }
 
@@ -266,14 +274,58 @@ func (p *peer) AsyncSendNewBlock(block types.BlockIntf, td *big.Int) {
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []types.HeaderIntf) error {
-	return p2p.Send(p.rw, BlockHeadersMsg, headers)
+	if len(headers) > 0  {
+		shardId := headers[0].ShardId()
+		msg := blockHeaderMsgData{ShardId:shardId}
+		msg.Headers = make([]types.HeaderIntf,len(headers))
+		for key,val := range headers {
+			if shardId == types.ShardMaster {
+				msg.Headers[key] = val.ToHeader()
+			}else {
+				msg.Headers[key] = val.ToSHeader()
+			}
+		}
+		return p2p.Send(p.rw, BlockHeadersMsg, msg)
+	} else {
+		return errEmpty
+	}
+
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
-/*func (p *peer) SendBlockBodies(bodies []*blockBody) error {
-	return p2p.Send(p.rw, BlockBodiesMsg, blockBodiesData(bodies))
+func (p *peer) SendBlockBodies(bodies []types.BlockIntf) error {
+	lenBodies := len(bodies)
+	if lenBodies > 0{
+		shardId := bodies[0].ShardId()
+		msg := blockBodiesData{ShardId:shardId}
+
+		var err error
+		if shardId == types.ShardMaster {
+			data := make([]blockMasterBody,lenBodies)
+			for i,val := range bodies{
+				body := val.Body()
+				data[i] = blockMasterBody{BlockInfos:body.ShardBlocks,Receipts:body.Receipts}
+			}
+			msg.Data,err = rlp.EncodeToBytes(data)
+		}else {
+			data := make([]blockShardBody,lenBodies)
+			for i,val := range bodies{
+				body := val.Body()
+				data[i] = blockShardBody{Transactions:body.Transactions,ContractResults:body.Results}
+			}
+			msg.Data,err = rlp.EncodeToBytes(data)
+		}
+		if err == nil {
+			return p2p.Send(p.rw, BlockBodiesMsg, msg)
+		}else {
+			return err
+		}
+	}else {
+		return errEmpty
+	}
+
 }
-*/
+
 // SendBlockBodiesRLP sends a batch of block contents to the remote peer from
 // an already RLP encoded format.
 func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
@@ -308,9 +360,9 @@ func (p *peer) RequestHeadersByHash(origin common.Hash, amount int, skip int, re
 
 // RequestHeadersByNumber fetches a batch of blocks' headers corresponding to the
 // specified header query, based on the number of an origin block.
-func (p *peer) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool) error {
+func (p *peer) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool,shardId uint16) error {
 	p.Log().Debug("Fetching batch of headers", "count", amount, "fromnum", origin, "skip", skip, "reverse", reverse)
-	return p2p.Send(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Number: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse})
+	return p2p.Send(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{ShardId:shardId, Origin: hashOrNumber{Number: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse})
 }
 
 // RequestBodies fetches a batch of blocks' bodies corresponding to the hashes

@@ -56,7 +56,7 @@ func (b *testBackend) EventMux() *event.TypeMux {
 	return b.mux
 }
 
-func (b *testBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error) {
+func (b *testBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (types.HeaderIntf, error) {
 	var (
 		hash common.Hash
 		num  uint64
@@ -75,7 +75,7 @@ func (b *testBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumbe
 	return rawdb.ReadHeader(b.db, hash, num), nil
 }
 
-func (b *testBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+func (b *testBackend) HeaderByHash(ctx context.Context, hash common.Hash) (types.HeaderIntf, error) {
 	number := rawdb.ReadHeaderNumber(b.db, hash)
 	if number == nil {
 		return nil, nil
@@ -168,7 +168,7 @@ func TestBlockSubscription(t *testing.T) {
 		chainFeed   = new(event.Feed)
 		backend     = &testBackend{mux, db, 0, txFeed, rmLogsFeed, logsFeed, chainFeed}
 		api         = NewPublicFilterAPI(backend, false)
-		genesis     = new(core.Genesis).MustCommit(db)
+		genesis     = new(core.Genesis).MustCommit(db,shardId)
 		chain, _    = core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, func(i int, gen *core.BlockGen) {})
 		chainEvents = []core.ChainEvent{}
 	)
@@ -177,9 +177,9 @@ func TestBlockSubscription(t *testing.T) {
 		chainEvents = append(chainEvents, core.ChainEvent{Hash: blk.Hash(), Block: blk})
 	}
 
-	chan0 := make(chan *types.Header)
+	chan0 := make(chan types.HeaderIntf)
 	sub0 := api.events.SubscribeNewHeads(chan0)
-	chan1 := make(chan *types.Header)
+	chan1 := make(chan types.HeaderIntf)
 	sub1 := api.events.SubscribeNewHeads(chan1)
 
 	go func() { // simulate client

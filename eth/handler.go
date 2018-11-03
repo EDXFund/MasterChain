@@ -294,7 +294,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
 	if daoBlock := pm.chainconfig.DAOForkBlock; daoBlock != nil {
 		// Request the peer's DAO fork header for extra-data validation
-		if err := p.RequestHeadersByNumber(daoBlock.Uint64(), 1, 0, false); err != nil {
+		if err := p.RequestHeadersByNumber(daoBlock.Uint64(), 1, 0, false,p.shardId); err != nil {
 			return err
 		}
 		// Start a timer to disconnect if the peer doesn't reply in time
@@ -518,19 +518,22 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if err := rlp.Decode(bytes.NewReader(request.Data), bodyData); err != nil {
 				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
 			}
+
 			blocks := make([][]*types.ShardBlockInfo, len(bodyData))
+			receipts := make([][]*types.Receipt, len(bodyData))
 		//	uncles := make([][]types.HeaderIntf, len(bodyData))
 			for i, body := range bodyData {
 				blocks[i] = body.BlockInfos
 		//		uncles[i] = body.Uncles
+				receipts[i] = body.Receipts
 			}
 			// Filter out any explicitly requested bodies, deliver the rest to the downloader
 			filter := len(blocks) > 0
 			if filter {
-				blocks,_ = pm.fetcher.FilterMasterBodies(p.id, blocks,nil, time.Now())
+				blocks,_ ,_,_= pm.fetcher.FilterMasterBodies(p.id, blocks,receipts, time.Now())
 			}
 			if len(blocks) > 0 ||  !filter {
-				err := pm.downloader.DeliverMasterBodies(p.id, blocks, nil)
+				err := pm.downloader.DeliverMasterBodies(p.id, blocks, receipts)
 				if err != nil {
 					log.Debug("Failed to deliver bodies", "err", err)
 				}
@@ -552,7 +555,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// Filter out any explicitly requested bodies, deliver the rest to the downloader
 			filter := len(transactions) > 0
 			if filter {
-				transactions,results = pm.fetcher.FilterShardBodies(p.id, transactions, results,time.Now())
+				_,_,transactions,results = pm.fetcher.FilterShardBodies(p.id, transactions, results,time.Now())
 			}
 			if len(transactions) > 0  || !filter {
 				err := pm.downloader.DeliverShardBodies(p.id, transactions, results)
@@ -651,23 +654,25 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == NewBlockHashesMsg:
-		var announces newBlockHashesData
-		if err := msg.Decode(&announces); err != nil {
+		var result newBlockHashesData
+
+		if err := msg.Decode(&result); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+		var announces = result.HashData
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
 			p.MarkBlock(block.Hash)
 		}
 		// Schedule all the unknown hashes for retrieval
-		unknown := make(newBlockHashesData, 0, len(announces))
+		unknown := make([]hashesData, 0, len(announces))
 		for _, block := range announces {
 			if !pm.blockchain.HasBlock(block.Hash, block.Number) {
 				unknown = append(unknown, block)
 			}
 		}
 		for _, block := range unknown {
-			pm.fetcher.Notify(p.id,block.ShardId, block.Hash, block.Number, time.Now(), p.RequestOneHeader, p.RequestBodies)
+			pm.fetcher.Notify(p.id,result.ShardId, block.Hash, block.Number, time.Now(), p.RequestOneHeader, p.RequestBodies)
 		}
 
 	case msg.Code == NewBlockMsg:
@@ -676,18 +681,22 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
-		request.Block.SetReceivedAt( msg.ReceivedAt)
-		request.Block.ReceivedFrom = p
+		block,err := ExtractBlockIntf(request)
+		if  err != nil {
+			return errResp(ErrDecode, "%v: %v", request, err)
+		}
+		block.SetReceivedAt(msg.ReceivedAt)
+		block.SetReceivedFrom(p)
 
 		// Mark the peer as owning the block and schedule it for import
-		p.MarkBlock(request.Block.Hash())
-		pm.fetcher.Enqueue(p.id, request.Block)
+		p.MarkBlock(block.Hash())
+		pm.fetcher.Enqueue(p.id, block)
 
 		// Assuming the block is importable by the peer, but possibly not yet done so,
 		// calculate the head hash and TD that the peer truly must have.
 		var (
-			trueHead = request.Block.ParentHash()
-			trueTD   = new(big.Int).Sub(request.TD, request.Block.Difficulty())
+			trueHead = block.ParentHash()
+			trueTD   = new(big.Int).Sub(request.TD, block.Difficulty())
 		)
 		// Update the peers total difficulty if better than the previous
 		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
@@ -725,6 +734,25 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	return nil
+}
+
+func ExtractBlockIntf(request newBlockData) (types.BlockIntf,error) {
+	if request.ShardId == types.ShardMaster {
+		_block := new(types.Block)
+		if err := rlp.DecodeBytes(request.Data, _block); err != nil {
+			return nil,errResp(ErrDecode, "%v: %v", request.Data, err)
+		} else {
+			return _block,nil
+		}
+	} else {
+		_block := new(types.SBlock)
+		if err := rlp.DecodeBytes(request.Data, _block); err != nil {
+			return nil,errResp(ErrDecode, "%v: %v", request.Data, err)
+		} else {
+			return _block,nil;
+		}
+	}
+
 }
 
 func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bool) {

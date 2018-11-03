@@ -43,6 +43,9 @@ type Msg struct {
 	Payload    io.Reader
 	ReceivedAt time.Time
 }
+type ShardMsg struct {
+
+}
 
 // Decode parses the RLP content of a message into
 // the given value, which must be a pointer.
@@ -51,7 +54,7 @@ type Msg struct {
 func (msg Msg) Decode(val interface{}) error {
 	s := rlp.NewStream(msg.Payload, uint64(msg.Size))
 	if err := s.Decode(val); err != nil {
-		return newPeerError(errInvalidMsg, "(code %x) (size %d) %v", msg.Code, msg.Size, err)
+		return newPeerError(errInvalidMsg, "(code %x)  (size %d) %v", msg.Code, msg.Size, err)
 	}
 	return nil
 }
@@ -89,12 +92,13 @@ type MsgReadWriter interface {
 
 // Send writes an RLP-encoded message with the given code.
 // data should encode as an RLP list.
-func Send(w MsgWriter, msgcode uint64, data interface{}) error {
+func Send(w MsgWriter, msgcode uint64,  data interface{}) error {
+
 	size, r, err := rlp.EncodeToReader(data)
 	if err != nil {
 		return err
 	}
-	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	return w.WriteMsg(Msg{Code: msgcode,  Size: uint32(size), Payload: r})
 }
 
 // SendItems writes an RLP with the given code and data elements.
@@ -106,8 +110,8 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 //
 //    [e1, e2, e3]
 //
-func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return Send(w, msgcode, elems)
+func SendItems(w MsgWriter, msgcode uint64,  elems ...interface{}) error {
+	return Send(w, msgcode,  elems)
 }
 
 // eofSignal wraps a reader with eof signaling. the eof channel is
@@ -227,6 +231,7 @@ func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 	if msg.Code != code {
 		return fmt.Errorf("message code mismatch: got %d, expected %d", msg.Code, code)
 	}
+
 	if content == nil {
 		return msg.Discard()
 	}

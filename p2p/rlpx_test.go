@@ -246,7 +246,7 @@ func TestProtocolHandshakeErrors(t *testing.T) {
 		{
 			code: handshakeMsg,
 			msg:  []byte{1, 2, 3},
-			err:  newPeerError(errInvalidMsg, "(code 0) (size 4) rlp: expected input list for p2p.protoHandshake"),
+			err:  newPeerError(errInvalidMsg, "(code 0)  (size 4) rlp: expected input list for p2p.protoHandshake"),
 		},
 		{
 			code: handshakeMsg,

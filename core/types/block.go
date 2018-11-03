@@ -270,6 +270,7 @@ type Block struct {
 	uncles      []*Header
 	shardBlocks ShardBlockInfos
 
+
 	// caches
 	hash atomic.Value
 	size atomic.Value
@@ -464,12 +465,13 @@ func (b *Block) TxHash() common.Hash      { return b.header.shardTxsHash }
 func (b *Block) ReceiptHash() common.Hash { return b.header.receiptHash }
 func (b *Block) UncleHash() common.Hash   { return b.header.uncleHash }
 func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.extra) }
+func (b *Block) SetReceivedFrom(val interface{})            { b.ReceivedFrom = val }
 
 func (b *Block) ShardExp() uint16      { return b.header.shardMaskEp }
 func (b *Block) ShardEnabled() [32]byte { return b.header.shardEnabled }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *SuperBody { return &SuperBody{b.shardBlocks, b.uncles,nil,nil} }
+func (b *Block) Body() *SuperBody { return &SuperBody{b.shardBlocks, b.uncles,nil,nil,nil} }
 func (b *Block)Transactions() []*Transaction {
 	return nil
 }
@@ -520,13 +522,14 @@ func (b *Block) WithSeal(header HeaderIntf) BlockIntf {
 }
 
 // WithBody returns a new block with the given transaction and uncle contents.
-func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, uncles []HeaderIntf,transactions []*Transaction,receipts []*ContractResult) BlockIntf {
+func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, receipts []*Receipt, transactions []*Transaction, results []*ContractResult) BlockIntf {
 	block := &Block{
 		header:      CopyHeader(b.header),
 		shardBlocks: make([]*ShardBlockInfo, len(shardBlocksInfos)),
-		uncles:      make([]*Header, len(uncles)),
+
 	}
 	copy(block.shardBlocks, shardBlocksInfos)
+	block.header.SetReceiptHash(rlpHash(receipts))
 /*	for i := range uncles {
 		block.uncles[i] = CopyHeader(uncles[i])
 	}*/

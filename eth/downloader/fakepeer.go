@@ -94,7 +94,7 @@ func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, 
 
 // RequestHeadersByNumber implements downloader.Peer, returning a batch of headers
 // defined by the origin number and the associated query parameters.
-func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, reverse bool) error {
+func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, reverse bool,shardId uint16) error {
 	var (
 		headers []types.HeaderIntf
 		unknown bool
@@ -127,7 +127,7 @@ func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 		txs    [][]*types.Transaction
 		results [][]*types.ContractResult
 
-
+		receipts [][]*types.Receipt
 	)
 	for _, hash := range hashes {
 		block := rawdb.ReadBlock(p.db, hash, *p.hc.GetBlockNumber(hash))
@@ -135,13 +135,10 @@ func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 		txs = append(txs, block.Transactions())
 		shardBlocks = append(shardBlocks,block.ShardBlocks())
 		results = append(results,block.Results())
+		receipts = append(receipts,block.Receipts())
 
 	}
-	if p.hc.ShardId() == types.ShardMaster {
-		p.dl.DeliverMasterBodies(p.id, shardBlocks, results)
-	}else {
-		p.dl.DeliverShardBodies(p.id,txs,nil)
-	}
+	p.dl.DeliverBodies(p.id, shardBlocks,receipts, txs,results,p.hc.ShardId())
 
 	return nil
 }

@@ -37,15 +37,17 @@ func init() {
 var testAccount, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 // Tests that handshake failures are detected and reported correctly.
-func TestStatusMsgErrors62(t *testing.T) { testStatusMsgErrors(t, 62) }
-func TestStatusMsgErrors63(t *testing.T) { testStatusMsgErrors(t, 63) }
+func TestStatusMsgErrors62(t *testing.T) { testStatusMsgErrors(t, 62, types.ShardMaster) }
+func TestStatusMsgErrors63(t *testing.T) { testStatusMsgErrors(t, 63, types.ShardMaster) }
+func TestStatusMsgErrors62S(t *testing.T) { testStatusMsgErrors(t, 62, 0) }
+func TestStatusMsgErrors63S(t *testing.T) { testStatusMsgErrors(t, 63, 0) }
 
-func testStatusMsgErrors(t *testing.T, protocol int) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
+func testStatusMsgErrors(t *testing.T, protocol int, shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil,shardId)
 	var (
 		genesis = pm.blockchain.Genesis()
 		head    = pm.blockchain.CurrentHeader()
-		td      = pm.blockchain.GetTd(head.Hash(), head.Number.Uint64())
+		td      = pm.blockchain.GetTd(head.Hash(), head.NumberU64())
 	)
 	defer pm.Stop()
 
@@ -59,15 +61,15 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 			wantError: errResp(ErrNoStatusMsg, "first msg has code 2 (!= 0)"),
 		},
 		{
-			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, td, head.Hash(), genesis.Hash()},
+			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, shardId,td, head.Hash(), genesis.Hash()},
 			wantError: errResp(ErrProtocolVersionMismatch, "10 (!= %d)", protocol),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), 999, td, head.Hash(), genesis.Hash()},
+			code: StatusMsg, data: statusData{uint32(protocol), 999, shardId,td, head.Hash(), genesis.Hash()},
 			wantError: errResp(ErrNetworkIdMismatch, "999 (!= 1)"),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, td, head.Hash(), common.Hash{3}},
+			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, shardId,td, head.Hash(), common.Hash{3}},
 			wantError: errResp(ErrGenesisBlockMismatch, "0300000000000000 (!= %x)", genesis.Hash().Bytes()[:8]),
 		},
 	}
@@ -93,12 +95,13 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 }
 
 // This test checks that received transactions are added to the local pool.
-func TestRecvTransactions62(t *testing.T) { testRecvTransactions(t, 62) }
-func TestRecvTransactions63(t *testing.T) { testRecvTransactions(t, 63) }
-
-func testRecvTransactions(t *testing.T, protocol int) {
+func TestRecvTransactions62(t *testing.T) { testRecvTransactions(t, 62,types.ShardMaster) }
+func TestRecvTransactions63(t *testing.T) { testRecvTransactions(t, 63,types.ShardMaster) }
+func TestRecvTransactions62S(t *testing.T) { testRecvTransactions(t, 62,0) }
+func TestRecvTransactions63S(t *testing.T) { testRecvTransactions(t, 63,0) }
+func testRecvTransactions(t *testing.T, protocol int,shardId uint16) {
 	txAdded := make(chan []*types.Transaction)
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded)
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded,shardId )
 	pm.acceptTxs = 1 // mark synced to accept transactions
 	p, _ := newTestPeer("peer", protocol, pm, true)
 	defer pm.Stop()
@@ -121,11 +124,12 @@ func testRecvTransactions(t *testing.T, protocol int) {
 }
 
 // This test checks that pending transactions are sent.
-func TestSendTransactions62(t *testing.T) { testSendTransactions(t, 62) }
-func TestSendTransactions63(t *testing.T) { testSendTransactions(t, 63) }
-
-func testSendTransactions(t *testing.T, protocol int) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
+func TestSendTransactions62(t *testing.T) { testSendTransactions(t, 62, types.ShardMaster) }
+func TestSendTransactions63(t *testing.T) { testSendTransactions(t, 63, types.ShardMaster) }
+func TestSendTransactions62S(t *testing.T) { testSendTransactions(t, 62,0) }
+func TestSendTransactions63S(t *testing.T) { testSendTransactions(t, 63,0) }
+func testSendTransactions(t *testing.T, protocol int,shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil,shardId)
 	defer pm.Stop()
 
 	// Fill the pool with big transactions.

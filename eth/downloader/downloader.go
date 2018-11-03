@@ -34,6 +34,7 @@ import (
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/params"
+	"reflect"
 )
 
 var (
@@ -93,6 +94,7 @@ var (
 	errCancelContentProcessing = errors.New("content processing canceled (requested)")
 	errNoSyncActive            = errors.New("no sync active")
 	errTooOld                  = errors.New("peer doesn't speak recent enough protocol version (need version >= 62)")
+	errInvalidSkeleton                  = errors.New("Skeleton is invalid")
 )
 
 type Downloader struct {
@@ -430,7 +432,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	}
 	height := latest.NumberU64()
 
-	origin, err := d.findAncestor(p, height)
+	origin, err := d.findAncestor(p, height,latest.ShardId())
 	if err != nil {
 		return err
 	}
@@ -464,7 +466,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	}
 
 	fetchers := []func() error{
-		func() error { return d.fetchHeaders(p, origin+1, pivot) }, // Headers are always retrieved
+		func() error { return d.fetchHeaders(p, origin+1, pivot,latest.ShardId()) }, // Headers are always retrieved
 		func() error { return d.fetchBodies(origin + 1) },          // Bodies are retrieved during normal and fast sync
 		func() error { return d.fetchReceipts(origin + 1) },        // Receipts are retrieved during fast sync
 		func() error { return d.processHeaders(origin+1, pivot, td) },
@@ -592,7 +594,7 @@ func (d *Downloader) fetchHeight(p *peerConnection) (types.HeaderIntf, error) {
 // on the correct chain, checking the top N links should already get us a match.
 // In the rare scenario when we ended up on a long reorganisation (i.e. none of
 // the head links match), we do a binary search to find the common ancestor.
-func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, error) {
+func (d *Downloader) findAncestor(p *peerConnection, height uint64,shardId uint16) (uint64, error) {
 	// Figure out the valid ancestor range to prevent rewrite attacks
 	floor, ceil := int64(-1), d.lightchain.CurrentHeader().NumberU64()
 
@@ -621,7 +623,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 	if count > limit {
 		count = limit
 	}
-	go p.peer.RequestHeadersByNumber(uint64(from), count, 15, false)
+	go p.peer.RequestHeadersByNumber(uint64(from), count, 15, false,shardId)
 
 	// Wait for the remote response to the head fetch
 	number, hash := uint64(0), common.Hash{}
@@ -705,7 +707,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 		ttl := d.requestTTL()
 		timeout := time.After(ttl)
 
-		go p.peer.RequestHeadersByNumber(check, 1, 0, false)
+		go p.peer.RequestHeadersByNumber(check, 1, 0, false,shardId)
 
 		// Wait until a reply arrives to this request
 		for arrived := false; !arrived; {
@@ -768,7 +770,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 // other peers are only accepted if they map cleanly to the skeleton. If no one
 // can fill in the skeleton - not even the origin peer - it's assumed invalid and
 // the origin is dropped.
-func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) error {
+func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64,shardId uint16) error {
 	p.log.Debug("Directing header downloads", "origin", from)
 	defer p.log.Debug("Header download terminated")
 
@@ -788,10 +790,10 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) 
 
 		if skeleton {
 			p.log.Trace("Fetching skeleton headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false)
+			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false,shardId)
 		} else {
 			p.log.Trace("Fetching full headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false)
+			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false,shardId)
 		}
 	}
 	// Start pulling the header chain skeleton until all is done
@@ -938,6 +940,9 @@ func (d *Downloader) fillHeaderSkeleton(from uint64, skeleton []types.HeaderIntf
 	log.Debug("Filling up skeleton", "from", from)
 	d.queue.ScheduleSkeleton(from, skeleton)
 
+	if skeleton == nil || reflect.ValueOf(skeleton).IsNil() || len(skeleton) == 0 {
+		return nil,0,errInvalidSkeleton
+	}
 	var (
 		deliver = func(packet dataPack) (int, error) {
 			pack := packet.(*headerPack)
@@ -948,7 +953,7 @@ func (d *Downloader) fillHeaderSkeleton(from uint64, skeleton []types.HeaderIntf
 		reserve  = func(p *peerConnection, count int) (*fetchRequest, bool, error) {
 			return d.queue.ReserveHeaders(p, count), false, nil
 		}
-		fetch    = func(p *peerConnection, req *fetchRequest) error { return p.FetchHeaders(req.From, MaxHeaderFetch) }
+		fetch    = func(p *peerConnection, req *fetchRequest) error { return p.FetchHeaders(req.From, MaxHeaderFetch,skeleton[0].ShardId()) }
 		capacity = func(p *peerConnection) int { return p.HeaderCapacity(d.requestRTT()) }
 		setIdle  = func(p *peerConnection, accepted int) { p.SetHeadersIdle(accepted) }
 	)
@@ -1208,7 +1213,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 			for i, header := range rollback {
 				hashes[i] = header.Hash()
 			}
-			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number, common.Big0, common.Big0
+			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number(), common.Big0, common.Big0
 			if d.mode != LightSync {
 				lastFastBlock = d.blockchain.CurrentFastBlock().Number()
 				lastBlock = d.blockchain.CurrentBlock().Number()
@@ -1220,7 +1225,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				curBlock = d.blockchain.CurrentBlock().Number()
 			}
 			log.Warn("Rolled back headers", "count", len(hashes),
-				"header", fmt.Sprintf("%d->%d", lastHeader, d.lightchain.CurrentHeader().Number),
+				"header", fmt.Sprintf("%d->%d", lastHeader, d.lightchain.CurrentHeader().Number()),
 				"fast", fmt.Sprintf("%d->%d", lastFastBlock, curFastBlock),
 				"block", fmt.Sprintf("%d->%d", lastBlock, curBlock))
 		}
@@ -1397,7 +1402,7 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	)
 	blocks := make([]types.BlockIntf, len(results))
 	for i, result := range results {
-		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(nil, result.Uncles,result.Transactions,nil)
+		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(nil, nil,result.Transactions,nil)
 	}
 	if index, err := d.blockchain.InsertChain(blocks); err != nil {
 		log.Debug("Downloaded item processing failed", "number", results[index].Header.Number, "hash", results[index].Header.Hash(), "err", err)
@@ -1539,7 +1544,7 @@ func (d *Downloader) commitFastSyncData(results []*fetchResult, stateSync *state
 	blocks := make([]types.BlockIntf, len(results))
 	receipts := make([]types.Receipts, len(results))
 	for i, result := range results {
-		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(nil,result.Uncles,result.Transactions,nil )
+		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(nil,nil,result.Transactions,nil )
 		receipts[i] = result.Receipts
 	}
 	if index, err := d.blockchain.InsertReceiptChain(blocks, receipts); err != nil {
@@ -1550,7 +1555,7 @@ func (d *Downloader) commitFastSyncData(results []*fetchResult, stateSync *state
 }
 
 func (d *Downloader) commitPivotBlock(result *fetchResult) error {
-	block := types.NewBlockWithHeader(result.Header).WithBody(nil,result.Uncles,result.Transactions, nil)
+	block := types.NewBlockWithHeader(result.Header).WithBody(nil,nil,result.Transactions, nil)
 	log.Debug("Committing fast sync pivot as new head", "number", block.Number(), "hash", block.Hash())
 	if _, err := d.blockchain.InsertReceiptChain([]types.BlockIntf{block}, []types.Receipts{result.Receipts}); err != nil {
 		return err
@@ -1567,14 +1572,23 @@ func (d *Downloader) commitPivotBlock(result *fetchResult) error {
 func (d *Downloader) DeliverHeaders(id string, headers []types.HeaderIntf) (err error) {
 	return d.deliver(id, d.headerCh, &headerPack{id, headers}, headerInMeter, headerDropMeter)
 }
+//DeliverBodies injects a new batch of block bodies received from a remote node.
+func (d *Downloader) DeliverBodies(id string, blks [][]*types.ShardBlockInfo,receipts [][]*types.Receipt,txs [][]*types.Transaction, results [][]*types.ContractResult,shardId uint16) (err error) {
+	if shardId == types.ShardMaster {
+		return d.DeliverMasterBodies(id,blks,receipts)
 
+	}else {
+		return d.DeliverShardBodies(id, txs,results)
+
+	}
+}
 // DeliverBodies injects a new batch of block bodies received from a remote node.
-func (d *Downloader) DeliverMasterBodies(id string, transactions [][]*types.ShardBlockInfo,results [][]*types.ContractResult) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, nil,transactions,results}, bodyInMeter, bodyDropMeter)
+func (d *Downloader) DeliverMasterBodies(id string, blks [][]*types.ShardBlockInfo,receipts [][]*types.Receipt) (err error) {
+	return d.deliver(id, d.bodyCh, &bodyPack{id, nil,blks,nil,receipts}, bodyInMeter, bodyDropMeter)
 }
 // DeliverBodies injects a new batch of block bodies received from a remote node.
 func (d *Downloader) DeliverShardBodies(id string, transactions [][]*types.Transaction, results [][]*types.ContractResult) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, nil,results}, bodyInMeter, bodyDropMeter)
+	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, nil,results,nil}, bodyInMeter, bodyDropMeter)
 }
 
 // DeliverReceipts injects a new batch of receipts received from a remote node.

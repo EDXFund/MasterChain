@@ -36,6 +36,7 @@ import (
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/params"
+	"github.com/EDXFund/MasterChain/rlp"
 )
 
 // Tests that protocol versions and modes of operations are matched up properly.
@@ -45,9 +46,12 @@ func TestProtocolCompatibility(t *testing.T) {
 		version    uint
 		mode       downloader.SyncMode
 		compatible bool
+		shardId    uint16
 	}{
-		{61, downloader.FullSync, true}, {62, downloader.FullSync, true}, {63, downloader.FullSync, true},
-		{61, downloader.FastSync, false}, {62, downloader.FastSync, false}, {63, downloader.FastSync, true},
+		{61, downloader.FullSync, true,types.ShardMaster}, {62, downloader.FullSync, true,types.ShardMaster}, {63, downloader.FullSync, true,types.ShardMaster},
+		{61, downloader.FastSync, false,types.ShardMaster}, {62, downloader.FastSync, false,types.ShardMaster}, {63, downloader.FastSync, true,types.ShardMaster},
+		{61, downloader.FullSync, true, 0}, {62, downloader.FullSync, true, 0}, {63, downloader.FullSync, true, 0},
+		{61, downloader.FastSync, false, 0}, {62, downloader.FastSync, false, 0}, {63, downloader.FastSync, true, 0},
 	}
 	// Make sure anything we screw up is restored
 	backup := ProtocolVersions
@@ -57,7 +61,7 @@ func TestProtocolCompatibility(t *testing.T) {
 	for i, tt := range tests {
 		ProtocolVersions = []uint{tt.version}
 
-		pm, _, err := newTestProtocolManager(tt.mode, 0, nil, nil)
+		pm, _, err := newTestProtocolManager(tt.mode, 0, nil, nil,tt.shardId)
 		if pm != nil {
 			defer pm.Stop()
 		}
@@ -68,11 +72,13 @@ func TestProtocolCompatibility(t *testing.T) {
 }
 
 // Tests that block headers can be retrieved from a remote chain based on user queries.
-func TestGetBlockHeaders62(t *testing.T) { testGetBlockHeaders(t, 62) }
-func TestGetBlockHeaders63(t *testing.T) { testGetBlockHeaders(t, 63) }
+func TestGetBlockHeaders62(t *testing.T) { testGetBlockHeaders(t, 62,types.ShardMaster) }
+func TestGetBlockHeaders63(t *testing.T) { testGetBlockHeaders(t, 63, types.ShardMaster) }
 
-func testGetBlockHeaders(t *testing.T, protocol int) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxHashFetch+15, nil, nil)
+func TestGetBlockHeaders62S(t *testing.T) { testGetBlockHeaders(t, 62, 0) }
+func TestGetBlockHeaders63S(t *testing.T) { testGetBlockHeaders(t, 63, 0) }
+func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxHashFetch+15, nil, nil,shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true)
 	defer peer.close()
 
@@ -203,7 +209,7 @@ func testGetBlockHeaders(t *testing.T, protocol int) {
 	// Run each of the tests and verify the results against the chain
 	for i, tt := range tests {
 		// Collect the headers to expect in the response
-		headers := []*types.Header{}
+		headers := []types.HeaderIntf{}
 		for _, hash := range tt.expect {
 			headers = append(headers, pm.blockchain.GetBlockByHash(hash).Header())
 		}
@@ -227,11 +233,12 @@ func testGetBlockHeaders(t *testing.T, protocol int) {
 }
 
 // Tests that block contents can be retrieved from a remote chain based on their hashes.
-func TestGetBlockBodies62(t *testing.T) { testGetBlockBodies(t, 62) }
-func TestGetBlockBodies63(t *testing.T) { testGetBlockBodies(t, 63) }
-
-func testGetBlockBodies(t *testing.T, protocol int) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxBlockFetch+15, nil, nil)
+func TestGetBlockBodies62(t *testing.T) { testGetBlockBodies(t, 62, types.ShardMaster) }
+func TestGetBlockBodies63(t *testing.T) { testGetBlockBodies(t, 63, types.ShardMaster) }
+func TestGetBlockBodies62S(t *testing.T) { testGetBlockBodies(t, 62, 0) }
+func TestGetBlockBodies63S(t *testing.T) { testGetBlockBodies(t, 63, 0) }
+func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxBlockFetch+15, nil, nil,shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true)
 	defer peer.close()
 
@@ -266,7 +273,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 	for i, tt := range tests {
 		// Collect the hashes to request, and the response to expect
 		hashes, seen := []common.Hash{}, make(map[int64]bool)
-		bodies := []*blockBody{}
+		bodies := []*types.SuperBody{}
 
 		for j := 0; j < tt.random; j++ {
 			for {
@@ -277,7 +284,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 					block := pm.blockchain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
-						bodies = append(bodies, &blockBody{Transactions: block.Transactions(), Uncles: block.Uncles()})
+						bodies = append(bodies, &types.SuperBody{Transactions: block.Transactions(), ShardBlocks:block.ShardBlocks(),Receipts:block.Receipts()})
 					}
 					break
 				}
@@ -287,21 +294,27 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 			hashes = append(hashes, hash)
 			if tt.available[j] && len(bodies) < tt.expected {
 				block := pm.blockchain.GetBlockByHash(hash)
-				bodies = append(bodies, &blockBody{Transactions: block.Transactions(), Uncles: block.Uncles()})
+				bodies = append(bodies, &types.SuperBody{Transactions: block.Transactions(), ShardBlocks:block.ShardBlocks(),Receipts:block.Receipts()})
 			}
 		}
 		// Send the hash request and verify the response
 		p2p.Send(peer.app, 0x05, hashes)
-		if err := p2p.ExpectMsg(peer.app, 0x06, bodies); err != nil {
+		data,err := rlp.EncodeToBytes(bodies)
+		if err != nil {
+			t.Errorf("encode bodies mismatch: %v",  err)
+			return
+		}
+		result := newBlockData{ShardId:pm.blockchain.CurrentHeader().ShardId(),Data:data}
+		if err := p2p.ExpectMsg(peer.app, 0x06, result); err != nil {
 			t.Errorf("test %d: bodies mismatch: %v", i, err)
 		}
 	}
 }
 
 // Tests that the node state database can be retrieved based on hashes.
-func TestGetNodeData63(t *testing.T) { testGetNodeData(t, 63) }
-
-func testGetNodeData(t *testing.T, protocol int) {
+func TestGetNodeData63(t *testing.T) { testGetNodeData(t, 63, types.ShardMaster) }
+func TestGetNodeData63S(t *testing.T) { testGetNodeData(t, 63, 0) }
+func testGetNodeData(t *testing.T, protocol int,shardId uint16) {
 	// Define three accounts to simulate transactions with
 	acc1Key, _ := crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 	acc2Key, _ := crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
@@ -330,15 +343,15 @@ func testGetNodeData(t *testing.T, protocol int) {
 		case 3:
 			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
 			b2 := block.PrevBlock(1).Header()
-			b2.Extra = []byte("foo")
+			b2.SetExtra ([]byte("foo"))
 			block.AddUncle(b2)
 			b3 := block.PrevBlock(2).Header()
-			b3.Extra = []byte("foo")
+			b3.SetExtra ([]byte("foo"))
 			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
-	pm, db := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil)
+	pm, db := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil,shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true)
 	defer peer.close()
 
@@ -391,9 +404,9 @@ func testGetNodeData(t *testing.T, protocol int) {
 }
 
 // Tests that the transaction receipts can be retrieved based on hashes.
-func TestGetReceipt63(t *testing.T) { testGetReceipt(t, 63) }
-
-func testGetReceipt(t *testing.T, protocol int) {
+func TestGetReceipt63(t *testing.T) { testGetReceipt(t, 63, types.ShardMaster) }
+func TestGetReceipt63S(t *testing.T) { testGetReceipt(t, 63, 0) }
+func testGetReceipt(t *testing.T, protocol int,shardId uint16) {
 	// Define three accounts to simulate transactions with
 	acc1Key, _ := crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 	acc2Key, _ := crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
@@ -422,15 +435,15 @@ func testGetReceipt(t *testing.T, protocol int) {
 		case 3:
 			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
 			b2 := block.PrevBlock(1).Header()
-			b2.Extra = []byte("foo")
+			b2.SetExtra([]byte("foo"))
 			block.AddUncle(b2)
 			b3 := block.PrevBlock(2).Header()
-			b3.Extra = []byte("foo")
+			b3.SetExtra ([]byte("foo"))
 			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil)
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil,shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true)
 	defer peer.close()
 
@@ -452,14 +465,20 @@ func testGetReceipt(t *testing.T, protocol int) {
 // Tests that post eth protocol handshake, DAO fork-enabled clients also execute
 // a DAO "challenge" verifying each others' DAO fork headers to ensure they're on
 // compatible chains.
-func TestDAOChallengeNoVsNo(t *testing.T)       { testDAOChallenge(t, false, false, false) }
-func TestDAOChallengeNoVsPro(t *testing.T)      { testDAOChallenge(t, false, true, false) }
-func TestDAOChallengeProVsNo(t *testing.T)      { testDAOChallenge(t, true, false, false) }
-func TestDAOChallengeProVsPro(t *testing.T)     { testDAOChallenge(t, true, true, false) }
-func TestDAOChallengeNoVsTimeout(t *testing.T)  { testDAOChallenge(t, false, false, true) }
-func TestDAOChallengeProVsTimeout(t *testing.T) { testDAOChallenge(t, true, true, true) }
+func TestDAOChallengeNoVsNo(t *testing.T)       { testDAOChallenge(t, false, false, false, types.ShardMaster) }
+func TestDAOChallengeNoVsPro(t *testing.T)      { testDAOChallenge(t, false, true, false, types.ShardMaster) }
+func TestDAOChallengeProVsNo(t *testing.T)      { testDAOChallenge(t, true, false, false, types.ShardMaster) }
+func TestDAOChallengeProVsPro(t *testing.T)     { testDAOChallenge(t, true, true, false, types.ShardMaster) }
+func TestDAOChallengeNoVsTimeout(t *testing.T)  { testDAOChallenge(t, false, false, true, types.ShardMaster) }
+func TestDAOChallengeProVsTimeout(t *testing.T) { testDAOChallenge(t, true, true, true, types.ShardMaster) }
+func TestDAOChallengeNoVsNoS(t *testing.T)       { testDAOChallenge(t, false, false, false, 0) }
+func TestDAOChallengeNoVsProS(t *testing.T)      { testDAOChallenge(t, false, true, false, 0) }
+func TestDAOChallengeProVsNoS(t *testing.T)      { testDAOChallenge(t, true, false, false, 0) }
+func TestDAOChallengeProVsProS(t *testing.T)     { testDAOChallenge(t, true, true, false, 0) }
+func TestDAOChallengeNoVsTimeoutS(t *testing.T)  { testDAOChallenge(t, false, false, true, 0) }
+func TestDAOChallengeProVsTimeoutS(t *testing.T) { testDAOChallenge(t, true, true, true, 0) }
 
-func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool) {
+func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool,shardId uint16) {
 	// Reduce the DAO handshake challenge timeout
 	if timeout {
 		defer func(old time.Duration) { daoChallengeTimeout = old }(daoChallengeTimeout)
@@ -472,9 +491,9 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 		db      = ethdb.NewMemDatabase()
 		config  = &params.ChainConfig{DAOForkBlock: big.NewInt(1), DAOForkSupport: localForked}
 		gspec   = &core.Genesis{Config: config}
-		genesis = gspec.MustCommit(db)
+		genesis = gspec.MustCommit(db,shardId)
 	)
-	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil)
+	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil,shardId)
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
@@ -505,7 +524,7 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 				block.SetExtra(params.DAOForkBlockExtra)
 			}
 		})
-		if err := p2p.Send(peer.app, BlockHeadersMsg, []*types.Header{blocks[0].Header()}); err != nil {
+		if err := p2p.Send(peer.app, BlockHeadersMsg, []types.HeaderIntf{blocks[0].Header()}); err != nil {
 			t.Fatalf("failed to answer challenge: %v", err)
 		}
 		time.Sleep(100 * time.Millisecond) // Sleep to avoid the verification racing with the drops
@@ -529,33 +548,44 @@ func TestBroadcastBlock(t *testing.T) {
 	var tests = []struct {
 		totalPeers        int
 		broadcastExpected int
+		shardId           uint16
 	}{
-		{1, 1},
-		{2, 2},
-		{3, 3},
-		{4, 4},
-		{5, 4},
-		{9, 4},
-		{12, 4},
-		{16, 4},
-		{26, 5},
-		{100, 10},
+		{1, 1,types.ShardMaster},
+		{2, 2,types.ShardMaster},
+		{3, 3,types.ShardMaster},
+		{4, 4,types.ShardMaster},
+		{5, 4,types.ShardMaster},
+		{9, 4,types.ShardMaster},
+		{12, 4,types.ShardMaster},
+		{16, 4,types.ShardMaster},
+		{26, 5,types.ShardMaster},
+		{100, 10,types.ShardMaster},
+		{1, 1,0},
+		{2, 2,0},
+		{3, 3,0},
+		{4, 4,0},
+		{5, 4,0},
+		{9, 4,0},
+		{12, 4,0},
+		{16, 4,0},
+		{26, 5,0},
+		{100, 10,0},
 	}
 	for _, test := range tests {
-		testBroadcastBlock(t, test.totalPeers, test.broadcastExpected)
+		testBroadcastBlock(t, test.totalPeers, test.broadcastExpected,test.shardId)
 	}
 }
 
-func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
+func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int,shardId uint16) {
 	var (
 		evmux   = new(event.TypeMux)
 		pow     = ethash.NewFaker()
 		db      = ethdb.NewMemDatabase()
 		config  = &params.ChainConfig{}
 		gspec   = &core.Genesis{Config: config}
-		genesis = gspec.MustCommit(db)
+		genesis = gspec.MustCommit(db,shardId)
 	)
-	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil)
+	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil,shardId)
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
@@ -578,11 +608,17 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	doneCh := make(chan struct{}, totalPeers)
 	for _, peer := range peers {
 		go func(p *testPeer) {
-			if err := p2p.ExpectMsg(p.app, NewBlockMsg, &newBlockData{Block: chain[0], TD: big.NewInt(131136)}); err != nil {
-				errCh <- err
-			} else {
-				doneCh <- struct{}{}
+			data,err1 := rlp.EncodeToBytes(chain[0])
+			if err1 != nil {
+				errCh <- err1
+			}else {
+				if err := p2p.ExpectMsg(p.app, NewBlockMsg, &newBlockData{ShardId:shardId,Data:data, TD: big.NewInt(131136)}); err != nil {
+					errCh <- err
+				} else {
+					doneCh <- struct{}{}
+				}
 			}
+
 		}(peer)
 	}
 	timeoutCh := time.NewTimer(time.Millisecond * 100).C

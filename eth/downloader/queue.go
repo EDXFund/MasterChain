@@ -316,7 +316,7 @@ func (q *queue) Schedule(headers []types.HeaderIntf, from uint64) []types.Header
 	for _, header := range headers {
 		// Make sure chain order is honoured and preserved throughout
 		hash := header.Hash()
-		if header.Number == nil || header.NumberU64() != from {
+		if header.Number() == nil || header.NumberU64() != from {
 			log.Warn("Header broke chain ordering", "number", header.Number, "hash", hash, "expected", from)
 			break
 		}
