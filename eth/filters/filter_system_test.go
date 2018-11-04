@@ -156,7 +156,9 @@ func (b *testBackend) ServiceFilter(ctx context.Context, session *bloombits.Matc
 // - one at the start and should receive all posted chain events and a second (blockHashes)
 // - one that is created after a cutoff moment and uninstalled after a second cutoff moment (blockHashes[cutoff1:cutoff2])
 // - one that is created after the second cutoff moment (blockHashes[cutoff2:])
-func TestBlockSubscription(t *testing.T) {
+func TestBlockSubscription(t *testing.T) { testBlockSubscription(t ,types.ShardMaster)}
+func TestBlockSubscriptionS(t *testing.T) { testBlockSubscription(t ,0)}
+func testBlockSubscription(t *testing.T,shardId uint16) {
 	t.Parallel()
 
 	var (
@@ -403,10 +405,10 @@ func TestLogFilter(t *testing.T) {
 		// posted twice, once as vm.Logs and once as core.PendingLogsEvent
 		allLogs = []*types.Log{
 			{Address: firstAddr},
-			{Address: firstAddr, Topics: []common.Hash{firstTopic}, BlockNumber: 1},
-			{Address: secondAddr, Topics: []common.Hash{firstTopic}, BlockNumber: 1},
-			{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumber: 2},
-			{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumber: 3},
+			{Address: firstAddr, Topics: []common.Hash{firstTopic}, BlockNumberOfShard: 1},
+			{Address: secondAddr, Topics: []common.Hash{firstTopic}, BlockNumberOfShard: 1},
+			{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumberOfShard: 2},
+			{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumberOfShard: 3},
 		}
 
 		expectedCase7  = []*types.Log{allLogs[3], allLogs[4], allLogs[0], allLogs[1], allLogs[2], allLogs[3], allLogs[4]}
@@ -522,16 +524,16 @@ func TestPendingLogsSubscription(t *testing.T) {
 		notUsedTopic   = common.HexToHash("0x9999999999999999999999999999999999999999999999999999999999999999")
 
 		allLogs = []core.PendingLogsEvent{
-			{Logs: []*types.Log{{Address: firstAddr, Topics: []common.Hash{}, BlockNumber: 0}}},
-			{Logs: []*types.Log{{Address: firstAddr, Topics: []common.Hash{firstTopic}, BlockNumber: 1}}},
-			{Logs: []*types.Log{{Address: secondAddr, Topics: []common.Hash{firstTopic}, BlockNumber: 2}}},
-			{Logs: []*types.Log{{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumber: 3}}},
-			{Logs: []*types.Log{{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumber: 4}}},
+			{Logs: []*types.Log{{Address: firstAddr, Topics: []common.Hash{}, BlockNumberOfShard: 0}}},
+			{Logs: []*types.Log{{Address: firstAddr, Topics: []common.Hash{firstTopic}, BlockNumberOfShard: 1}}},
+			{Logs: []*types.Log{{Address: secondAddr, Topics: []common.Hash{firstTopic}, BlockNumberOfShard: 2}}},
+			{Logs: []*types.Log{{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumberOfShard: 3}}},
+			{Logs: []*types.Log{{Address: thirdAddress, Topics: []common.Hash{secondTopic}, BlockNumberOfShard: 4}}},
 			{Logs: []*types.Log{
-				{Address: thirdAddress, Topics: []common.Hash{firstTopic}, BlockNumber: 5},
-				{Address: thirdAddress, Topics: []common.Hash{thirdTopic}, BlockNumber: 5},
-				{Address: thirdAddress, Topics: []common.Hash{fourthTopic}, BlockNumber: 5},
-				{Address: firstAddr, Topics: []common.Hash{firstTopic}, BlockNumber: 5},
+				{Address: thirdAddress, Topics: []common.Hash{firstTopic}, BlockNumberOfShard: 5},
+				{Address: thirdAddress, Topics: []common.Hash{thirdTopic}, BlockNumberOfShard: 5},
+				{Address: thirdAddress, Topics: []common.Hash{fourthTopic}, BlockNumberOfShard: 5},
+				{Address: firstAddr, Topics: []common.Hash{firstTopic}, BlockNumberOfShard: 5},
 			}},
 		}
 

@@ -24,7 +24,7 @@ import (
 	"github.com/EDXFund/MasterChain/eth/downloader"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/enode"
-	"github.com/EDXFund/Validator/core/types"
+	"github.com/EDXFund/MasterChain/core/types"
 )
 
 // Tests that fast sync gets disabled as soon as a real block is successfully

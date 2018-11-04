@@ -43,7 +43,9 @@ func makeReceipt(addr common.Address) *types.Receipt {
 	return receipt
 }
 
-func BenchmarkFilters(b *testing.B) {
+func BenchmarkFilters(b *testing.B){benchmarkFilters(b,types.ShardMaster)}
+func BenchmarkFiltersS(b *testing.B){benchmarkFilters(b,0)}
+func benchmarkFilters(b *testing.B,shardId uint16) {
 	dir, err := ioutil.TempDir("", "filtertest")
 	if err != nil {
 		b.Fatal(err)
@@ -66,7 +68,7 @@ func BenchmarkFilters(b *testing.B) {
 	)
 	defer db.Close()
 
-	genesis := core.GenesisBlockForTesting(db, addr1, big.NewInt(1000000))
+	genesis := core.GenesisBlockForTesting(db, addr1, big.NewInt(1000000),shardId)
 	chain, receipts := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 100010, func(i int, gen *core.BlockGen) {
 		switch i {
 		case 2403:
@@ -101,8 +103,9 @@ func BenchmarkFilters(b *testing.B) {
 		}
 	}
 }
-
-func TestFilters(t *testing.T) {
+func TestFilters(t *testing.T) { testFilters(t,types.ShardMaster)}
+func TestFiltersS(t *testing.T){ testFilters(t,0)}
+func testFilters(t *testing.T,shardId uint16) {
 	dir, err := ioutil.TempDir("", "filtertest")
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +130,7 @@ func TestFilters(t *testing.T) {
 	)
 	defer db.Close()
 
-	genesis := core.GenesisBlockForTesting(db, addr, big.NewInt(1000000))
+	genesis := core.GenesisBlockForTesting(db, addr, big.NewInt(1000000),shardId)
 	chain, receipts := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1000, func(i int, gen *core.BlockGen) {
 		switch i {
 		case 1:

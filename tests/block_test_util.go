@@ -94,7 +94,7 @@ type btHeaderMarshaling struct {
 	Timestamp  *math.HexOrDecimal256
 }
 
-func (t *BlockTest) Run() error {
+func (t *BlockTest) Run(shardId uint16) error {
 	config, ok := Forks[t.json.Network]
 	if !ok {
 		return UnsupportedForkError{t.json.Network}
@@ -102,7 +102,7 @@ func (t *BlockTest) Run() error {
 
 	// import pre accounts & construct test genesis block & state root
 	db := ethdb.NewMemDatabase()
-	gblock, err := t.genesis(config).Commit(db)
+	gblock, err := t.genesis(config).Commit(db,shardId)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (t *BlockTest) Run() error {
 	} else {
 		engine = ethash.NewShared()
 	}
-	chain, err := core.NewBlockChain(db, nil, config, engine, vm.Config{}, nil)
+	chain, err := core.NewBlockChain(db, nil, config, engine, vm.Config{}, nil,shardId)
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (t *BlockTest) insertBlocks(blockchain *core.BlockChain) ([]btBlock, error)
 			}
 		}
 		// RLP decoding worked, try to insert into chain:
-		blocks := types.Blocks{cb}
+		blocks := types.BlockIntfs{cb}
 		i, err := blockchain.InsertChain(blocks)
 		if err != nil {
 			if b.BlockHeader == nil {
@@ -206,50 +206,50 @@ func (t *BlockTest) insertBlocks(blockchain *core.BlockChain) ([]btBlock, error)
 }
 
 func validateHeader(h *btHeader, h2 types.HeaderIntf) error {
-	if h.Bloom != h2.Bloom {
-		return fmt.Errorf("Bloom: want: %x have: %x", h.Bloom, h2.Bloom)
+	if h.Bloom != h2.Bloom() {
+		return fmt.Errorf("Bloom: want: %x have: %x", h.Bloom, h2.Bloom())
 	}
-	if h.Coinbase != h2.Coinbase {
-		return fmt.Errorf("Coinbase: want: %x have: %x", h.Coinbase, h2.Coinbase)
+	if h.Coinbase != h2.Coinbase() {
+		return fmt.Errorf("Coinbase: want: %x have: %x", h.Coinbase, h2.Coinbase())
 	}
-	if h.MixHash != h2.MixDigest {
-		return fmt.Errorf("MixHash: want: %x have: %x", h.MixHash, h2.MixDigest)
+	if h.MixHash != h2.MixDigest() {
+		return fmt.Errorf("MixHash: want: %x have: %x", h.MixHash, h2.MixDigest())
 	}
-	if h.Nonce != h2.Nonce {
-		return fmt.Errorf("Nonce: want: %x have: %x", h.Nonce, h2.Nonce)
+	if h.Nonce != h2.Nonce() {
+		return fmt.Errorf("Nonce: want: %x have: %x", h.Nonce, h2.Nonce())
 	}
-	if h.Number.Cmp(h2.Number) != 0 {
-		return fmt.Errorf("Number: want: %v have: %v", h.Number, h2.Number)
+	if h.Number.Cmp(h2.Number()) != 0 {
+		return fmt.Errorf("Number: want: %v have: %v", h.Number, h2.Number())
 	}
-	if h.ParentHash != h2.ParentHash {
-		return fmt.Errorf("Parent hash: want: %x have: %x", h.ParentHash, h2.ParentHash)
+	if h.ParentHash != h2.ParentHash() {
+		return fmt.Errorf("Parent hash: want: %x have: %x", h.ParentHash, h2.ParentHash())
 	}
-	if h.ReceiptTrie != h2.ReceiptHash {
-		return fmt.Errorf("Receipt hash: want: %x have: %x", h.ReceiptTrie, h2.ReceiptHash)
+	if h.ReceiptTrie != h2.ReceiptHash() {
+		return fmt.Errorf("Receipt hash: want: %x have: %x", h.ReceiptTrie, h2.ReceiptHash())
 	}
-	if h.TransactionsTrie != h2.TxHash {
-		return fmt.Errorf("Tx hash: want: %x have: %x", h.TransactionsTrie, h2.TxHash)
+	if h.TransactionsTrie != h2.TxHash() {
+		return fmt.Errorf("Tx hash: want: %x have: %x", h.TransactionsTrie, h2.TxHash())
 	}
-	if h.StateRoot != h2.Root {
-		return fmt.Errorf("State hash: want: %x have: %x", h.StateRoot, h2.Root)
+	if h.StateRoot != h2.Root() {
+		return fmt.Errorf("State hash: want: %x have: %x", h.StateRoot, h2.Root())
 	}
-	if h.UncleHash != h2.UncleHash {
-		return fmt.Errorf("Uncle hash: want: %x have: %x", h.UncleHash, h2.UncleHash)
+	if h.UncleHash != h2.UncleHash() {
+		return fmt.Errorf("Uncle hash: want: %x have: %x", h.UncleHash, h2.UncleHash())
 	}
-	if !bytes.Equal(h.ExtraData, h2.Extra) {
-		return fmt.Errorf("Extra data: want: %x have: %x", h.ExtraData, h2.Extra)
+	if !bytes.Equal(h.ExtraData, h2.Extra()) {
+		return fmt.Errorf("Extra data: want: %x have: %x", h.ExtraData, h2.Extra())
 	}
-	if h.Difficulty.Cmp(h2.Difficulty) != 0 {
+	if h.Difficulty.Cmp(h2.Difficulty()) != 0 {
 		return fmt.Errorf("Difficulty: want: %v have: %v", h.Difficulty, h2.Difficulty)
 	}
-	if h.GasLimit != h2.GasLimit {
-		return fmt.Errorf("GasLimit: want: %d have: %d", h.GasLimit, h2.GasLimit)
+	if h.GasLimit != h2.GasLimit() {
+		return fmt.Errorf("GasLimit: want: %d have: %d", h.GasLimit, h2.GasLimit())
 	}
-	if h.GasUsed != h2.GasUsed {
-		return fmt.Errorf("GasUsed: want: %d have: %d", h.GasUsed, h2.GasUsed)
+	if h.GasUsed != h2.GasUsed() {
+		return fmt.Errorf("GasUsed: want: %d have: %d", h.GasUsed, h2.GasUsed())
 	}
-	if h.Timestamp.Cmp(h2.Time) != 0 {
-		return fmt.Errorf("Timestamp: want: %v have: %v", h.Timestamp, h2.Time)
+	if h.Timestamp.Cmp(h2.Time()) != 0 {
+		return fmt.Errorf("Timestamp: want: %v have: %v", h.Timestamp, h2.Time())
 	}
 	return nil
 }
@@ -285,7 +285,7 @@ func (t *BlockTest) validateImportedHeaders(cm *core.BlockChain, validBlocks []b
 	// block-by-block, so we can only validate imported headers after
 	// all blocks have been processed by BlockChain, as they may not
 	// be part of the longest chain until last block is imported.
-	for b := cm.CurrentBlock(); b != nil && b.NumberU64() != 0; b = cm.GetBlockByHash(b.Header().ParentHash) {
+	for b := cm.CurrentBlock(); b != nil && b.NumberU64() != 0; b = cm.GetBlockByHash(b.Header().ParentHash()) {
 		if err := validateHeader(bmap[b.Hash()].BlockHeader, b.Header()); err != nil {
 			return fmt.Errorf("Imported block header validation failed: %v", err)
 		}

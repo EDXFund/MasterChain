@@ -19,6 +19,7 @@ package fetcher
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"time"
@@ -27,7 +28,7 @@ import (
 	"github.com/EDXFund/MasterChain/common/prque"
 	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/core/types"
-	"github.com/EDXFund/MasterChain/log"
+	//"github.com/EDXFund/MasterChain/log"
 )
 
 const (
@@ -226,7 +227,7 @@ func (f *Fetcher) Enqueue(peer string, block types.BlockIntf) error {
 // FilterHeaders extracts all the headers that were explicitly requested by the fetcher,
 // returning those that should be handled differently.
 func (f *Fetcher) FilterHeaders(peer string, headers []types.HeaderIntf, time time.Time) []types.HeaderIntf {
-	log.Trace("Filtering headers", "peer", peer, "headers", len(headers))
+	fmt.Println("Filtering headers", "peer", peer, "headers", len(headers))
 
 	// Send the filter channel to the fetcher
 	filter := make(chan *headerFilterTask)
@@ -260,19 +261,21 @@ func (f *Fetcher) FilterBodies(peer string, shardBlocks [][]*types.ShardBlockInf
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
 func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult ) {
-	log.Trace("Filtering bodies", "peer", peer, "txs", len(shardBlocks))
+	fmt.Println("Filtering bodies", "peer", peer, "txs", len(shardBlocks))
 
 	// Send the filter channel to the fetcher
 	filter := make(chan *bodyFilterTask)
-
+	fmt.Println("create new Body Task filter")
 	select {
 	case f.bodyFilter <- filter:
+		fmt.Println("put new Body Task filter")
 	case <-f.quit:
 		return nil,nil,nil,nil
 	}
 	// Request the filtering of the body list
 	select {
 	case filter <- &bodyFilterTask{peer: peer, shardBlocks: shardBlocks, receipts:receipts, time: time}:
+		fmt.Println("put a task to Body Task filter")
 	case <-f.quit:
 		return nil,nil,nil,nil
 	}
@@ -280,6 +283,7 @@ func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBl
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
+		fmt.Println("received result from Body Task filter")
 		return task.shardBlocks, task.receipts,nil,nil
 	case <-f.quit:
 		return nil, nil,nil,nil
@@ -290,7 +294,7 @@ func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBl
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
 func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, results [][]*types.ContractResult,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt,[][]*types.Transaction,[][]*types.ContractResult ) {
-	log.Trace("Filtering bodies", "peer", peer, "txs", len(txs))
+	fmt.Println("Filtering bodies", "peer", peer, "txs", len(txs))
 
 	// Send the filter channel to the fetcher
 	filter := make(chan *bodyFilterTask)
@@ -366,14 +370,14 @@ func (f *Fetcher) loop() {
 
 			count := f.announces[notification.origin] + 1
 			if count > hashLimit {
-				log.Debug("Peer exceeded outstanding announces", "peer", notification.origin, "limit", hashLimit)
+				fmt.Println("Peer exceeded outstanding announces", "peer", notification.origin, "limit", hashLimit)
 				propAnnounceDOSMeter.Mark(1)
 				break
 			}
 			// If we have a valid block number, check that it's potentially useful
 			if notification.number > 0 {
 				if dist := int64(notification.number) - int64(f.chainHeight()); dist < -maxUncleDist || dist > maxQueueDist {
-					log.Debug("Peer discarded announcement", "peer", notification.origin, "number", notification.number, "hash", notification.hash, "distance", dist)
+					fmt.Println("Peer discarded announcement", "peer", notification.origin, "number", notification.number, "hash", notification.hash, "distance", dist)
 					propAnnounceDropMeter.Mark(1)
 					break
 				}
@@ -424,7 +428,7 @@ func (f *Fetcher) loop() {
 			}
 			// Send out all block header requests
 			for peer, hashes := range request {
-				log.Trace("Fetching scheduled headers", "peer", peer, "list", hashes)
+				fmt.Println("Fetching scheduled headers", "peer", peer, "list", hashes)
 
 				// Create a closure of the fetch and schedule in on a new thread
 				fetchHeader, hashes := f.fetching[hashes[0]].fetchHeader, hashes
@@ -458,7 +462,7 @@ func (f *Fetcher) loop() {
 			}
 			// Send out all block body requests
 			for peer, hashes := range request {
-				log.Trace("Fetching scheduled bodies", "peer", peer, "list", hashes)
+				fmt.Println("Fetching scheduled bodies", "peer", peer, "list", hashes)
 
 				// Create a closure of the fetch and schedule in on a new thread
 				if f.completingHook != nil {
@@ -492,7 +496,7 @@ func (f *Fetcher) loop() {
 				if announce := f.fetching[hash]; announce != nil && announce.origin == task.peer && f.fetched[hash] == nil && f.completing[hash] == nil && f.queued[hash] == nil {
 					// If the delivered header does not match the promised number, drop the announcer
 					if header.NumberU64() != announce.number {
-						log.Trace("Invalid block number fetched", "peer", announce.origin, "hash", header.Hash(), "announced", announce.number, "provided", header.Number)
+						fmt.Println("Invalid block number fetched", "peer", announce.origin, "hash", header.Hash(), "announced", announce.number, "provided", header.Number())
 						f.dropPeer(announce.origin)
 						f.forgetHash(hash)
 						continue
@@ -504,20 +508,34 @@ func (f *Fetcher) loop() {
 						announce.time = task.time
 
 						// If the block is empty (header only), short circuit into the final import queue
-						if header.Hash() == types.DeriveSha(types.Transactions{}) && header.UncleHash() == types.CalcUncleHash([]types.HeaderIntf{}) {
-							log.Trace("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number, "hash", header.Hash())
+						if header.ShardId() == types.ShardMaster {
+							if header.ShardTxsHash() == types.DeriveSha(types.ShardBlockInfos{}) {
+								fmt.Println("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number(), "hash", header.Hash())
 
-							block := types.NewBlockWithHeader(header)
-							block.SetReceivedAt( task.time)
+								block := types.NewBlockWithHeader(header)
+								block.SetReceivedAt( task.time)
 
-							complete = append(complete, block)
-							f.completing[hash] = announce
-							continue
+								complete = append(complete, block)
+								f.completing[hash] = announce
+								continue
+							}
+						} else {
+							if header.TxHash() == types.DeriveSha(types.Transactions{}) && header.ResultHash() == types.DeriveSha(types.ContractResults{{}}) {
+								fmt.Println("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number(), "hash", header.Hash())
+
+								block := types.NewBlockWithHeader(header)
+								block.SetReceivedAt( task.time)
+
+								complete = append(complete, block)
+								f.completing[hash] = announce
+								continue
+							}
 						}
+
 						// Otherwise add to the list of blocks needing completion
 						incomplete = append(incomplete, announce)
 					} else {
-						log.Trace("Block already imported, discarding header", "peer", announce.origin, "number", header.Number, "hash", header.Hash())
+						fmt.Println("Block already imported, discarding header", "peer", announce.origin, "number", header.Number(), "hash", header.Hash())
 						f.forgetHash(hash)
 					}
 				} else {
@@ -564,6 +582,7 @@ func (f *Fetcher) loop() {
 				blocks = procShardBodies(task, f)
 			}
 
+			fmt.Println("filtered blocks:",len(blocks))
 			select {
 			case filter <- task:
 			case <-f.quit:
@@ -571,7 +590,8 @@ func (f *Fetcher) loop() {
 			}
 			// Schedule the retrieved blocks for ordered import
 			for _, block := range blocks {
-				if announce := f.completing[block.Hash()]; announce != nil {
+				hash := block.Hash()
+				if announce := f.completing[hash]; announce != nil {
 					f.enqueue(announce.origin, block)
 				}
 			}
@@ -593,16 +613,26 @@ func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 				blockHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
 				//uncleHash := types.CalcUncleHash(task.uncles[i])
 
-				if blockHash == announce.header.TxHash()  && announce.origin == task.peer {
+				if blockHash == announce.header.ShardTxsHash()  && announce.origin == task.peer {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
 
 					nBlock := f.getBlock(hash)
 					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
-						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
-						block.SetReceivedAt(task.time)
+						if len(task.shardBlocks[i]) == 0 {
+							block := types.NewBlockWithHeader(announce.header);//.WithBody(nil, nil,nil, nil)
+							block.SetReceivedAt(task.time)
+							fmt.Println("header:",announce.header.Hash())
+							fmt.Println("block:",block.Hash())
+							blocks = append(blocks, block)
+						}else {
+							block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
+							block.SetReceivedAt(task.time)
+							fmt.Println("header:",announce.header.Hash())
+							fmt.Println("block:",block.Hash())
+							blocks = append(blocks, block)
+						}
 
-						blocks = append(blocks, block)
 					} else {
 						f.forgetHash(hash)
 					}
@@ -631,18 +661,26 @@ func procShardBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 			if f.queued[hash] == nil {
 
 				//recalc hash
-				txnHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
+				txnHash := types.DeriveSha(types.Transactions(task.transactions[i]))
 				resultHash := types.DeriveSha(types.ContractResults(task.contractResults[i]))
 
-				if txnHash == announce.header.Hash() && resultHash == announce.header.ReceiptHash() && announce.origin == task.peer {
+				if txnHash == announce.header.TxHash() && resultHash == announce.header.ResultHash() && announce.origin == task.peer {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
 					nBlock := f.getBlock(hash)
 					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
-						block := types.NewBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
-						block.SetReceivedAt(task.time)
+						if len(task.transactions[i]) ==  0 {
+							block := types.NewSBlockWithHeader(announce.header)//.WithBody(nil, nil, task.transactions[i], task.contractResults[i])
+							block.SetReceivedAt(task.time)
 
-						blocks = append(blocks, block)
+							blocks = append(blocks, block)
+						}else {
+							block := types.NewSBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
+							block.SetReceivedAt(task.time)
+
+							blocks = append(blocks, block)
+						}
+
 					} else {
 						f.forgetHash(hash)
 					}
@@ -701,14 +739,14 @@ func (f *Fetcher) enqueue(peer string, block types.BlockIntf) {
 	// Ensure the peer isn't DOSing us
 	count := f.queues[peer] + 1
 	if count > blockLimit {
-		log.Debug("Discarded propagated block, exceeded allowance", "peer", peer, "number", block.Number(), "hash", hash, "limit", blockLimit)
+		fmt.Println("Discarded propagated block, exceeded allowance", "peer", peer, "number", block.Number(), "hash", hash, "limit", blockLimit)
 		propBroadcastDOSMeter.Mark(1)
 		f.forgetHash(hash)
 		return
 	}
 	// Discard any past or too distant blocks
 	if dist := int64(block.NumberU64()) - int64(f.chainHeight()); dist < -maxUncleDist || dist > maxQueueDist {
-		log.Debug("Discarded propagated block, too far away", "peer", peer, "number", block.Number(), "hash", hash, "distance", dist)
+		fmt.Println("Discarded propagated block, too far away", "peer", peer, "number", block.Number(), "hash", hash, "distance", dist)
 		propBroadcastDropMeter.Mark(1)
 		f.forgetHash(hash)
 		return
@@ -725,7 +763,7 @@ func (f *Fetcher) enqueue(peer string, block types.BlockIntf) {
 		if f.queueChangeHook != nil {
 			f.queueChangeHook(op.block.Hash(), true)
 		}
-		log.Debug("Queued propagated block", "peer", peer, "number", block.Number(), "hash", hash, "queued", f.queue.Size())
+		fmt.Println("Queued propagated block", "peer", peer, "number", block.Number(), "hash", hash, "queued", f.queue.Size())
 	}
 }
 
@@ -736,14 +774,14 @@ func (f *Fetcher) insert(peer string, block types.BlockIntf) {
 	hash := block.Hash()
 
 	// Run the import on a new thread
-	log.Debug("Importing propagated block", "peer", peer, "number", block.Number(), "hash", hash)
+//	fmt.Println("Importing propagated block", "peer", peer, "number", block.Number(), "hash", hash)
 	go func() {
 		defer func() { f.done <- hash }()
 
 		// If the parent's unknown, abort insertion
 		parent := f.getBlock(block.ParentHash())
 		if parent == nil || reflect.ValueOf(parent).IsNil() {
-			log.Debug("Unknown parent of propagated block", "peer", peer, "number", block.Number(), "hash", hash, "parent", block.ParentHash())
+			fmt.Println("Unknown parent of propagated block", "peer", peer, "number", block.Number(), "hash", hash, "parent", block.ParentHash())
 			return
 		}
 		// Quickly validate the header and propagate the block if it passes
@@ -758,13 +796,13 @@ func (f *Fetcher) insert(peer string, block types.BlockIntf) {
 
 		default:
 			// Something went very wrong, drop the peer
-			log.Debug("Propagated block verification failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
+			fmt.Println("Propagated block verification failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
 			f.dropPeer(peer)
 			return
 		}
 		// Run the actual import and log any issues
 		if _, err := f.insertChain(types.BlockIntfs{block}); err != nil {
-			log.Debug("Propagated block import failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
+			fmt.Println("Propagated block import failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
 			return
 		}
 		// If import succeeded, broadcast the block

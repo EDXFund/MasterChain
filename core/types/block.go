@@ -175,9 +175,10 @@ func (b Header) BloomRejected() Bloom     { return b.bloomReject }
 func (b *Header) Coinbase() common.Address { return b.coinbase }
 func (b *Header) Root() common.Hash        { return b.root }
 func (b *Header) ParentHash() common.Hash  { return b.parentHash }
-func (b *Header) TxHash() common.Hash      { return b.shardTxsHash}
+func (b *Header) TxHash() common.Hash      { return common.Hash{}}
 func (b *Header) ShardTxsHash() common.Hash {return b.shardTxsHash}
 func (b *Header) ReceiptHash() common.Hash { return b.receiptHash }
+func (b *Header) ResultHash() common.Hash { return common.Hash{} }
 func (b *Header) UncleHash() common.Hash   { return b.uncleHash }
 func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
 func (b *Header) ExtraPtr() *[]byte            { return &b.extra }

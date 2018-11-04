@@ -298,7 +298,9 @@ type HeaderIntf interface {
 	ParentHash() common.Hash
 	UncleHash() common.Hash
 	ReceiptHash() common.Hash
+	ResultHash()  common.Hash
 	TxHash() common.Hash
+	ShardTxsHash() common.Hash
 	Extra() []byte
 	Time() *big.Int
 	Coinbase() common.Address

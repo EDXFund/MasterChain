@@ -49,12 +49,13 @@ type difficultyTestMarshaling struct {
 
 func (test *DifficultyTest) Run(config *params.ChainConfig) error {
 	parentNumber := big.NewInt(int64(test.CurrentBlockNumber - 1))
-	parent := &types.Header{
+	parent := new(types.Header);
+	parent.FillBy(&types.HeaderStruct{
 		Difficulty: test.ParentDifficulty,
 		Time:       test.ParentTimestamp,
 		Number:     parentNumber,
 		UncleHash:  test.UncleHash,
-	}
+	})
 
 	actual := ethash.CalcDifficulty(config, test.CurrentTimestamp.Uint64(), parent)
 	exp := test.CurrentDifficulty

@@ -186,6 +186,8 @@ func (b *SHeader) ParentHash() common.Hash  { return b.parentHash }
 func (b *SHeader) TxHash() common.Hash      { return b.txHash }
 func (b *SHeader) ReceiptHash() common.Hash { return b.receiptHash }
 func (b *SHeader) Extra() []byte { return b.extra }
+func (b *SHeader) ShardTxsHash() common.Hash {return common.Hash{} }
+func (b *SHeader) ResultHash() common.Hash {return b.receiptHash }
 
 func (b *SHeader) SetShardId(shardId uint16)  { b.shardId = shardId }
 
@@ -261,6 +263,7 @@ func (b *SBlock)  ShardBlock(hash common.Hash) *ShardBlockInfo {return nil}
 func (b *SBlock)  ShardBlocks() []*ShardBlockInfo {return nil}
 func (b *SBlock) ShardExp() uint16      { return 0 }
 func (b *SBlock) ShardEnabled() [32]byte { return [32]byte{0} }
+
 func (b *SBlock) ToBlock() *Block { return nil }
 func (b *SBlock) UncleHash() common.Hash   { return common.Hash{} }
 func (b *SBlock) Uncles() []HeaderIntf   { return nil }
