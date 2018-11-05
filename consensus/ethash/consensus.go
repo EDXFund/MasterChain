@@ -176,18 +176,18 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 		parent = headers[index-1]
 	}
 	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
-		fmt.Printf("3，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
-		fmt.Println("")
+	//	fmt.Printf("3，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+	//	fmt.Println("")
 		return consensus.ErrUnknownAncestor
 	} else {
-		fmt.Printf("K，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
-		fmt.Println("")
+	//	fmt.Printf("K，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+	//	fmt.Println("")
 
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].NumberU64()) != nil {
 		return nil // known block
 	}
-	fmt.Println("header:",headers[index].NumberU64(),"\tparent:",parent.NumberU64())
+	//fmt.Println("header:",headers[index].NumberU64(),"\tparent:",parent.NumberU64())
 	return ethash.verifyHeader(chain, headers[index], parent, false, seals[index])
 }
 

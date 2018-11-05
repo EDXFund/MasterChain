@@ -60,8 +60,9 @@ type fetchResult struct {
 	Header       types.HeaderIntf
 	Uncles       []types.HeaderIntf
 	Transactions types.Transactions
-	Receipts     types.Receipts
+	ShardInfos     types.ShardBlockInfos
 	Results      types.ContractResults
+	Receipts     types.Receipts
 }
 
 // queue represents hashes that are either need fetching or are being fetched
@@ -457,7 +458,14 @@ func (q *queue) ReserveHeaders(p *peerConnection, count int) *fetchRequest {
 // returns a flag whether empty blocks were queued requiring processing.
 func (q *queue) ReserveBodies(p *peerConnection, count int) (*fetchRequest, bool, error) {
 	isNoop := func(header types.HeaderIntf) bool {
-		return header.TxHash() == types.EmptyRootHash && header.UncleHash() == types.EmptyUncleHash
+		var noop bool
+		if header.ShardId() != types.ShardMaster {
+			noop =  header.TxHash() == types.EmptyRootHash && header.ResultHash() == types.EmptyRootHash
+		}else {
+			noop =  header.ShardTxsHash() == types.EmptyRootHash
+		}
+		return noop
+
 	}
 	q.lock.Lock()
 	defer q.lock.Unlock()

@@ -186,7 +186,7 @@ func (b *SHeader) ParentHash() common.Hash  { return b.parentHash }
 func (b *SHeader) TxHash() common.Hash      { return b.txHash }
 func (b *SHeader) ReceiptHash() common.Hash { return b.receiptHash }
 func (b *SHeader) Extra() []byte { return b.extra }
-func (b *SHeader) ShardTxsHash() common.Hash {return common.Hash{} }
+func (b *SHeader) ShardTxsHash() common.Hash {return EmptyRootHash }
 func (b *SHeader) ResultHash() common.Hash {return b.receiptHash }
 
 func (b *SHeader) SetShardId(shardId uint16)  { b.shardId = shardId }
@@ -265,7 +265,7 @@ func (b *SBlock) ShardExp() uint16      { return 0 }
 func (b *SBlock) ShardEnabled() [32]byte { return [32]byte{0} }
 
 func (b *SBlock) ToBlock() *Block { return nil }
-func (b *SBlock) UncleHash() common.Hash   { return common.Hash{} }
+func (b *SBlock) UncleHash() common.Hash   { return EmptyRootHash }
 func (b *SBlock) Uncles() []HeaderIntf   { return nil }
 func (b *SBlock)Transactions() []*Transaction {
 	return b.transactions
@@ -465,11 +465,25 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 	block := &SBlock{
 		header: CopySHeader(b.header),
 	}
-	block.transactions = make([]*Transaction, len(transactions))
-	block.results = make(ContractResults, len(contractReceipts))
+	if len(transactions) > 0 {
+		block.transactions = make([]*Transaction, len(transactions))
+		copy(block.transactions, transactions)
+		block.header.SetTxHash(rlpHash(transactions))
+	}else{
+		block.header.SetTxHash(EmptyRootHash)
+	}
 
-	copy(block.transactions, transactions)
-	copy(block.results, contractReceipts)
+	if len(contractReceipts) > 0 {
+		block.results = make(ContractResults, len(contractReceipts))
+		copy(block.results, contractReceipts)
+		block.header.SetReceiptHash(rlpHash(contractReceipts))
+	}else {
+		block.header.SetReceiptHash(EmptyRootHash)
+	}
+
+
+
+
 
 	return block
 }

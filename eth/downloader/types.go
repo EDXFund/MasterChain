@@ -52,33 +52,33 @@ type bodyPack struct {
 	peerID       string
 	transactions [][]*types.Transaction
 	shardBlocks  [][]*types.ShardBlockInfo
-	results		 [][]*types.ContractResult
-	receipts     [][]*types.Receipt
-}
-type shardBodyPack struct {
-	peerID       string
-	transactions [][]*types.Transaction
 
+	receipts     [][]*types.Receipt
+
+	results		 [][]*types.ContractResult
 }
+
 
 func (p *bodyPack) PeerId() string { return p.peerID }
 func (p *bodyPack) Items() int {
-	if len(p.transactions) <= len(p.results) && len(p.transactions) <= len(p.shardBlocks) {
-		return len(p.transactions)
-	} else if len(p.shardBlocks) <= len(p.results) {
-		return len(p.shardBlocks)
+	if p.transactions != nil {
+		if  len(p.transactions) <= len(p.results) {
+			return len(p.transactions)
+		} else {
+			return len(p.results)
+		}
+	} else {
+		if len(p.shardBlocks) <= len(p.receipts) {
+			return len(p.shardBlocks)
+		} else {
+			return len(p.receipts)
+		}
+
 	}
-	return len(p.results)
+
 }
-func (p *bodyPack) Stats() string { return fmt.Sprintf("%d:%d:%d", len(p.shardBlocks),len(p.transactions),len(p.results)) }
+func (p *bodyPack) Stats() string { return fmt.Sprintf("%d,%d,%d,%d", len(p.shardBlocks), len(p.receipts), len(p.transactions), len(p.results)) }
 
-
-func (p *shardBodyPack) PeerId() string { return p.peerID }
-func (p *shardBodyPack) Items() int {
-
-	return len(p.transactions)
-}
-func (p *shardBodyPack) Stats() string { return fmt.Sprintf("%d", len(p.transactions)) }
 
 // receiptPack is a batch of receipts returned by a peer.
 type receiptPack struct {

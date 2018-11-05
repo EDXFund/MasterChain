@@ -230,6 +230,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 		block, receipt := genblock(i, parent, statedb)
 		blocks[i] = block
 		receipts[i] = receipt
+		fmt.Println("number",block.NumberU64(),"hash:",block.Hash(),"parent:",parent.Hash())
 		parent = block
 	}
 	return blocks, receipts
@@ -243,7 +244,7 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 		time = new(big.Int).Add(parent.Time(), big.NewInt(10)) // block time is fixed at 10 seconds
 	}
 
-	if(parent.ShardId() == types.ShardMaster) {
+	if parent.ShardId() == types.ShardMaster {
 		result := new(types.Header)
 		inner_parent := new(types.Header)
 		inner_parent.FillBy(&types.HeaderStruct{
@@ -261,6 +262,8 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 				Difficulty: engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
 				GasLimit: CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
 				Number:   new(big.Int).Add(parent.Number(), common.Big1),
+				ReceiptHash:common.Hash{},
+				ShardTxsHash:common.Hash{},
 				Time:     time,
 			})
 		return result
@@ -281,6 +284,8 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 				Coinbase:   parent.Coinbase(),
 				Difficulty: engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
 				GasLimit: CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
+				ReceiptHash:common.Hash{},
+				TxHash:common.Hash{},
 				Number:   new(big.Int).Add(parent.Number(), common.Big1),
 				Time:     time,
 			})

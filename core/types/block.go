@@ -175,10 +175,10 @@ func (b Header) BloomRejected() Bloom     { return b.bloomReject }
 func (b *Header) Coinbase() common.Address { return b.coinbase }
 func (b *Header) Root() common.Hash        { return b.root }
 func (b *Header) ParentHash() common.Hash  { return b.parentHash }
-func (b *Header) TxHash() common.Hash      { return common.Hash{}}
+func (b *Header) TxHash() common.Hash      { return EmptyRootHash}
 func (b *Header) ShardTxsHash() common.Hash {return b.shardTxsHash}
 func (b *Header) ReceiptHash() common.Hash { return b.receiptHash }
-func (b *Header) ResultHash() common.Hash { return common.Hash{} }
+func (b *Header) ResultHash() common.Hash { return EmptyRootHash}
 func (b *Header) UncleHash() common.Hash   { return b.uncleHash }
 func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
 func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
@@ -526,11 +526,24 @@ func (b *Block) WithSeal(header HeaderIntf) BlockIntf {
 func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, receipts []*Receipt, transactions []*Transaction, results []*ContractResult) BlockIntf {
 	block := &Block{
 		header:      CopyHeader(b.header),
-		shardBlocks: make([]*ShardBlockInfo, len(shardBlocksInfos)),
 
 	}
-	copy(block.shardBlocks, shardBlocksInfos)
-	block.header.SetReceiptHash(rlpHash(receipts))
+	if len(shardBlocksInfos) > 0 {
+		block.shardBlocks = make([]*ShardBlockInfo, len(shardBlocksInfos))
+
+		copy(block.shardBlocks, shardBlocksInfos)
+		b.header.SetShardTxHash(rlpHash(shardBlocksInfos))
+
+	}else {
+
+		b.header.SetShardTxHash(EmptyRootHash)
+	}
+
+	if len(receipts)> 0 {
+		block.header.SetReceiptHash(rlpHash(receipts))
+	}else {
+		block.header.SetReceiptHash(EmptyRootHash)
+	}
 /*	for i := range uncles {
 		block.uncles[i] = CopyHeader(uncles[i])
 	}*/

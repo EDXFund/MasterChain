@@ -619,19 +619,11 @@ func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 
 					nBlock := f.getBlock(hash)
 					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
-						if len(task.shardBlocks[i]) == 0 {
-							block := types.NewBlockWithHeader(announce.header);//.WithBody(nil, nil,nil, nil)
-							block.SetReceivedAt(task.time)
-							fmt.Println("header:",announce.header.Hash())
-							fmt.Println("block:",block.Hash())
-							blocks = append(blocks, block)
-						}else {
-							block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
-							block.SetReceivedAt(task.time)
-							fmt.Println("header:",announce.header.Hash())
-							fmt.Println("block:",block.Hash())
-							blocks = append(blocks, block)
-						}
+						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
+						block.SetReceivedAt(task.time)
+						fmt.Println("header:",announce.header.Hash())
+						fmt.Println("block:",block.Hash())
+						blocks = append(blocks, block)
 
 					} else {
 						f.forgetHash(hash)
@@ -669,17 +661,10 @@ func procShardBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 					matched = true
 					nBlock := f.getBlock(hash)
 					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
-						if len(task.transactions[i]) ==  0 {
-							block := types.NewSBlockWithHeader(announce.header)//.WithBody(nil, nil, task.transactions[i], task.contractResults[i])
-							block.SetReceivedAt(task.time)
+						block := types.NewSBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
+						block.SetReceivedAt(task.time)
 
-							blocks = append(blocks, block)
-						}else {
-							block := types.NewSBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
-							block.SetReceivedAt(task.time)
-
-							blocks = append(blocks, block)
-						}
+						blocks = append(blocks, block)
 
 					} else {
 						f.forgetHash(hash)

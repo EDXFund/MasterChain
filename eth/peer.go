@@ -276,16 +276,22 @@ func (p *peer) AsyncSendNewBlock(block types.BlockIntf, td *big.Int) {
 func (p *peer) SendBlockHeaders(headers []types.HeaderIntf) error {
 	if len(headers) > 0  {
 		shardId := headers[0].ShardId()
-		msg := blockHeaderMsgData{ShardId:shardId}
-		msg.Headers = make([]types.HeaderIntf,len(headers))
-		for key,val := range headers {
-			if shardId == types.ShardMaster {
-				msg.Headers[key] = val.ToHeader()
-			}else {
-				msg.Headers[key] = val.ToSHeader()
+		if shardId == types.ShardMaster {
+			msg := blockHeaderMsgData{ShardId:shardId}
+			msg.Headers = make([]*types.HeaderStruct,len(headers))
+			for key,val := range headers {
+				msg.Headers[key] = val.ToHeader().ToHeaderStruct()
 			}
+			return p2p.Send(p.rw, BlockHeadersMsg, msg)
+		}else {
+			msg := blockSHeaderMsgData{ShardId:shardId}
+			msg.Headers = make([]*types.SHeaderStruct,len(headers))
+			for key,val := range headers {
+				msg.Headers[key] = val.ToSHeader().ToStruct()
+			}
+			return p2p.Send(p.rw, BlockHeadersMsg, msg)
 		}
-		return p2p.Send(p.rw, BlockHeadersMsg, msg)
+
 	} else {
 		return errEmpty
 	}

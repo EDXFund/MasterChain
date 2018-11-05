@@ -207,5 +207,9 @@ type blockBodiesData blockBody
 
 type blockHeaderMsgData struct {
 	ShardId uint16
-	Headers []types.HeaderIntf
+	Headers []*types.HeaderStruct
+}
+type blockSHeaderMsgData struct {
+	ShardId uint16
+	Headers []*types.SHeaderStruct
 }
