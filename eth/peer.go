@@ -97,11 +97,11 @@ type peer struct {
 	term        chan struct{}             // Termination channel to stop the broadcaster
 }
 
-func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
+func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter,shardId uint16) *peer {
 	return &peer{
 		Peer:        p,
 		rw:          rw,
-		shardId:     common.ShardMaster,
+		shardId:     shardId,
 		version:     version,
 		id:          fmt.Sprintf("%x", p.ID().Bytes()[:8]),
 		knownTxs:    mapset.NewSet(),
@@ -273,29 +273,32 @@ func (p *peer) AsyncSendNewBlock(block types.BlockIntf, td *big.Int) {
 
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
-func (p *peer) SendBlockHeaders(headers []types.HeaderIntf) error {
-	if len(headers) > 0  {
-		shardId := headers[0].ShardId()
-		if shardId == types.ShardMaster {
-			msg := blockHeaderMsgData{ShardId:shardId}
+func (p *peer) SendBlockHeaders(headers []types.HeaderIntf,shardId uint16) error {
+	if shardId == types.ShardMaster {
+		msg := blockHeaderMsgData{ShardId:shardId}
+		if len(headers) > 0 {
 			msg.Headers = make([]*types.HeaderStruct,len(headers))
 			for key,val := range headers {
 				msg.Headers[key] = val.ToHeader().ToHeaderStruct()
 			}
-			return p2p.Send(p.rw, BlockHeadersMsg, msg)
 		}else {
-			msg := blockSHeaderMsgData{ShardId:shardId}
-			msg.Headers = make([]*types.SHeaderStruct,len(headers))
-			for key,val := range headers {
-				msg.Headers[key] = val.ToSHeader().ToStruct()
-			}
-			return p2p.Send(p.rw, BlockHeadersMsg, msg)
+			msg.Headers =nil
 		}
 
-	} else {
-		return errEmpty
-	}
 
+		return p2p.Send(p.rw, BlockHeadersMsg, msg)
+	}else {
+		msg := blockSHeaderMsgData{ShardId:shardId}
+		if len(headers) > 0 {
+			msg.Headers = make([]*types.SHeaderStruct, len(headers))
+			for key, val := range headers {
+				msg.Headers[key] = val.ToSHeader().ToStruct()
+			}
+		}else {
+			msg.Headers =nil
+		}
+		return p2p.Send(p.rw, BlockHeadersMsg, msg)
+	}
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
@@ -336,6 +339,7 @@ func (p *peer) SendBlockBodies(bodies []types.BlockIntf) error {
 // an already RLP encoded format.
 func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
 	return p2p.Send(p.rw, BlockBodiesMsg, bodies)
+
 }
 
 // SendNodeDataRLP sends a batch of arbitrary internal data, corresponding to the

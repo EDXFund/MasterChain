@@ -140,7 +140,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 			Version: version,
 			Length:  ProtocolLengths[i],
 			Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-				peer := manager.newPeer(int(version), p, rw)
+				peer := manager.newPeer(int(version), p, rw, blockchain.ShardId())
 				select {
 				case manager.newPeerCh <- peer:
 					manager.wg.Add(1)
@@ -248,8 +248,8 @@ func (pm *ProtocolManager) Stop() {
 	log.Info("Ethereum protocol stopped")
 }
 
-func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
-	return newPeer(pv, p, newMeteredMsgWriter(rw))
+func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter,shardId uint16) *peer {
+	return newPeer(pv, p, newMeteredMsgWriter(rw),shardId)
 }
 
 // handle is the callback invoked to manage the life cycle of an eth peer. When
@@ -269,7 +269,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		number  = head.NumberU64()
 		td      = pm.blockchain.GetTd(hash, number)
 	)
-	if err := p.Handshake(pm.networkID, td, hash, genesis.Hash(),common.ShardMaster); err != nil {
+	if err := p.Handshake(pm.networkID, td, hash, genesis.Hash(),genesis.ShardId()); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		return err
 	}
@@ -355,6 +355,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			headers []types.HeaderIntf
 			unknown bool
 		)
+		////MUST TODO retrieve different data from different chain
 		for !unknown && len(headers) < int(query.Amount) && bytes < softResponseLimit && len(headers) < downloader.MaxHeaderFetch {
 			// Retrieve the next header satisfying the query
 			var origin types.HeaderIntf
@@ -424,7 +425,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				query.Origin.Number += query.Skip + 1
 			}
 		}
-		return p.SendBlockHeaders(headers)
+		return p.SendBlockHeaders(headers,query.ShardId)
 
 	case msg.Code == BlockHeadersMsg:
 		// A batch of headers arrived to one of our previous requests

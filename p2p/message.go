@@ -187,6 +187,8 @@ func (p *MsgPipeRW) WriteMsg(msg Msg) error {
 				case <-consumed:
 				case <-p.closing:
 				}
+			}else {
+				fmt.Println("zero message!")
 			}
 			return nil
 		case <-p.closing:
@@ -235,19 +237,22 @@ func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 	if content == nil {
 		return msg.Discard()
 	}
+
 	contentEnc, err := rlp.EncodeToBytes(content)
 	if err != nil {
 		panic("content encode error: " + err.Error())
 	}
-	if int(msg.Size) != len(contentEnc) {
-		return fmt.Errorf("message size mismatch: got %d, want %d", msg.Size, len(contentEnc))
-	}
+
 	actualContent, err := ioutil.ReadAll(msg.Payload)
 	if err != nil {
 		return err
 	}
 	if !bytes.Equal(actualContent, contentEnc) {
 		return fmt.Errorf("message payload mismatch:\ngot:  %x\nwant: %x", actualContent, contentEnc)
+	}
+
+	if int(msg.Size) != len(contentEnc) {
+		return fmt.Errorf("message size mismatch: got %d, want %d", msg.Size, len(contentEnc))
 	}
 	return nil
 }

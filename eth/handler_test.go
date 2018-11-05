@@ -146,7 +146,20 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 1}, Amount: limit + 10, Reverse: true},
 			pm.blockchain.GetBlockHashesFromHash(pm.blockchain.CurrentBlock().Hash(), limit),
 		},
-
+		// Check that requesting more than available is handled gracefully
+		{
+			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 4}, Skip: 3, Amount: 3},
+			[]common.Hash{
+				pm.blockchain.GetBlockByNumber(pm.blockchain.CurrentBlock().NumberU64() - 4).Hash(),
+				pm.blockchain.GetBlockByNumber(pm.blockchain.CurrentBlock().NumberU64()).Hash(),
+			},
+		}, {
+			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: 4}, Skip: 3, Amount: 3, Reverse: true},
+			[]common.Hash{
+				pm.blockchain.GetBlockByNumber(4).Hash(),
+				pm.blockchain.GetBlockByNumber(0).Hash(),
+			},
+		},
 		// Check that requesting more than available is handled gracefully, even if mid skip
 		{
 			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 4}, Skip: 2, Amount: 3},
@@ -221,6 +234,30 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 				}
 			}
 		}
+		}else {
+			headers := []*types.SHeaderStruct{}
+			for _, hash := range tt.expect {
+				headers = append(headers, pm.blockchain.GetBlockByHash(hash).Header().ToSHeader().ToStruct())
+			}
+			// Send the hash request and verify the response
+			p2p.Send(peer.app, 0x03, tt.query)
+			msg := blockSHeaderMsgData{ShardId:shardId,Headers:headers}
+			if err := p2p.ExpectMsg(peer.app, 0x04, msg); err != nil {
+				t.Errorf("test %d: headers mismatch: %v", i, err)
+			}
+
+
+			// If the test used number origins, repeat with hashes as the too
+			if tt.query.Origin.Hash == (common.Hash{}) {
+				if origin := pm.blockchain.GetBlockByNumber(tt.query.Origin.Number); origin != nil {
+					tt.query.Origin.Hash, tt.query.Origin.Number = origin.Hash(), 0
+
+					p2p.Send(peer.app, 0x03, tt.query)
+					if err := p2p.ExpectMsg(peer.app, 0x04, msg); err != nil {
+						t.Errorf("test %d: headers mismatch: %v", i, err)
+					}
+				}
+			}
 		}
 	}
 	fmt.Println("testing end")
@@ -237,7 +274,7 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 	defer peer.close()
 
 	// Create a batch of tests for various scenarios
-	limit := downloader.MaxBlockFetch
+//	limit := downloader.MaxBlockFetch
 	tests := []struct {
 		random    int           // Number of blocks to fetch randomly from the chain
 		explicit  []common.Hash // Explicitly requested blocks
@@ -245,7 +282,7 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 		expected  int           // Total number of existing blocks to expect
 	}{
 		{1, nil, nil, 1},             // A single random block should be retrievable
-		{10, nil, nil, 10},           // Multiple random blocks should be retrievable
+		/*{10, nil, nil, 10},           // Multiple random blocks should be retrievable
 		{limit, nil, nil, limit},     // The maximum possible blocks should be retrievable
 		{limit + 1, nil, nil, limit}, // No more than the possible block count should be returned
 		{0, []common.Hash{pm.blockchain.Genesis().Hash()}, []bool{true}, 1},      // The genesis block should be retrievable
@@ -262,12 +299,14 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 			pm.blockchain.GetBlockByNumber(100).Hash(),
 			{},
 		}, []bool{false, true, false, true, false, true, false}, 3},
+		*/
+
 	}
 	// Run each of the tests and verify the results against the chain
 	for i, tt := range tests {
 		// Collect the hashes to request, and the response to expect
 		hashes, seen := []common.Hash{}, make(map[int64]bool)
-		bodies := []*types.SuperBody{}
+		bodies := []types.BlockIntf{}
 
 		for j := 0; j < tt.random; j++ {
 			for {
@@ -278,7 +317,7 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 					block := pm.blockchain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
-						bodies = append(bodies, &types.SuperBody{Transactions: block.Transactions(), ShardBlocks:block.ShardBlocks(),Receipts:block.Receipts()})
+						bodies = append( bodies,block)
 					}
 					break
 				}
@@ -288,21 +327,50 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 			hashes = append(hashes, hash)
 			if tt.available[j] && len(bodies) < tt.expected {
 				block := pm.blockchain.GetBlockByHash(hash)
-				bodies = append(bodies, &types.SuperBody{Transactions: block.Transactions(), ShardBlocks:block.ShardBlocks(),Receipts:block.Receipts()})
+				bodies = append(bodies,block)
+
 			}
 		}
 		// Send the hash request and verify the response
 		p2p.Send(peer.app, 0x05, hashes)
-		data,err := rlp.EncodeToBytes(bodies)
-		if err != nil {
-			t.Errorf("encode bodies mismatch: %v",  err)
-			return
+
+		result := make([]rlp.RawValue,len(bodies))
+
+		for _,val := range bodies {
+			var item *types.SuperBody
+			if val.ShardId() == types.ShardMaster {
+				blk :=val.ToBlock().Body()
+				item = &types.SuperBody{ShardBlocks:blk.ShardBlocks,Uncles:nil,Receipts:nil,Transactions:nil,Results:nil}
+
+			}else {
+				blk :=val.ToSBlock().Body()
+				item = &types.SuperBody{ShardBlocks:blk.ShardBlocks,Uncles:nil,Receipts:nil,Transactions:nil,Results:nil}
+
+			}
+			data,err := rlp.EncodeToBytes(item)
+			if err == nil {
+				rawVal,_ := rlp.EncodeToBytes(&types.BodyEncode{ShardId:val.ShardId(),Body:data})
+				result = append(result,rlp.RawValue(rawVal))
+			}
+
 		}
-		result := newBlockData{ShardId:pm.blockchain.CurrentHeader().ShardId(),Data:data}
+
+
 		if err := p2p.ExpectMsg(peer.app, 0x06, result); err != nil {
 			t.Errorf("test %d: bodies mismatch: %v", i, err)
 		}
 	}
+}
+
+func BodyEncodeFromBlock(block types.BlockIntf, bodies []*types.BodyEncode) []*types.BodyEncode {
+	val := (&types.SuperBody{Transactions: block.Transactions(), ShardBlocks: block.ShardBlocks(), Receipts: block.Receipts()}).ToBody()
+	bodyEncode := types.BodyEncode{ShardId: block.ShardId()}
+	body_data, err := rlp.EncodeToBytes(val)
+	if err == nil {
+		bodyEncode.Body = body_data
+		bodies = append(bodies, &bodyEncode)
+	}
+	return bodies
 }
 
 // Tests that the node state database can be retrieved based on hashes.
@@ -315,33 +383,33 @@ func testGetNodeData(t *testing.T, protocol int,shardId uint16) {
 	acc1Addr := crypto.PubkeyToAddress(acc1Key.PublicKey)
 	acc2Addr := crypto.PubkeyToAddress(acc2Key.PublicKey)
 
-	signer := types.HomesteadSigner{}
+	//signer := types.HomesteadSigner{}
 	// Create a chain generator with some simple transactions (blatantly stolen from @fjl/chain_markets_test)
 	generator := func(i int, block *core.BlockGen) {
 		switch i {
 		case 0:
 			// In block 1, the test bank sends account #1 some ether.
-			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), signer, testBankKey)
-			block.AddTx(tx)
+			//tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), signer, testBankKey)
+			//block.AddTx(tx)
 		case 1:
 			// In block 2, the test bank sends some more ether to account #1.
 			// acc1Addr passes it on to account #2.
-			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
-			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, acc1Key)
-			block.AddTx(tx1)
-			block.AddTx(tx2)
+			//tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
+			//tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, acc1Key)
+			//block.AddTx(tx1)
+			//block.AddTx(tx2)
 		case 2:
 			// Block 3 is empty but was mined by account #2.
-			block.SetCoinbase(acc2Addr)
-			block.SetExtra([]byte("yeehaw"))
+			//block.SetCoinbase(acc2Addr)
+			//block.SetExtra([]byte("yeehaw"))
 		case 3:
 			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-			b2 := block.PrevBlock(1).Header()
-			b2.SetExtra ([]byte("foo"))
-			block.AddUncle(b2)
-			b3 := block.PrevBlock(2).Header()
-			b3.SetExtra ([]byte("foo"))
-			block.AddUncle(b3)
+			//b2 := block.PrevBlock(1).Header()
+			//b2.SetExtra ([]byte("foo"))
+			//block.AddUncle(b2)
+			//b3 := block.PrevBlock(2).Header()
+			//b3.SetExtra ([]byte("foo"))
+			//block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
