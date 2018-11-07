@@ -65,6 +65,7 @@ type txdataMarshaling struct {
 	AccountNonce hexutil.Uint64
 	Price        *hexutil.Big
 	GasLimit     hexutil.Uint64
+	TokenId      uint64
 	Amount       *hexutil.Big
 	Payload      hexutil.Bytes
 	V            *hexutil.Big

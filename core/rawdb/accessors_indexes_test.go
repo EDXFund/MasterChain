@@ -33,8 +33,10 @@ func TestLookupStorage(t *testing.T) {
 	tx2 := types.NewTransaction(2, common.BytesToAddress([]byte{0x22}), big.NewInt(222), 2222, big.NewInt(22222), []byte{0x22, 0x22, 0x22})
 	tx3 := types.NewTransaction(3, common.BytesToAddress([]byte{0x33}), big.NewInt(333), 3333, big.NewInt(33333), []byte{0x33, 0x33, 0x33})
 	txs := []*types.Transaction{tx1, tx2, tx3}
-
-	block := types.NewBlock(&types.Header{Number: big.NewInt(314)}, txs, nil, nil)
+	hs := &types.SHeaderStruct{Number: big.NewInt(314)}
+	header := &types.SHeader{}
+	header.FillBy(hs)
+	block := types.NewSBlock(header, txs, nil)
 
 	// Check that no transactions entries are in a pristine database
 	for i, tx := range txs {
@@ -44,7 +46,7 @@ func TestLookupStorage(t *testing.T) {
 	}
 	// Insert all the transactions into the database, and verify contents
 	WriteBlock(db, block)
-	WriteTxLookupEntries(db, block)
+	WriteTxLookupEntries(db, block.ToSBlock())
 
 	for i, tx := range txs {
 		if txn, hash, number, index := ReadTransaction(db, tx.Hash()); txn == nil {

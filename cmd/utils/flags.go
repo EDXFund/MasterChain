@@ -1378,7 +1378,8 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 
-	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
+	 shardId := uint16(ctx.GlobalInt64(ShardFlag.Name))
+	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx),shardId)
 	if err != nil {
 		Fatalf("%v", err)
 	}
@@ -1410,7 +1411,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		cache.TrieNodeLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
 	}
 	vmcfg := vm.Config{EnablePreimageRecording: ctx.GlobalBool(VMEnableDebugFlag.Name)}
-	shardId := uint16(ctx.GlobalInt(ShardFlag.Name))
+
 	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil,shardId)
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)

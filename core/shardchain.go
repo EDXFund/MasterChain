@@ -19,6 +19,8 @@ package core
 import (
 	"container/list"
 	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core/types"
+	"github.com/EDXFund/MasterChain/event"
 	"math/big"
 	"sync"
 )
@@ -30,37 +32,37 @@ type Node interface {
 	Difficulty() *big.Int
 }
 
-type QZTree struct {
+type ShardChain struct {
 	self     Node
 	children *list.List
 	//for quick search
-	parent *QZTree
+	parent *ShardChain
 	wg     sync.RWMutex
 
 }
 
-func NewQZTree(root Node) *QZTree {
-	return &QZTree{
+func NewShardChain(root Node) *ShardChain {
+	return &ShardChain{
 		self:     root,
 		children: list.New(),
 	}
 }
 
-func (t *QZTree) Node() Node           { return t.self }
-func (t *QZTree) Children() *list.List { return t.children }
-func (t *QZTree) Parent() *QZTree      { return t.parent }
-func (t *QZTree) FindNode(node Node, compare func(n1, n2 Node) bool) *QZTree {
+func (t *ShardChain) Node() Node           { return t.self }
+func (t *ShardChain) Children() *list.List { return t.children }
+func (t *ShardChain) Parent() *ShardChain      { return t.parent }
+func (t *ShardChain) FindNode(node Node, compare func(n1, n2 Node) bool) *ShardChain {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	return t.findNode(node,compare)
 }
-func (t *QZTree) findNode(node Node, compare func(n1, n2 Node) bool) *QZTree {
+func (t *ShardChain) findNode(node Node, compare func(n1, n2 Node) bool) *ShardChain {
 	if compare(t.self, node) {
 		return t
 	} else {
-		var res *QZTree
+		var res *ShardChain
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			res = (i.Value).(*QZTree).findNode(node, compare)
+			res = (i.Value).(*ShardChain).findNode(node, compare)
 			if res != nil {
 				break
 			}
@@ -68,13 +70,13 @@ func (t *QZTree) findNode(node Node, compare func(n1, n2 Node) bool) *QZTree {
 		return res
 	}
 }
-func (t *QZTree) AddNode(node Node) bool {
+func (t *ShardChain) AddNode(node Node) bool {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	return t.addNode(node)
 }
 //insert node , whose parent
-func (t *QZTree) addNode(node Node) bool {
+func (t *ShardChain) addNode(node Node) bool {
 
 	parent := t.findNode(node, func(n1, n2 Node) bool {
 		return n1.Hash() == n2.ParentHash()
@@ -83,23 +85,23 @@ func (t *QZTree) addNode(node Node) bool {
 
 		exist := false
 		for i := parent.children.Front(); i != nil; i = i.Next() {
-			if i.Value.(*QZTree).self.Hash() == node.Hash() {
+			if i.Value.(*ShardChain).self.Hash() == node.Hash() {
 				exist = true
 				break
 			}
 		}
 		if !exist {
-			parent.children.PushBack(&QZTree{self: node, children: list.New(), parent: parent})
+			parent.children.PushBack(&ShardChain{self: node, children: list.New(), parent: parent})
 		}
 
-		//make a qztree
+		//make a ShardChain
 		return true
 	} else {
 		return false
 	}
 }
-//cut all branch's except root by node ,return a QZTree with node as root
-func (t *QZTree) ShrinkToBranch(node Node) *QZTree{
+//cut all branch's except root by node ,return a ShardChain with node as root
+func (t *ShardChain) ShrinkToBranch(node Node) *ShardChain{
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	parent := t.findNode(node, func(n1, n2 Node) bool {
@@ -110,10 +112,10 @@ func (t *QZTree) ShrinkToBranch(node Node) *QZTree{
 		}
 	})
 	if parent != nil{
-		var result *QZTree = nil
+		var result *ShardChain = nil
 		for it:=parent.Children().Front(); it != nil; it = it.Next() {
-			if it.Value.(*QZTree).self.Hash() == node.Hash() {
-				result = it.Value.(*QZTree)
+			if it.Value.(*ShardChain).self.Hash() == node.Hash() {
+				result = it.Value.(*ShardChain)
 				parent.Children().Remove(it)
 				break;
 			}
@@ -128,13 +130,13 @@ func (t *QZTree) ShrinkToBranch(node Node) *QZTree{
 		}
 	}
 }
-func (t *QZTree) getMaxTdPath() (uint64, *QZTree) {
+func (t *ShardChain) getMaxTdPath() (uint64, *ShardChain) {
 	td := t.self.Difficulty().Uint64()
 	maxTd := uint64(0)
-	var maxNode *QZTree
+	var maxNode *ShardChain
 	maxNode = nil
 	for i := t.children.Front(); i != nil; i = i.Next() {
-		curTd, node := i.Value.(*QZTree).getMaxTdPath()
+		curTd, node := i.Value.(*ShardChain).getMaxTdPath()
 		//fmt.Println("node hash: %V, td: %V",node.self.Hash(),curTd)
 		if curTd > maxTd {
 			maxNode = node
@@ -149,7 +151,7 @@ func (t *QZTree) getMaxTdPath() (uint64, *QZTree) {
 }
 
 // find a max td path on node's branch, if node is nil find max of all
-func (t *QZTree) GetMaxTdPath(node Node) *QZTree {
+func (t *ShardChain) GetMaxTdPath(node Node) *ShardChain {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	if node != nil {
@@ -169,12 +171,12 @@ func (t *QZTree) GetMaxTdPath(node Node) *QZTree {
 	}
 
 }
-func (t *QZTree) MergeTree(newT *QZTree) bool {
+func (t *ShardChain) MergeTree(newT *ShardChain) bool {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	return t.mergeTree(newT)
 }
-func (t *QZTree) mergeTree(newT *QZTree) bool {
+func (t *ShardChain) mergeTree(newT *ShardChain) bool {
 	parent := t.findNode(newT.self, func(n1, n2 Node) bool {
 		return n1.Hash() == n2.ParentHash()
 	})
@@ -182,7 +184,7 @@ func (t *QZTree) mergeTree(newT *QZTree) bool {
 		//check for duplication
 		duplication := false
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			if i.Value.(*QZTree).self.Hash() == newT.self.Hash() {
+			if i.Value.(*ShardChain).self.Hash() == newT.self.Hash() {
 				duplication = true
 			}
 		}
@@ -196,12 +198,12 @@ func (t *QZTree) mergeTree(newT *QZTree) bool {
 	}
 }
 
-func (t *QZTree) dfIterator(check func(node Node) bool) bool {
+func (t *ShardChain) dfIterator(check func(node Node) bool) bool {
 	if check(t.self) {
 		return true
 	} else {
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			res := i.Value.(*QZTree).dfIterator(check)
+			res := i.Value.(*ShardChain).dfIterator(check)
 			if res {
 				return true
 			}
@@ -209,13 +211,13 @@ func (t *QZTree) dfIterator(check func(node Node) bool) bool {
 		return false
 	}
 }
-func (t *QZTree) wfIterator(check func(node Node) bool) bool {
+func (t *ShardChain) wfIterator(check func(node Node) bool) bool {
 	if check(t.self) {
 		return true
 	} else {
 		res := false
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			if check(i.Value.(*QZTree).self) {
+			if check(i.Value.(*ShardChain).self) {
 				res = true
 				break
 			}
@@ -223,7 +225,7 @@ func (t *QZTree) wfIterator(check func(node Node) bool) bool {
 		}
 		if !res {
 			for i := t.children.Front(); i != nil; i = i.Next() {
-				if i.Value.(*QZTree).wfIterator(check) {
+				if i.Value.(*ShardChain).wfIterator(check) {
 					res = true
 					break
 				}
@@ -235,7 +237,7 @@ func (t *QZTree) wfIterator(check func(node Node) bool) bool {
 }
 
 // using routine "proc" to iterate all node, it breaks when "proc" return true
-func (t *QZTree) Iterator(deepFirst bool, proc func(node Node) bool) {
+func (t *ShardChain) Iterator(deepFirst bool, proc func(node Node) bool) {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	if deepFirst {
@@ -244,7 +246,7 @@ func (t *QZTree) Iterator(deepFirst bool, proc func(node Node) bool) {
 		t.wfIterator(proc)
 	}
 }
-func (t *QZTree)RemoveByHash(hash common.Hash, deleteSelf bool){
+func (t *ShardChain)RemoveByHash(hash common.Hash, deleteSelf bool){
 	var nodeFound Node = nil;
 	t.wfIterator(func(node Node) bool {
 		if node.Hash() == hash {
@@ -259,13 +261,13 @@ func (t *QZTree)RemoveByHash(hash common.Hash, deleteSelf bool){
 		t.Remove(nodeFound,deleteSelf)
 	}
 }
-func (t *QZTree) Remove(node Node, removeNode bool){
+func (t *ShardChain) Remove(node Node, removeNode bool){
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	t.remove(node,removeNode)
 }
-func (t *QZTree) remove(node Node, removeNode bool) {
-	var target *QZTree
+func (t *ShardChain) remove(node Node, removeNode bool) {
+	var target *ShardChain
 	if node != nil {
 		target = t.findNode(node, func(n1, n2 Node) bool {
 			return n1.Hash() == n2.Hash()
@@ -276,13 +278,13 @@ func (t *QZTree) remove(node Node, removeNode bool) {
 	if target != nil {
 
 		for i := target.children.Front(); i != nil; i = i.Next() {
-			i.Value.(*QZTree).Remove(nil, false)
+			i.Value.(*ShardChain).Remove(nil, false)
 		}
 		target.children.Init()
 		if node != nil && removeNode {
 			ls := target.parent.children
 			for it := ls.Front(); it != nil; it = it.Next() {
-				if it.Value.(*QZTree).self.Hash() == node.Hash() {
+				if it.Value.(*ShardChain).self.Hash() == node.Hash() {
 					ls.Remove(it)
 					break
 				}
@@ -291,36 +293,36 @@ func (t *QZTree) remove(node Node, removeNode bool) {
 	}
 
 }
-func (t *QZTree) GetCount() int{
+func (t *ShardChain) GetCount() int{
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	return t.getCount()
 }
-func (t *QZTree) getCount() int {
+func (t *ShardChain) getCount() int {
 	count := 1;
 	//if  {
 		for it := t.children.Front(); it != nil; it = it.Next() {
-			count += it.Value.(*QZTree).getCount()
+			count += it.Value.(*ShardChain).getCount()
 		}
 //	}
 	return count
 }
 
-type  QZTreeManager struct{
+type  ShardChainManager struct{
 	shardId uint16
-	trees map[common.Hash]*QZTree
+	trees map[common.Hash]*ShardChain
 	rootHash common.Hash
 
 }
-func (t *QZTreeManager)RootHash() common.Hash {return t.rootHash}
-func (t *QZTreeManager)Trees() map[common.Hash] *QZTree { return t.trees }
-func (t *QZTreeManager)TreeOf(hash common.Hash) (*QZTree){ return t.trees[hash] }
-func (t* QZTreeManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
+func (t *ShardChainManager)RootHash() common.Hash {return t.rootHash}
+func (t *ShardChainManager)Trees() map[common.Hash] *ShardChain { return t.trees }
+func (t *ShardChainManager)TreeOf(hash common.Hash) (*ShardChain){ return t.trees[hash] }
+func (t* ShardChainManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
 //add new BLock to tree, if more than 6 blocks has reached, a new block will popup to shard_pool
 //if the node can not be add to  any existing tree, a new tree will be established
-func (t *QZTreeManager)AddNewBlock(node Node)  {
+func (t *ShardChainManager)AddNewBlock(node Node)  {
 
-	var found *QZTree = nil
+	var found *ShardChain = nil
 	for _, tree := range t.trees {
 		if tree.AddNode(node)  {
 			found = tree
@@ -328,7 +330,7 @@ func (t *QZTreeManager)AddNewBlock(node Node)  {
 		}
 	}
 	if found == nil{
-		found = NewQZTree(node)
+		found = NewShardChain(node)
 		t.trees[node.Hash()] = found
 	}
 	//do possible tree merge
@@ -340,19 +342,19 @@ func (t *QZTreeManager)AddNewBlock(node Node)  {
 	}
 }
 // remove shard block with given hash, do nothing if the block does not exist
-func (t *QZTreeManager)RemoveBlock(node Node) {
+func (t *ShardChainManager)RemoveBlock(node Node) {
 	for _,value := range t.trees {
 		value.Remove(node,true)
 	}
 }
 
-func (t *QZTreeManager)RemoveBlockByHash(hash common.Hash) {
+func (t *ShardChainManager)RemoveBlockByHash(hash common.Hash) {
 	for _,value := range t.trees {
 		value.RemoveByHash(hash,true)
 	}
 }
 
-func (t *QZTreeManager)GetPendingCount() int {
+func (t *ShardChainManager)GetPendingCount() int {
 	count:=0
 	for _,val := range t.trees {
 		count += val.GetCount()
@@ -360,9 +362,9 @@ func (t *QZTreeManager)GetPendingCount() int {
 	return count
 }
 //cut all node, on tree from node survived
-func (t *QZTreeManager)ReduceTo(node Node) {
+func (t *ShardChainManager)ReduceTo(node Node) {
 	invalidHashes := make([]common.Hash,1)
-	var newTree *QZTree = nil
+	var newTree *ShardChain = nil
 	for hash,val := range  t.trees {
 		if val.self.Number().Uint64() < node.Number().Uint64() {
 			invalidHashes = append(invalidHashes,hash)
@@ -380,5 +382,33 @@ func (t *QZTreeManager)ReduceTo(node Node) {
 	if newTree != nil {
 		t.trees[newTree.self.Hash()] = newTree
 	}
+
+}
+
+type ShardChainPool  struct {
+	Shards map[uint16]*ShardChain
+	vaoidShardFeed      event.Feed 			//new valid shardblock has emerged
+	scope          event.SubscriptionScope
+	mu           sync.RWMutex
+}
+
+func NewShardChainPool() *ShardChainPool{
+
+	pool := &ShardChainPool{
+		Shards:make(map[uint16]*ShardChain),
+		shardFeed :=
+	}
+	return pool
+}
+
+func (scp *ShardChainPool) loop() {
+	//waiting for shard blocks
+}
+func (scp *ShardChainPool) InsertChain(headers []*types.SHeader) error {
+	scp.mu.Lock()
+	defer scp.mu.Unlock()
+	return scp.insertChain(headers)
+}
+func (scp *ShardChainPool) insertChain(headers []*types.SHeader,blocks) error {
 
 }

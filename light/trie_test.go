@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/EDXFund/MasterChain/core/types"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -31,16 +32,21 @@ import (
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/trie"
 )
-
-func TestNodeIterator(t *testing.T) {
+func TestNodeIteratorMaster(t *testing.T) {
+	testNodeIterator(t,types.ShardMaster)
+}
+func TestNodeIteratorShard(t *testing.T) {
+	testNodeIterator(t,0)
+}
+func testNodeIterator(t *testing.T,shardId uint16) {
 	var (
 		fulldb  = ethdb.NewMemDatabase()
 		lightdb = ethdb.NewMemDatabase()
 		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
-		genesis = gspec.MustCommit(fulldb)
+		genesis = gspec.MustCommit(fulldb,shardId)
 	)
-	gspec.MustCommit(lightdb)
-	blockchain, _ := core.NewBlockChain(fulldb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil)
+	gspec.MustCommit(lightdb,shardId)
+	blockchain, _ := core.NewBlockChain(fulldb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil,shardId)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), fulldb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		panic(err)
@@ -49,8 +55,8 @@ func TestNodeIterator(t *testing.T) {
 	ctx := context.Background()
 	odr := &testOdr{sdb: fulldb, ldb: lightdb, indexerConfig: TestClientIndexerConfig}
 	head := blockchain.CurrentHeader()
-	lightTrie, _ := NewStateDatabase(ctx, head, odr).OpenTrie(head.Root)
-	fullTrie, _ := state.NewDatabase(fulldb).OpenTrie(head.Root)
+	lightTrie, _ := NewStateDatabase(ctx, head, odr).OpenTrie(head.Root())
+	fullTrie, _ := state.NewDatabase(fulldb).OpenTrie(head.Root())
 	if err := diffTries(fullTrie, lightTrie); err != nil {
 		t.Fatal(err)
 	}

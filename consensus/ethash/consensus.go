@@ -100,7 +100,7 @@ func (ethash *Ethash) VerifyHeader(chain consensus.ChainReader, header types.Hea
 	}
 	// Sanity checks passed, do a proper verification
 	////must to do adapt to shard block
-	return ethash.verifyHeader(chain, header.ToHeader(), parent, false, seal)
+	return ethash.verifyHeader(chain, header, parent, false, seal)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -237,7 +237,7 @@ func (ethash *Ethash) VerifyUncles(chain consensus.ChainReader, block types.Bloc
 		if val == nil  || reflect.ValueOf(val).IsNil()  || uncle.ParentHash() == block.ParentHash() {
 			return errDanglingUncle
 		}
-		if err := ethash.verifyHeader(chain, uncle, ancestors[uncle.ParentHash()].ToHeader(), true, true); err != nil {
+		if err := ethash.verifyHeader(chain, uncle, ancestors[uncle.ParentHash()], true, true); err != nil {
 			return err
 		}
 	}

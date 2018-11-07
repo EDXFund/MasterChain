@@ -381,7 +381,7 @@ func ReadBlock(db DatabaseReader, hash common.Hash, number uint64) types.BlockIn
 	if body == nil {
 		return nil
 	}
-	if(header.ShardId() == types.ShardMaster ) {
+	if header.ShardId() == types.ShardMaster  {
 		return types.NewBlockWithHeader(header).WithBody(body.ShardBlocks,body.Receipts,body.Transactions, body.Results)
 	}else{
 		return types.NewSBlockWithHeader(header).WithBody(body.ShardBlocks,body.Receipts,body.Transactions, body.Results)

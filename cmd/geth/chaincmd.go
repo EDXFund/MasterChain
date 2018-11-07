@@ -188,6 +188,7 @@ func initGenesis(ctx *cli.Context) error {
 	if err := json.NewDecoder(file).Decode(genesis); err != nil {
 		utils.Fatalf("invalid genesis file: %v", err)
 	}
+	shardId :=uint16(ctx.GlobalInt(utils.ShardFlag.Name))
 	// Open an initialise both full and light databases
 	stack := makeFullNode(ctx)
 	for _, name := range []string{"chaindata", "lightchaindata"} {
@@ -195,7 +196,7 @@ func initGenesis(ctx *cli.Context) error {
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)
 		}
-		_, hash, err := core.SetupGenesisBlock(chaindb, genesis)
+		_, hash, err := core.SetupGenesisBlock(chaindb, genesis,shardId)
 		if err != nil {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}

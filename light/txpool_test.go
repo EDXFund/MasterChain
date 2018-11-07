@@ -76,6 +76,7 @@ func txPoolTestChainGen(i int, block *core.BlockGen) {
 }
 
 func TestTxPool(t *testing.T) {
+	shardId := uint16(0)
 	for i := range testTx {
 		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
 	}
@@ -84,11 +85,11 @@ func TestTxPool(t *testing.T) {
 		sdb     = ethdb.NewMemDatabase()
 		ldb     = ethdb.NewMemDatabase()
 		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
-		genesis = gspec.MustCommit(sdb)
+		genesis = gspec.MustCommit(sdb,shardId)
 	)
-	gspec.MustCommit(ldb)
+	gspec.MustCommit(ldb,shardId)
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil)
+	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil,shardId)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), sdb, poolTestBlocks, txPoolTestChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		panic(err)
@@ -100,7 +101,7 @@ func TestTxPool(t *testing.T) {
 		discard: make(chan int, 1),
 		mined:   make(chan int, 1),
 	}
-	lightchain, _ := NewLightChain(odr, params.TestChainConfig, ethash.NewFullFaker())
+	lightchain, _ := NewLightChain(odr, params.TestChainConfig, ethash.NewFullFaker(),shardId)
 	txPermanent = 50
 	pool := NewTxPool(params.TestChainConfig, lightchain, relay)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -119,7 +120,7 @@ func TestTxPool(t *testing.T) {
 			}
 		}
 
-		if _, err := lightchain.InsertHeaderChain([]*types.Header{block.Header()}, 1); err != nil {
+		if _, err := lightchain.InsertHeaderChain([]types.HeaderIntf{block.Header()}, 1); err != nil {
 			panic(err)
 		}
 

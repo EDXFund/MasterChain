@@ -57,7 +57,7 @@ type LightChain struct {
 	chainSideFeed event.Feed
 	chainHeadFeed event.Feed
 	scope         event.SubscriptionScope
-	genesisBlock  *types.Block
+	genesisBlock  types.BlockIntf
 
 	mu      sync.RWMutex
 	chainmu sync.RWMutex
@@ -100,10 +100,12 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		return nil, err
 	}
 	ablock, err := bc.GetBlockByNumber(NoOdr, 0)
-	if(err != nil) {
-
+	if err == nil{
+		bc.genesisBlock = ablock
+	}else {
+		return nil,err
 	}
-	bc.genesisBlock = ablock.ToBlock()
+
 	if bc.genesisBlock == nil {
 		return nil, core.ErrNoGenesis
 	}
@@ -226,10 +228,10 @@ func (bc *LightChain) State() (*state.StateDB, error) {
 
 // GetBody retrieves a block body (transactions and uncles) from the database
 // or ODR service by hash, caching it if found.
-func (self *LightChain) GetBody(ctx context.Context, hash common.Hash) (*types.Body, error) {
+func (self *LightChain) GetBody(ctx context.Context, hash common.Hash) ( *types.SuperBody, error) {
 	// Short circuit if the body's already in the cache, retrieve otherwise
 	if cached, ok := self.bodyCache.Get(hash); ok {
-		body := cached.(*types.Body)
+		body := cached.(*types.SuperBody)
 		return body, nil
 	}
 	number := self.hc.GetBlockNumber(hash)
@@ -389,11 +391,20 @@ func (self *LightChain) InsertHeaderChain(chain []types.HeaderIntf, checkFreq in
 		switch status {
 		case core.CanonStatTy:
 			log.Debug("Inserted new header", "number", header.Number(), "hash", header.Hash())
-			events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
+		    if(header.ShardId() == types.ShardMaster){
+				events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
+			}else{
+				events = append(events, core.ChainEvent{Block: types.NewSBlockWithHeader(header), Hash: header.Hash()})
+			}
+
 
 		case core.SideStatTy:
 			log.Debug("Inserted forked header", "number", header.Number(), "hash", header.Hash())
-			events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
+			if(header.ShardId() == types.ShardMaster) {
+				events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
+			}else{
+				events = append(events, core.ChainSideEvent{Block: types.NewSBlockWithHeader(header)})
+			}
 		}
 		return err
 	}

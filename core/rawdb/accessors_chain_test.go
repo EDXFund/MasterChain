@@ -34,7 +34,9 @@ func TestHeaderStorage(t *testing.T) {
 	db := ethdb.NewMemDatabase()
 
 	// Create a test header to move around the database and make sure it's really new
-	header := &types.Header{Number: big.NewInt(42), Extra: []byte("test header")}
+	header_s := &types.HeaderStruct{Number: big.NewInt(42), Extra: []byte("test header")}
+	header := &types.Header{}
+	header.FillBy(header_s)
 	if entry := ReadHeader(db, header.Hash(), header.NumberU64()); reflect.ValueOf(entry).IsValid()  {
 		t.Fatalf("Non existent header returned: %v", entry)
 	}
