@@ -72,7 +72,7 @@ type ChainIndexer struct {
 	indexDb  ethdb.Database      // Prefixed table-view of the db to write index metadata into
 	backend  ChainIndexerBackend // Background processor generating the index data content
 	children []*ChainIndexer     // Child indexers to cascade chain updates to
-
+	shardId  uint16
 	active    uint32          // Flag whether the event loop was started
 	update    chan struct{}   // Notification channel that headers should be processed
 	quit      chan chan error // Quit channel to tear down running goroutines
@@ -98,7 +98,7 @@ type ChainIndexer struct {
 // NewChainIndexer creates a new chain indexer to do background processing on
 // chain segments of a given size after certain number of confirmations passed.
 // The throttling parameter might be used to prevent database thrashing.
-func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string) *ChainIndexer {
+func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBackend, section, confirm uint64, throttling time.Duration, kind string,shardId uint16) *ChainIndexer {
 	c := &ChainIndexer{
 		chainDb:     chainDb,
 		indexDb:     indexDb,
@@ -108,6 +108,7 @@ func NewChainIndexer(chainDb, indexDb ethdb.Database, backend ChainIndexerBacken
 		sectionSize: section,
 		confirmsReq: confirm,
 		throttling:  throttling,
+		shardId:     shardId,
 		log:         log.New("type", kind),
 	}
 	// Initialize database dependent fields and start the updater
@@ -223,7 +224,7 @@ func (c *ChainIndexer) eventLoop(currentHeader types.HeaderIntf, events chan Cha
 				// Reorg to the common ancestor if needed (might not exist in light sync mode, skip reorg then)
 				// TODO(karalabe, zsfelfoldi): This seems a bit brittle, can we detect this case explicitly?
 
-				if rawdb.ReadCanonicalHash(c.chainDb, prevHeader.NumberU64()) != prevHash {
+				if rawdb.ReadCanonicalHash(c.chainDb, c.shardId,prevHeader.NumberU64()) != prevHash {
 					if h := rawdb.FindCommonAncestor(c.chainDb, prevHeader, header); h != nil {
 						c.newHead(h.NumberU64(), true)
 					}
@@ -280,7 +281,7 @@ func (c *ChainIndexer) newHead(head uint64, reorg bool) {
 		if sections > c.knownSections {
 			if c.knownSections < c.checkpointSections {
 				// syncing reached the checkpoint, verify section head
-				syncedHead := rawdb.ReadCanonicalHash(c.chainDb, c.checkpointSections*c.sectionSize-1)
+				syncedHead := rawdb.ReadCanonicalHash(c.chainDb, c.shardId, c.checkpointSections*c.sectionSize-1)
 				if syncedHead != c.checkpointHead {
 					c.log.Error("Synced chain does not match checkpoint", "number", c.checkpointSections*c.sectionSize-1, "expected", c.checkpointHead, "synced", syncedHead)
 					return
@@ -391,11 +392,11 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 	}
 
 	for number := section * c.sectionSize; number < (section+1)*c.sectionSize; number++ {
-		hash := rawdb.ReadCanonicalHash(c.chainDb, number)
+		hash := rawdb.ReadCanonicalHash(c.chainDb, c.shardId, number)
 		if hash == (common.Hash{}) {
 			return common.Hash{}, fmt.Errorf("canonical block #%d unknown", number)
 		}
-		header := rawdb.ReadHeader(c.chainDb, hash, number)
+		header := rawdb.ReadHeader(c.chainDb, c.shardId, hash, number)
 		if header == nil  || reflect.ValueOf(header).IsNil() {
 			return common.Hash{}, fmt.Errorf("block #%d [%x…] not found", number, hash[:4])
 		} else if header.ParentHash() != lastHead {

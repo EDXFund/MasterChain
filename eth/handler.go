@@ -756,8 +756,14 @@ func ExtractBlockIntf(request newBlockData) (types.BlockIntf,error) {
 	}
 
 }
-
-func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bool) {
+func (pm *ProtocolManager) BroadcastBlock(block types.BlockIntf, propagate bool) {
+	if block.ShardId()  == types.ShardMaster {
+		pm.broadcastMasterBlock(block.ToBlock(),propagate)
+	}else {
+		pm.broadcastShardBlock(block.ToSBlock(),propagate)
+	}
+}
+func (pm *ProtocolManager) broadcastShardBlock(block *types.SBlock, propagate bool) {
 	hash := block.Hash()
 	shardId := block.ShardId()
 	//peers of this shard
@@ -800,7 +806,7 @@ func (pm *ProtocolManager) BroadcastShardBlock(block *types.SBlock, propagate bo
 }
 // BroadcastBlock will either propagate a block to a subset of it's peers, or
 // will only announce it's availability (depending what's requested).
-func (pm *ProtocolManager) BroadcastBlock(block types.BlockIntf, propagate bool) {
+func (pm *ProtocolManager) broadcastMasterBlock(block *types.Block, propagate bool) {
 	hash := block.Hash()
 	peers := pm.peers.PeersWithoutMasterBlock(hash)
 

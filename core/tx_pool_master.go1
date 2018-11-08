@@ -732,7 +732,7 @@ func (pool *TxMPool) AddRemote(tx *types.Transaction) error {
 // the local pricing constraints.
 func (pool *TxMPool) AddLocals(txs []*types.Transaction) []error {
 	//return pool.addTxs(txs, !pool.config.NoLocals)
-	return errNoActiveJournal
+	return []error{errNoActiveJournal}
 }
 
 // AddRemotes enqueues a batch of transactions into the pool if they are valid.

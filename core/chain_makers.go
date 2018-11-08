@@ -264,6 +264,7 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 				Number:   new(big.Int).Add(parent.Number(), common.Big1),
 				ReceiptHash:common.Hash{},
 				ShardTxsHash:common.Hash{},
+
 				Time:     time,
 			})
 		return result
@@ -287,6 +288,7 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 				ReceiptHash:common.Hash{},
 				TxHash:common.Hash{},
 				Number:   new(big.Int).Add(parent.Number(), common.Big1),
+				ShardId:parent.ShardId(),
 				Time:     time,
 			})
 		return result
@@ -297,7 +299,12 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 
 // makeHeaderChain creates a deterministic chain of headers rooted at parent.
 func makeHeaderChain(parent types.HeaderIntf, n int, engine consensus.Engine, db ethdb.Database, seed int) []types.HeaderIntf {
-	blocks := makeBlockChain(types.NewBlockWithHeader(parent), n, engine, db, seed)
+	var blocks []types.BlockIntf
+	if parent.ShardId() == types.ShardMaster {
+		blocks = makeBlockChain(types.NewBlockWithHeader(parent), n, engine, db, seed)
+	} else {
+		blocks = makeBlockChain(types.NewSBlockWithHeader(parent), n, engine, db, seed)
+	}
 	headers := make([]types.HeaderIntf, len(blocks))
 	for i, block := range blocks {
 		headers[i] = block.Header()

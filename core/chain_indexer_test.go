@@ -33,7 +33,10 @@ import (
 // Runs multiple tests with randomized parameters.
 func TestChainIndexerSingle(t *testing.T) {
 	for i := 0; i < 10; i++ {
-		testChainIndexer(t, 1)
+		testChainIndexer(t, 1,types.ShardMaster)
+	}
+	for i := 0; i < 10; i++ {
+		testChainIndexer(t, 1,0)
 	}
 }
 
@@ -41,14 +44,17 @@ func TestChainIndexerSingle(t *testing.T) {
 // chain backends.
 func TestChainIndexerWithChildren(t *testing.T) {
 	for i := 2; i < 8; i++ {
-		testChainIndexer(t, i)
+		testChainIndexer(t, i,types.ShardMaster)
+	}
+	for i := 2; i < 8; i++ {
+		testChainIndexer(t, i,0)
 	}
 }
 
 // testChainIndexer runs a test with either a single chain indexer or a chain of
 // multiple backends. The section size and required confirmation count parameters
 // are randomized.
-func testChainIndexer(t *testing.T, count int) {
+func testChainIndexer(t *testing.T, count int,shardId uint16) {
 	db := ethdb.NewMemDatabase()
 	defer db.Close()
 
@@ -60,7 +66,7 @@ func testChainIndexer(t *testing.T, count int) {
 			confirmsReq = uint64(rand.Intn(10))
 		)
 		backends[i] = &testChainIndexBackend{t: t, processCh: make(chan uint64)}
-		backends[i].indexer = NewChainIndexer(db, ethdb.NewTable(db, string([]byte{byte(i)})), backends[i], sectionSize, confirmsReq, 0, fmt.Sprintf("indexer-%d", i))
+		backends[i].indexer = NewChainIndexer(db, ethdb.NewTable(db, string([]byte{byte(i)})), backends[i], sectionSize, confirmsReq, 0, fmt.Sprintf("indexer-%d", i),shardId)
 
 		if sections, _, _ := backends[i].indexer.Sections(); sections != 0 {
 			t.Fatalf("Canonical section count mismatch: have %v, want %v", sections, 0)
@@ -95,10 +101,10 @@ func testChainIndexer(t *testing.T, count int) {
 		header := new (types.Header)
 		header.FillBy(&types.HeaderStruct{Number: big.NewInt(int64(number)), Extra: big.NewInt(rand.Int63()).Bytes()})
 		if number > 0 {
-			header.SetParentHash ( rawdb.ReadCanonicalHash(db, number-1) )
+			header.SetParentHash ( rawdb.ReadCanonicalHash(db, shardId, number-1) )
 		}
 		rawdb.WriteHeader(db, header)
-		rawdb.WriteCanonicalHash(db, header.Hash(), number)
+		rawdb.WriteCanonicalHash(db, shardId,  header.Hash(), number)
 	}
 	// Start indexer with an already existing chain
 	for i := uint64(0); i <= 100; i++ {

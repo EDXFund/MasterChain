@@ -19,6 +19,7 @@ package rawdb
 
 import (
 	"encoding/binary"
+	"github.com/EDXFund/MasterChain/rlp"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/metrics"
@@ -30,14 +31,14 @@ var (
 	databaseVerisionKey = []byte("DatabaseVersion")
 
 	// headHeaderKey tracks the latest know header's hash.
-	headHeaderKey = []byte("LastHeader")
+	_headHeaderKey = []byte("LastHeader")
 
 	// headBlockKey tracks the latest know full block's hash.
-	headBlockKey = []byte("LastBlock")
+	_headBlockKey = []byte("LastBlock")
 	// lasted shard blocks
 	shardHeadBlockKey = []byte("LastShardBlock")
 	// headFastBlockKey tracks the latest known incomplete block's hash duirng fast sync.
-	headFastBlockKey = []byte("LastFast")
+	_headFastBlockKey = []byte("LastFast")
 
 	// fastTrieProgressKey tracks the number of trie entries imported during fast sync.
 	fastTrieProgressKey = []byte("TrieSync")
@@ -79,45 +80,63 @@ func encodeBlockNumber(number uint64) []byte {
 	binary.BigEndian.PutUint64(enc, number)
 	return enc
 }
-
+func headHeaderKey (shardId uint16)  []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(_headHeaderKey,val...)
+}
+func headBlockKey (shardId uint16)  []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(_headBlockKey,val...)
+}
+func  headFastBlockKey(shardId uint16)  []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(_headFastBlockKey,val...)
+}
 // headerKey = headerPrefix + num (uint64 big endian) + hash
-func headerKey(number uint64, hash common.Hash) []byte {
-	return append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+func headerKey(number uint64, shardId uint16, hash common.Hash) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(append(headerPrefix, encodeBlockNumber(number)...), append(val,hash.Bytes()...)...)
 }
 
 // headerTDKey = headerPrefix + num (uint64 big endian) + hash + headerTDSuffix
-func headerTDKey(number uint64, hash common.Hash) []byte {
-	return append(headerKey(number, hash), headerTDSuffix...)
+func headerTDKey(number uint64,shardId uint16,  hash common.Hash) []byte {
+	return append(headerKey(number,shardId, hash), headerTDSuffix...)
 }
 
 // headerHashKey = headerPrefix + num (uint64 big endian) + headerHashSuffix
-func headerHashKey(number uint64) []byte {
-	return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
+func headerHashKey(shardId uint16,number uint64) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(append(headerPrefix, encodeBlockNumber(number)...),append(val, headerHashSuffix...)...)
 }
 
 // headerNumberKey = headerNumberPrefix + hash
-func headerNumberKey(hash common.Hash) []byte {
-	return append(headerNumberPrefix, hash.Bytes()...)
+func headerNumberKey(shardId uint16, hash common.Hash) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(headerNumberPrefix, append(val, hash.Bytes()...)...)
 }
 
 // blockBodyKey = blockBodyPrefix + num (uint64 big endian) + hash
-func blockBodyKey(number uint64, hash common.Hash) []byte {
-	return append(append(blockBodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+func blockBodyKey(shardId uint16, number uint64, hash common.Hash) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(append(blockBodyPrefix, encodeBlockNumber(number)...), append(val, hash.Bytes()...)...)
 }
 
 // blockReceiptsKey = blockReceiptsPrefix + num (uint64 big endian) + hash
-func blockReceiptsKey(number uint64, hash common.Hash) []byte {
-	return append(append(blockReceiptsPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+func blockReceiptsKey(shardId uint16, number uint64, hash common.Hash) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(append(blockReceiptsPrefix, encodeBlockNumber(number)...), append(val, hash.Bytes()...)...)
 }
 
 // txLookupKey = txLookupPrefix + hash
 func txLookupKey(hash common.Hash) []byte {
-	return append(txLookupPrefix, hash.Bytes()...)
+	//val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(txLookupPrefix,hash.Bytes()...)//append(val, hash.Bytes()...)...)
 }
 
 // bloomBitsKey = bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash
-func bloomBitsKey(bit uint, section uint64, hash common.Hash) []byte {
-	key := append(append(bloomBitsPrefix, make([]byte, 10)...), hash.Bytes()...)
+func bloomBitsKey(bit uint, section uint64,  hash common.Hash) []byte {
+	//val,_ :=  rlp.EncodeToBytes(shardId)
+	key := append(append(bloomBitsPrefix, make([]byte, 10)...),hash.Bytes()...)///append(val, )...)
 
 	binary.BigEndian.PutUint16(key[1:], uint16(bit))
 	binary.BigEndian.PutUint64(key[3:], section)
@@ -126,16 +145,19 @@ func bloomBitsKey(bit uint, section uint64, hash common.Hash) []byte {
 }
 
 // preimageKey = preimagePrefix + hash
-func preimageKey(hash common.Hash) []byte {
-	return append(preimagePrefix, hash.Bytes()...)
+func preimageKey(shardId uint16, hash common.Hash) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(preimagePrefix, append(val, hash.Bytes()...)...)
 }
 
 // configKey = configPrefix + hash
 func configKey(hash common.Hash) []byte {
-	return append(configPrefix, hash.Bytes()...)
+//	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(configPrefix,hash.Bytes()...)// append(val, hash.Bytes()...)...)
 }
 
 // configKey = configPrefix + hash
-func latestShardKey(hash common.Hash) []byte {
-	return append(shardHeadBlockKey, hash.Bytes()...)
+func latestShardKey(shardId uint16, hash common.Hash) []byte {
+	val,_ :=  rlp.EncodeToBytes(shardId)
+	return append(shardHeadBlockKey,append(val, hash.Bytes()...)...)
 }

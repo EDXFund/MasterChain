@@ -27,8 +27,10 @@ import (
 	"github.com/EDXFund/MasterChain/ethdb"
 	"github.com/EDXFund/MasterChain/params"
 )
-
-func ExampleGenerateChain() {
+func ExampleGenerateChain() {exampleGenerateChain(types.ShardMaster)}
+func ExampleGenerateChain0() {exampleGenerateChain(0)}
+func ExampleGenerateChain10() {exampleGenerateChain(10)}
+func exampleGenerateChain(shardId uint16) {
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		key2, _ = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
@@ -44,7 +46,7 @@ func ExampleGenerateChain() {
 		Config: &params.ChainConfig{HomesteadBlock: new(big.Int)},
 		Alloc:  GenesisAlloc{addr1: {Balance: big.NewInt(1000000)}},
 	}
-	genesis := gspec.MustCommit(db, 0)
+	genesis := gspec.MustCommit(db, shardId)
 
 	// This call generates a chain of 5 blocks. The function runs for
 	// each block and adds different features to gen based on the
@@ -79,7 +81,7 @@ func ExampleGenerateChain() {
 	})
 
 	// Import the chain. This runs all block validation rules.
-	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil,0xFFFF)
+	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil,shardId)
 	defer blockchain.Stop()
 
 	if i, err := blockchain.InsertChain(chain); err != nil {

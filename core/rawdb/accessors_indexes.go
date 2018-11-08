@@ -23,20 +23,7 @@ import (
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/rlp"
 )
-// ReadTxLookupEntry retrieves the positional metadata associated with a transaction
-// hash to allow retrieving the transaction or receipt by hash.
-func ReadShardBlockLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash, uint64, uint64) {
-	data, _ := db.Get(txLookupKey(hash))
-	if len(data) == 0 {
-		return 0, common.Hash{}, 0, 0
-	}
-	var entry TxLookupEntry
-	if err := rlp.DecodeBytes(data, &entry); err != nil {
-		log.Error("Invalid transaction lookup entry RLP", "hash", hash, "err", err)
-		return 0, common.Hash{}, 0, 0
-	}
-	return entry.ShardId, entry.BlockHash, entry.BlockIndex, entry.Index
-}
+
 
 // WriteShardBlockEntries stores a positional metadata for every shardBlock from
 // a master block, enabling hash based transaction and receipt lookups.
@@ -111,39 +98,26 @@ func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
-	_, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
+	shardId, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
-	body := ReadBody(db, blockHash, blockNumber)
+	body := ReadBody(db,shardId, blockHash, blockNumber)
 	if body == nil || len(body.Transactions) <= int(txIndex) {
 		log.Error("Transaction referenced missing", "number", blockNumber, "hash", blockHash, "index", txIndex)
 		return nil, common.Hash{}, 0, 0
 	}
 	return body.Transactions[txIndex], blockHash, blockNumber, txIndex
 }
-// ReadTransaction retrieves a specific transaction from the database, along with
-// its added positional metadata.
-func ReadShardBlock(db DatabaseReader, hash common.Hash) (*types.ShardBlockInfo, common.Hash, uint64, uint64) {
-	_, blockHash, blockNumber, txIndex := ReadShardBlockLookupEntry(db, hash)
-	if blockHash == (common.Hash{}) {
-		return nil, common.Hash{}, 0, 0
-	}
-	body := ReadBody(db, blockHash, blockNumber)
-	if body == nil || len(body.Transactions) <= int(txIndex) {
-		log.Error("Transaction referenced missing", "number", blockNumber, "hash", blockHash, "index", txIndex)
-		return nil, common.Hash{}, 0, 0
-	}
-	return body.ShardBlocks[txIndex], blockHash, blockNumber, txIndex
-}
+
 // ReadReceipt retrieves a specific transaction receipt from the database, along with
 // its added positional metadata.
 func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, common.Hash, uint64, uint64) {
-	_,blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
+	shardId ,blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
-	receipts := ReadReceipts(db, blockHash, blockNumber)
+	receipts := ReadReceipts(db, shardId, blockHash, blockNumber)
 	if len(receipts) <= int(receiptIndex) {
 		log.Error("Receipt refereced missing", "number", blockNumber, "hash", blockHash, "index", receiptIndex)
 		return nil, common.Hash{}, 0, 0
@@ -177,10 +151,10 @@ func WriteRejectedBloomBits(db DatabaseWriter, bit uint, section uint64, head co
 		log.Crit("Failed to store bloom bits", "err", err)
 	}
 }
-
+/*
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.
-func ReadShardLatestEntry(db DatabaseReader, hash common.Hash) (map[uint16]*types.LastShardInfo,error){
+func ReadLatestEntry(db DatabaseReader, hash common.Hash) (map[uint16]*types.LastShardInfo,error){
 	val,error := db.Get(latestShardKey(hash))
 	result := make(map[uint16]*types.LastShardInfo)
 	temp := make([]types.LastShardInfo,1)
@@ -192,7 +166,7 @@ func ReadShardLatestEntry(db DatabaseReader, hash common.Hash) (map[uint16]*type
 	}
 	return result,error
 }
-func WriteShardLatestEntry(db DatabaseWriter, hash common.Hash,latestShardInfo map[uint16]*types.LastShardInfo) {
+func WriteLatestEntry(db DatabaseWriter, hash common.Hash,latestShardInfo map[uint16]*types.LastShardInfo) {
 	//convert to an array, and then encode it
 	data := make([]*types.LastShardInfo,len(latestShardInfo))
 	index := 0
@@ -214,4 +188,4 @@ func DeleteShardLatestEntry(db DatabaseDeleter,hash common.Hash) {
 	if err := db.Delete(latestShardKey(hash)) ; err != nil {
 		log.Crit("Failed to delete block latest shard entry", "err", err)
 	}
-}
+}*/

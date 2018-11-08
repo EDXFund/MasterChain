@@ -72,16 +72,16 @@ func WriteChainConfig(db DatabaseWriter, hash common.Hash, cfg *params.ChainConf
 }
 
 // ReadPreimage retrieves a single preimage of the provided hash.
-func ReadPreimage(db DatabaseReader, hash common.Hash) []byte {
-	data, _ := db.Get(preimageKey(hash))
+func ReadPreimage(db DatabaseReader, shardId uint16, hash common.Hash) []byte {
+	data, _ := db.Get(preimageKey(shardId, hash))
 	return data
 }
 
 // WritePreimages writes the provided set of preimages to the database. `number` is the
 // current block number, and is used for debug messages only.
-func WritePreimages(db DatabaseWriter, number uint64, preimages map[common.Hash][]byte) {
+func WritePreimages(db DatabaseWriter, shardId uint16,number uint64, preimages map[common.Hash][]byte) {
 	for hash, preimage := range preimages {
-		if err := db.Put(preimageKey(hash), preimage); err != nil {
+		if err := db.Put(preimageKey(shardId,hash), preimage); err != nil {
 			log.Crit("Failed to store trie preimage", "err", err)
 		}
 	}

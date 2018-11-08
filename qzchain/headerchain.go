@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package qzchain
 
 import (
 	crand "crypto/rand"
@@ -63,6 +63,9 @@ type HeaderChain struct {
 
 	procInterrupt func() bool
 
+	trees map[common.Hash]*HeaderTree
+	//rootHash common.Hash		//current block
+
 	rand   *mrand.Rand
 	engine consensus.Engine
 }
@@ -100,7 +103,7 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	}
 
 	hc.currentHeader.Store(hc.genesisHeader)
-	if head := rawdb.ReadHeadBlockHash(chainDb,hc.shardId); head != (common.Hash{}) {
+	if head := rawdb.ReadHeadBlockHash(chainDb); head != (common.Hash{}) {
 		if chead := hc.GetHeaderByHash(head); chead != nil {
 			hc.currentHeader.Store(chead)
 		}
@@ -118,7 +121,7 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 		number := cached.(uint64)
 		return &number
 	}
-	number := rawdb.ReadHeaderNumber(hc.chainDb, hc.shardId, hash)
+	number := rawdb.ReadHeaderNumber(hc.chainDb, hash)
 	if number != nil {
 		hc.numberCache.Add(hash, *number)
 	}
@@ -143,7 +146,6 @@ func (hc *HeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatus,
 	// Calculate the total difficulty of the header
 	ptd := hc.GetTd(header.ParentHash(), number-1)
 	if ptd == nil {
-		fmt.Println("41")
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().NumberU64())
@@ -162,11 +164,11 @@ func (hc *HeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatus,
 		// Delete any canonical number assignments above the new head
 		batch := hc.chainDb.NewBatch()
 		for i := number + 1; ; i++ {
-			hash := rawdb.ReadCanonicalHash(hc.chainDb, hc.shardId, i)
+			hash := rawdb.ReadCanonicalHash(hc.chainDb,hc.shardId, i)
 			if hash == (common.Hash{}) {
 				break
 			}
-			rawdb.DeleteCanonicalHash(batch,hc.shardId,  i)
+			rawdb.DeleteCanonicalHash(batch, hc.shardId, i)
 		}
 		batch.Write()
 
@@ -176,7 +178,7 @@ func (hc *HeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatus,
 			headNumber = header.NumberU64() - 1
 			headHeader = hc.GetHeader(headHash, headNumber)
 		)
-		for rawdb.ReadCanonicalHash(hc.chainDb, hc.shardId, headNumber) != headHash {
+		for rawdb.ReadCanonicalHash(hc.chainDb,hc.shardId,  headNumber) != headHash {
 			rawdb.WriteCanonicalHash(hc.chainDb, hc.shardId, headHash, headNumber)
 
 			headHash = headHeader.ParentHash()
@@ -185,7 +187,7 @@ func (hc *HeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatus,
 		}
 		// Extend the canonical chain with the new header
 		rawdb.WriteCanonicalHash(hc.chainDb, hc.shardId, hash, number)
-		rawdb.WriteHeadHeaderHash(hc.chainDb,hc.shardId,  hash)
+		rawdb.WriteHeadHeaderHash(hc.chainDb, hc.shardId, hash)
 
 		hc.currentHeaderHash = hash
 		hc.currentHeader.Store(types.CopyHeaderIntf(header))
@@ -344,7 +346,7 @@ func (hc *HeaderChain) GetAncestor(hash common.Hash, number, ancestor uint64, ma
 		}
 	}
 	for ancestor != 0 {
-		if rawdb.ReadCanonicalHash(hc.chainDb, hc.shardId, number) == hash {
+		if rawdb.ReadCanonicalHash(hc.chainDb,hc.shardId,  number) == hash {
 			number -= ancestor
 			return rawdb.ReadCanonicalHash(hc.chainDb, hc.shardId, number), number
 		}
@@ -370,7 +372,7 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	if cached, ok := hc.tdCache.Get(hash); ok {
 		return cached.(*big.Int)
 	}
-	td := rawdb.ReadTd(hc.chainDb, hc.shardId, hash, number)
+	td := rawdb.ReadTd(hc.chainDb, hc.shardId,hash, number)
 	if td == nil || reflect.ValueOf(td).IsNil() {
 		return big.NewInt(0)
 	}
@@ -392,7 +394,7 @@ func (hc *HeaderChain) GetTdByHash(hash common.Hash) *big.Int {
 // WriteTd stores a block's total difficulty into the database, also caching it
 // along the way.
 func (hc *HeaderChain) WriteTd(hash common.Hash, number uint64, td *big.Int) error {
-	rawdb.WriteTd(hc.chainDb, hc.shardId, hash, number, td)
+	rawdb.WriteTd(hc.chainDb, hc.shardId,hash, number, td)
 	hc.tdCache.Add(hash, new(big.Int).Set(td))
 	return nil
 }
@@ -404,7 +406,7 @@ func (hc *HeaderChain) GetHeader(hash common.Hash, number uint64) types.HeaderIn
 	if header, ok := hc.headerCache.Get(hash); ok {
 		return header.(types.HeaderIntf)
 	}
-	header := rawdb.ReadHeader(hc.chainDb, hc.shardId, hash, number)
+	header := rawdb.ReadHeader(hc.chainDb, hc.shardId,hash, number)
 	if header == nil {
 		return nil
 	}
@@ -430,13 +432,13 @@ func (hc *HeaderChain) HasHeader(hash common.Hash, number uint64) bool {
 	if hc.numberCache.Contains(hash) || hc.headerCache.Contains(hash) {
 		return true
 	}
-	return rawdb.HasHeader(hc.chainDb, hc.shardId, hash, number)
+	return rawdb.HasHeader(hc.chainDb,hc.shardId, hash, number)
 }
 
 // GetHeaderByNumber retrieves a block header from the database by number,
 // caching it (associated with its hash) if found.
 func (hc *HeaderChain) GetHeaderByNumber(number uint64) types.HeaderIntf {
-	hash := rawdb.ReadCanonicalHash(hc.chainDb, hc.shardId, number)
+	hash := rawdb.ReadCanonicalHash (hc.chainDb, hc.shardId,number)
 	if hash == (common.Hash{}) {
 		return nil
 	}
@@ -451,7 +453,7 @@ func (hc *HeaderChain) CurrentHeader() types.HeaderIntf {
 
 // SetCurrentHeader sets the current head header of the canonical chain.
 func (hc *HeaderChain) SetCurrentHeader(head types.HeaderIntf) {
-	rawdb.WriteHeadHeaderHash(hc.chainDb, hc.shardId, head.Hash())
+	rawdb.WriteHeadHeaderHash(hc.chainDb,hc.shardId, head.Hash())
 
 	hc.currentHeader.Store(head)
 	hc.currentHeaderHash = head.Hash()
@@ -478,8 +480,8 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 		if delFn != nil {
 			delFn(batch, hash, num)
 		}
-		rawdb.DeleteHeader(batch, hc.shardId, hash, num)
-		rawdb.DeleteTd(batch, hc.shardId, hash, num)
+		rawdb.DeleteHeader(batch, hc.shardId, hash,  num)
+		rawdb.DeleteTd(batch, hc.shardId, hash,  num)
 
 		hc.currentHeader.Store(hc.GetHeader(hdr.ParentHash(), hdr.NumberU64()-1))
 	}
@@ -499,7 +501,7 @@ func (hc *HeaderChain) SetHead(head uint64, delFn DeleteCallback) {
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
 
-	rawdb.WriteHeadHeaderHash(hc.chainDb, hc.shardId, hc.currentHeaderHash)
+	rawdb.WriteHeadHeaderHash(hc.chainDb,hc.shardId, hc.currentHeaderHash)
 
 }
 

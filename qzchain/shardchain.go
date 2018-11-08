@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package qzchain
 
 import (
 	"container/list"
@@ -23,44 +23,44 @@ import (
 	"sync"
 )
 
-type Node interface {
+type Header interface {
 	Hash() common.Hash
 	Number() *big.Int
 	ParentHash() common.Hash
 	Difficulty() *big.Int
 }
 
-type ShardChain struct {
-	self     Node
+type HeaderTree struct {
+	self     Header
 	children *list.List
 	//for quick search
-	parent *ShardChain
+	parent *HeaderTree
 	wg     sync.RWMutex
 
 }
 
-func NewShardChain(root Node) *ShardChain {
-	return &ShardChain{
+func NewHeaderTree(root Header) *HeaderTree {
+	return &HeaderTree{
 		self:     root,
 		children: list.New(),
 	}
 }
 
-func (t *ShardChain) Node() Node           { return t.self }
-func (t *ShardChain) Children() *list.List { return t.children }
-func (t *ShardChain) Parent() *ShardChain      { return t.parent }
-func (t *ShardChain) FindNode(node Node, compare func(n1, n2 Node) bool) *ShardChain {
+func (t *HeaderTree) Header() Header           { return t.self }
+func (t *HeaderTree) Children() *list.List { return t.children }
+func (t *HeaderTree) Parent() *HeaderTree      { return t.parent }
+func (t *HeaderTree) FindHeader(node Header, compare func(n1, n2 Header) bool) *HeaderTree {
 	t.wg.Lock()
 	defer t.wg.Unlock()
-	return t.findNode(node,compare)
+	return t.findHeader(node,compare)
 }
-func (t *ShardChain) findNode(node Node, compare func(n1, n2 Node) bool) *ShardChain {
+func (t *HeaderTree) findHeader(node Header, compare func(n1, n2 Header) bool) *HeaderTree {
 	if compare(t.self, node) {
 		return t
 	} else {
-		var res *ShardChain
+		var res *HeaderTree
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			res = (i.Value).(*ShardChain).findNode(node, compare)
+			res = (i.Value).(*HeaderTree).findHeader(node, compare)
 			if res != nil {
 				break
 			}
@@ -68,41 +68,41 @@ func (t *ShardChain) findNode(node Node, compare func(n1, n2 Node) bool) *ShardC
 		return res
 	}
 }
-func (t *ShardChain) AddNode(node Node) bool {
+func (t *HeaderTree) AddHeader(node Header) bool {
 	t.wg.Lock()
 	defer t.wg.Unlock()
-	return t.addNode(node)
+	return t.addHeader(node)
 }
 //insert node , whose parent
-func (t *ShardChain) addNode(node Node) bool {
+func (t *HeaderTree) addHeader(node Header) bool {
 
-	parent := t.findNode(node, func(n1, n2 Node) bool {
+	parent := t.findHeader(node, func(n1, n2 Header) bool {
 		return n1.Hash() == n2.ParentHash()
 	})
 	if parent != nil {
 
 		exist := false
 		for i := parent.children.Front(); i != nil; i = i.Next() {
-			if i.Value.(*ShardChain).self.Hash() == node.Hash() {
+			if i.Value.(*HeaderTree).self.Hash() == node.Hash() {
 				exist = true
 				break
 			}
 		}
 		if !exist {
-			parent.children.PushBack(&ShardChain{self: node, children: list.New(), parent: parent})
+			parent.children.PushBack(&HeaderTree{self: node, children: list.New(), parent: parent})
 		}
 
-		//make a ShardChain
+		//make a HeaderTree
 		return true
 	} else {
 		return false
 	}
 }
-//cut all branch's except root by node ,return a ShardChain with node as root
-func (t *ShardChain) ShrinkToBranch(node Node) *ShardChain{
+//cut all branch's except root by node ,return a HeaderTree with node as root
+func (t *HeaderTree) ShrinkToBranch(node Header) *HeaderTree{
 	t.wg.Lock()
 	defer t.wg.Unlock()
-	parent := t.findNode(node, func(n1, n2 Node) bool {
+	parent := t.findHeader(node, func(n1, n2 Header) bool {
 		if n1.Hash() == n2.ParentHash() {
 			return true
 		}else {
@@ -110,10 +110,10 @@ func (t *ShardChain) ShrinkToBranch(node Node) *ShardChain{
 		}
 	})
 	if parent != nil{
-		var result *ShardChain = nil
+		var result *HeaderTree = nil
 		for it:=parent.Children().Front(); it != nil; it = it.Next() {
-			if it.Value.(*ShardChain).self.Hash() == node.Hash() {
-				result = it.Value.(*ShardChain)
+			if it.Value.(*HeaderTree).self.Hash() == node.Hash() {
+				result = it.Value.(*HeaderTree)
 				parent.Children().Remove(it)
 				break;
 			}
@@ -128,32 +128,33 @@ func (t *ShardChain) ShrinkToBranch(node Node) *ShardChain{
 		}
 	}
 }
-func (t *ShardChain) getMaxTdPath() (uint64, *ShardChain) {
+//found max td return (td, the longest tree node)
+func (t *HeaderTree) getMaxTdPath() (uint64, *HeaderTree) {
 	td := t.self.Difficulty().Uint64()
 	maxTd := uint64(0)
-	var maxNode *ShardChain
-	maxNode = nil
+	var maxHeader *HeaderTree
+	maxHeader = nil
 	for i := t.children.Front(); i != nil; i = i.Next() {
-		curTd, node := i.Value.(*ShardChain).getMaxTdPath()
+		curTd, node := i.Value.(*HeaderTree).getMaxTdPath()
 		//fmt.Println("node hash: %V, td: %V",node.self.Hash(),curTd)
 		if curTd > maxTd {
-			maxNode = node
+			maxHeader = node
 			maxTd = curTd
 		}
 	}
-	if maxNode != nil {
-		return maxTd, maxNode
+	if maxHeader != nil {
+		return maxTd, maxHeader
 	} else {
 		return td, t
 	}
 }
 
 // find a max td path on node's branch, if node is nil find max of all
-func (t *ShardChain) GetMaxTdPath(node Node) *ShardChain {
+func (t *HeaderTree) GetMaxTdPath(node Header) *HeaderTree {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	if node != nil {
-		nodeTree := t.findNode(node, func(n1, n2 Node) bool {
+		nodeTree := t.findHeader(node, func(n1, n2 Header) bool {
 			return n1.Hash() == n2.Hash()
 		})
 		if nodeTree != nil {
@@ -169,20 +170,20 @@ func (t *ShardChain) GetMaxTdPath(node Node) *ShardChain {
 	}
 
 }
-func (t *ShardChain) MergeTree(newT *ShardChain) bool {
+func (t *HeaderTree) MergeTree(newT *HeaderTree) bool {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	return t.mergeTree(newT)
 }
-func (t *ShardChain) mergeTree(newT *ShardChain) bool {
-	parent := t.findNode(newT.self, func(n1, n2 Node) bool {
+func (t *HeaderTree) mergeTree(newT *HeaderTree) bool {
+	parent := t.findHeader(newT.self, func(n1, n2 Header) bool {
 		return n1.Hash() == n2.ParentHash()
 	})
 	if parent != nil {
 		//check for duplication
 		duplication := false
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			if i.Value.(*ShardChain).self.Hash() == newT.self.Hash() {
+			if i.Value.(*HeaderTree).self.Hash() == newT.self.Hash() {
 				duplication = true
 			}
 		}
@@ -196,12 +197,12 @@ func (t *ShardChain) mergeTree(newT *ShardChain) bool {
 	}
 }
 
-func (t *ShardChain) dfIterator(check func(node Node) bool) bool {
+func (t *HeaderTree) dfIterator(check func(node Header) bool) bool {
 	if check(t.self) {
 		return true
 	} else {
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			res := i.Value.(*ShardChain).dfIterator(check)
+			res := i.Value.(*HeaderTree).dfIterator(check)
 			if res {
 				return true
 			}
@@ -209,13 +210,13 @@ func (t *ShardChain) dfIterator(check func(node Node) bool) bool {
 		return false
 	}
 }
-func (t *ShardChain) wfIterator(check func(node Node) bool) bool {
+func (t *HeaderTree) wfIterator(check func(node Header) bool) bool {
 	if check(t.self) {
 		return true
 	} else {
 		res := false
 		for i := t.children.Front(); i != nil; i = i.Next() {
-			if check(i.Value.(*ShardChain).self) {
+			if check(i.Value.(*HeaderTree).self) {
 				res = true
 				break
 			}
@@ -223,7 +224,7 @@ func (t *ShardChain) wfIterator(check func(node Node) bool) bool {
 		}
 		if !res {
 			for i := t.children.Front(); i != nil; i = i.Next() {
-				if i.Value.(*ShardChain).wfIterator(check) {
+				if i.Value.(*HeaderTree).wfIterator(check) {
 					res = true
 					break
 				}
@@ -235,7 +236,7 @@ func (t *ShardChain) wfIterator(check func(node Node) bool) bool {
 }
 
 // using routine "proc" to iterate all node, it breaks when "proc" return true
-func (t *ShardChain) Iterator(deepFirst bool, proc func(node Node) bool) {
+func (t *HeaderTree) Iterator(deepFirst bool, proc func(node Header) bool) {
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	if deepFirst {
@@ -244,9 +245,9 @@ func (t *ShardChain) Iterator(deepFirst bool, proc func(node Node) bool) {
 		t.wfIterator(proc)
 	}
 }
-func (t *ShardChain)RemoveByHash(hash common.Hash, deleteSelf bool){
-	var nodeFound Node = nil;
-	t.wfIterator(func(node Node) bool {
+func (t *HeaderTree)RemoveByHash(hash common.Hash, deleteSelf bool){
+	var nodeFound Header = nil;
+	t.wfIterator(func(node Header) bool {
 		if node.Hash() == hash {
 			nodeFound = node
 			return true
@@ -259,15 +260,15 @@ func (t *ShardChain)RemoveByHash(hash common.Hash, deleteSelf bool){
 		t.Remove(nodeFound,deleteSelf)
 	}
 }
-func (t *ShardChain) Remove(node Node, removeNode bool){
+func (t *HeaderTree) Remove(node Header, removeHeader bool){
 	t.wg.Lock()
 	defer t.wg.Unlock()
-	t.remove(node,removeNode)
+	t.remove(node,removeHeader)
 }
-func (t *ShardChain) remove(node Node, removeNode bool) {
-	var target *ShardChain
+func (t *HeaderTree) remove(node Header, removeHeader bool) {
+	var target *HeaderTree
 	if node != nil {
-		target = t.findNode(node, func(n1, n2 Node) bool {
+		target = t.findHeader(node, func(n1, n2 Header) bool {
 			return n1.Hash() == n2.Hash()
 		})
 	} else {
@@ -276,13 +277,13 @@ func (t *ShardChain) remove(node Node, removeNode bool) {
 	if target != nil {
 
 		for i := target.children.Front(); i != nil; i = i.Next() {
-			i.Value.(*ShardChain).Remove(nil, false)
+			i.Value.(*HeaderTree).Remove(nil, false)
 		}
 		target.children.Init()
-		if node != nil && removeNode {
+		if node != nil && removeHeader {
 			ls := target.parent.children
 			for it := ls.Front(); it != nil; it = it.Next() {
-				if it.Value.(*ShardChain).self.Hash() == node.Hash() {
+				if it.Value.(*HeaderTree).self.Hash() == node.Hash() {
 					ls.Remove(it)
 					break
 				}
@@ -291,68 +292,68 @@ func (t *ShardChain) remove(node Node, removeNode bool) {
 	}
 
 }
-func (t *ShardChain) GetCount() int{
+func (t *HeaderTree) GetCount() int{
 	t.wg.Lock()
 	defer t.wg.Unlock()
 	return t.getCount()
 }
-func (t *ShardChain) getCount() int {
+func (t *HeaderTree) getCount() int {
 	count := 1;
 	//if  {
 		for it := t.children.Front(); it != nil; it = it.Next() {
-			count += it.Value.(*ShardChain).getCount()
+			count += it.Value.(*HeaderTree).getCount()
 		}
 //	}
 	return count
 }
 
-type  ShardChainManager struct{
+type  HeaderTreeManager struct{
 	shardId uint16
-	trees map[common.Hash]*ShardChain
+	trees map[common.Hash]*HeaderTree
 	rootHash common.Hash
 
 }
-func (t *ShardChainManager)RootHash() common.Hash {return t.rootHash}
-func (t *ShardChainManager)Trees() map[common.Hash] *ShardChain { return t.trees }
-func (t *ShardChainManager)TreeOf(hash common.Hash) (*ShardChain){ return t.trees[hash] }
-func (t* ShardChainManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
+
+func (t *HeaderTreeManager)Trees() map[common.Hash] *HeaderTree { return t.trees }
+func (t *HeaderTreeManager)TreeOf(hash common.Hash) (*HeaderTree){ return t.trees[hash] }
+func (t* HeaderTreeManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
 //add new BLock to tree, if more than 6 blocks has reached, a new block will popup to shard_pool
 //if the node can not be add to  any existing tree, a new tree will be established
-func (t *ShardChainManager)AddNewBlock(node Node)  {
+func (t *HeaderTreeManager)AddNewBlock(node Header)  {
 
-	var found *ShardChain = nil
+	var found *HeaderTree = nil
 	for _, tree := range t.trees {
-		if tree.AddNode(node)  {
+		if tree.AddHeader(node)  {
 			found = tree
 			break;
 		}
 	}
 	if found == nil{
-		found = NewShardChain(node)
+		found = NewHeaderTree(node)
 		t.trees[node.Hash()] = found
 	}
 	//do possible tree merge
 	for _,value := range t.trees {
-		if value.Node().ParentHash() == node.Hash() {
+		if value.Header().ParentHash() == node.Hash() {
 			found.MergeTree(value)
 			break;
 		}
 	}
 }
 // remove shard block with given hash, do nothing if the block does not exist
-func (t *ShardChainManager)RemoveBlock(node Node) {
+func (t *HeaderTreeManager)RemoveBlock(node Header) {
 	for _,value := range t.trees {
 		value.Remove(node,true)
 	}
 }
 
-func (t *ShardChainManager)RemoveBlockByHash(hash common.Hash) {
+func (t *HeaderTreeManager)RemoveBlockByHash(hash common.Hash) {
 	for _,value := range t.trees {
 		value.RemoveByHash(hash,true)
 	}
 }
 
-func (t *ShardChainManager)GetPendingCount() int {
+func (t *HeaderTreeManager)GetPendingCount() int {
 	count:=0
 	for _,val := range t.trees {
 		count += val.GetCount()
@@ -360,15 +361,15 @@ func (t *ShardChainManager)GetPendingCount() int {
 	return count
 }
 //cut all node, on tree from node survived
-func (t *ShardChainManager)ReduceTo(node Node) {
+func (t *HeaderTreeManager)ReduceTo(node Header) {
 	invalidHashes := make([]common.Hash,1)
-	var newTree *ShardChain = nil
+	var newTree *HeaderTree = nil
 	for hash,val := range  t.trees {
 		if val.self.Number().Uint64() < node.Number().Uint64() {
 			invalidHashes = append(invalidHashes,hash)
-			newNode := val.ShrinkToBranch(node)
-			if newNode != nil {
-				newTree = newNode
+			newHeader := val.ShrinkToBranch(node)
+			if newHeader != nil {
+				newTree = newHeader
 
 			}
 		}

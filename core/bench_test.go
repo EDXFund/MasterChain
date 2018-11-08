@@ -185,45 +185,46 @@ func benchInsertChain(b *testing.B, disk bool,shardId uint16, gen func(int, *Blo
 }
 
 func BenchmarkChainRead_header_10k(b *testing.B) {
-	benchReadChain(b, false, 10000)
+	benchReadChain(b, false, 10000,0xFFFF)
+	benchReadChain(b, false, 10000,0)
 }
 func BenchmarkChainRead_full_10k(b *testing.B) {
-	benchReadChain(b, true, 10000)
+	benchReadChain(b, true, 10000,0xFFFF)
 }
 func BenchmarkChainRead_header_100k(b *testing.B) {
-	benchReadChain(b, false, 100000)
+	benchReadChain(b, false, 100000,0xFFFF)
 }
 func BenchmarkChainRead_full_100k(b *testing.B) {
-	benchReadChain(b, true, 100000)
+	benchReadChain(b, true, 100000,0xFFFF)
 }
 func BenchmarkChainRead_header_500k(b *testing.B) {
-	benchReadChain(b, false, 500000)
+	benchReadChain(b, false, 500000,0xFFFF)
 }
 func BenchmarkChainRead_full_500k(b *testing.B) {
-	benchReadChain(b, true, 500000)
+	benchReadChain(b, true, 500000,0xFFFF)
 }
 func BenchmarkChainWrite_header_10k(b *testing.B) {
-	benchWriteChain(b, false, 10000)
+	benchWriteChain(b, false, 10000,0xFFFF)
 }
 func BenchmarkChainWrite_full_10k(b *testing.B) {
-	benchWriteChain(b, true, 10000)
+	benchWriteChain(b, true, 10000,0xFFFF)
 }
 func BenchmarkChainWrite_header_100k(b *testing.B) {
-	benchWriteChain(b, false, 100000)
+	benchWriteChain(b, false, 100000,0xFFFF)
 }
 func BenchmarkChainWrite_full_100k(b *testing.B) {
-	benchWriteChain(b, true, 100000)
+	benchWriteChain(b, true, 100000,0xFFFF)
 }
 func BenchmarkChainWrite_header_500k(b *testing.B) {
-	benchWriteChain(b, false, 500000)
+	benchWriteChain(b, false, 500000,0xFFFF)
 }
 func BenchmarkChainWrite_full_500k(b *testing.B) {
-	benchWriteChain(b, true, 500000)
+	benchWriteChain(b, true, 500000,0xFFFF)
 }
 
 // makeChainForBench writes a given number of headers or empty blocks/receipts
 // into a database.
-func makeChainForBench(db ethdb.Database, full bool, count uint64) {
+func makeChainForBench(db ethdb.Database, full bool, count uint64, shardId uint16) {
 	var hash common.Hash
 	for n := uint64(0); n < count; n++ {
 		header := new (types.Header)
@@ -239,18 +240,18 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 		hash = header.Hash()
 
 		rawdb.WriteHeader(db, header)
-		rawdb.WriteCanonicalHash(db, hash, n)
-		rawdb.WriteTd(db, hash, n, big.NewInt(int64(n+1)))
+		rawdb.WriteCanonicalHash(db,shardId, hash, n)
+		rawdb.WriteTd(db, shardId,hash, n, big.NewInt(int64(n+1)))
 
 		if full || n == 0 {
 			block := types.NewBlockWithHeader(header)
 			rawdb.WriteBody(db, hash, block.ShardId(), n, block.Body())
-			rawdb.WriteReceipts(db, hash, n, nil)
+			rawdb.WriteReceipts(db, shardId,hash, n, nil)
 		}
 	}
 }
 
-func benchWriteChain(b *testing.B, full bool, count uint64) {
+func benchWriteChain(b *testing.B, full bool, count uint64,shardId uint16) {
 	for i := 0; i < b.N; i++ {
 		dir, err := ioutil.TempDir("", "eth-chain-bench")
 		if err != nil {
@@ -260,13 +261,13 @@ func benchWriteChain(b *testing.B, full bool, count uint64) {
 		if err != nil {
 			b.Fatalf("error opening database at %v: %v", dir, err)
 		}
-		makeChainForBench(db, full, count)
+		makeChainForBench(db, full, count,shardId)
 		db.Close()
 		os.RemoveAll(dir)
 	}
 }
 
-func benchReadChain(b *testing.B, full bool, count uint64) {
+func benchReadChain(b *testing.B, full bool, count uint64,shardId uint16) {
 	dir, err := ioutil.TempDir("", "eth-chain-bench")
 	if err != nil {
 		b.Fatalf("cannot create temporary directory: %v", err)
@@ -277,7 +278,7 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 	if err != nil {
 		b.Fatalf("error opening database at %v: %v", dir, err)
 	}
-	makeChainForBench(db, full, count)
+	makeChainForBench(db, full, count,shardId)
 	db.Close()
 
 	b.ReportAllocs()
@@ -297,8 +298,8 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 			header := chain.GetHeaderByNumber(n)
 			if full {
 				hash := header.Hash()
-				rawdb.ReadBody(db, hash, n)
-				rawdb.ReadReceipts(db, hash, n)
+				rawdb.ReadBody(db, shardId, hash, n)
+				rawdb.ReadReceipts(db, shardId, hash, n)
 			}
 		}
 		chain.Stop()

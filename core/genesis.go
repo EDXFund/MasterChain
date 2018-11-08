@@ -156,7 +156,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 	}
 
 	// Just commit the new block if there is no stored genesis block.
-	stored := rawdb.ReadCanonicalHash(db, 0)
+	stored := rawdb.ReadCanonicalHash(db, shardId,0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
 			log.Info("Writing default main-net genesis block")
@@ -193,7 +193,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
-	height := rawdb.ReadHeaderNumber(db, rawdb.ReadHeadHeaderHash(db))
+	height := rawdb.ReadHeaderNumber(db, shardId,rawdb.ReadHeadHeaderHash(db,shardId))
 	if height == nil {
 		return newcfg, stored, fmt.Errorf("missing block number for head header hash")
 	}
@@ -323,13 +323,13 @@ func (g *Genesis) Commit(db ethdb.Database,shardId uint16) (types.BlockIntf, err
 	if block.Number().Sign() != 0 {
 		return nil, fmt.Errorf("can't commit genesis block with number > 0")
 	}
-	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), g.Difficulty)
+	rawdb.WriteTd(db, block.ShardId(), block.Hash(), block.NumberU64(), g.Difficulty)
 	//fmt.Printf("number: %v,\t td:%v, hash:%v",block.NumberU64(),g.Difficulty, block.Hash())
 	rawdb.WriteBlock(db, block)
-	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), nil)
-	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
-	rawdb.WriteHeadBlockHash(db, block.Hash())
-	rawdb.WriteHeadHeaderHash(db, block.Hash())
+	rawdb.WriteReceipts(db, block.ShardId(), block.Hash(), block.NumberU64(), nil)
+	rawdb.WriteCanonicalHash(db, block.ShardId(), block.Hash(), block.NumberU64())
+	rawdb.WriteHeadBlockHash(db, block.ShardId(), block.Hash())
+	rawdb.WriteHeadHeaderHash(db, block.ShardId(), block.Hash())
 
 	config := g.Config
 	if config == nil {

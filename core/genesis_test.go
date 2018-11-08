@@ -17,18 +17,18 @@
 package core
 
 import (
+	"github.com/EDXFund/MasterChain/core/types"
 	"math/big"
 	"reflect"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/vm"
-	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/ethdb"
 	"github.com/EDXFund/MasterChain/params"
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestDefaultGenesisBlock(t *testing.T) {
@@ -41,8 +41,13 @@ func TestDefaultGenesisBlock(t *testing.T) {
 		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash(), params.TestnetGenesisHash)
 	}
 }
-
-func TestSetupGenesis(t *testing.T) {
+func TestSetupGenesisM(t *testing.T){
+	testSetupGenesis(t,types.ShardMaster)
+}
+func TestSetupGenesisS(t *testing.T){
+	testSetupGenesis(t,0)
+}
+func testSetupGenesis(t *testing.T,ShardId uint16) {
 	var (
 		customghash = common.HexToHash("0x89c99d90b79719238d2645c7642f2c9295246e80775b38cfd162b696817fbd50")
 		customg     = Genesis{
@@ -64,7 +69,7 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "genesis without ChainConfig",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				return SetupGenesisBlock(db, new(Genesis),types.ShardMaster)
+				return SetupGenesisBlock(db, new(Genesis),ShardId)
 			},
 			wantErr:    errGenesisNoConfig,
 			wantConfig: params.AllEthashProtocolChanges,
@@ -72,7 +77,7 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "no block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				return SetupGenesisBlock(db, nil,types.ShardMaster)
+				return SetupGenesisBlock(db, nil,ShardId)
 			},
 			wantHash:   params.MainnetGenesisHash,
 			wantConfig: params.MainnetChainConfig,
@@ -80,8 +85,8 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				DefaultGenesisBlock().MustCommit(db,types.ShardMaster)
-				return SetupGenesisBlock(db, nil,types.ShardMaster)
+				DefaultGenesisBlock().MustCommit(db,ShardId)
+				return SetupGenesisBlock(db, nil,ShardId)
 			},
 			wantHash:   params.MainnetGenesisHash,
 			wantConfig: params.MainnetChainConfig,
@@ -89,8 +94,8 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "custom block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				customg.MustCommit(db,types.ShardMaster)
-				return SetupGenesisBlock(db, nil,types.ShardMaster)
+				customg.MustCommit(db,ShardId)
+				return SetupGenesisBlock(db, nil,ShardId)
 			},
 			wantHash:   customghash,
 			wantConfig: customg.Config,
@@ -98,8 +103,8 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "custom block in DB, genesis == testnet",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				customg.MustCommit(db,types.ShardMaster)
-				return SetupGenesisBlock(db, DefaultTestnetGenesisBlock(),types.ShardMaster)
+				customg.MustCommit(db,ShardId)
+				return SetupGenesisBlock(db, DefaultTestnetGenesisBlock(),ShardId)
 			},
 			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.TestnetGenesisHash},
 			wantHash:   params.TestnetGenesisHash,
@@ -108,8 +113,8 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "compatible config in DB",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				oldcustomg.MustCommit(db,types.ShardMaster)
-				return SetupGenesisBlock(db, &customg,types.ShardMaster)
+				oldcustomg.MustCommit(db,ShardId)
+				return SetupGenesisBlock(db, &customg,ShardId)
 			},
 			wantHash:   customghash,
 			wantConfig: customg.Config,
@@ -119,16 +124,16 @@ func TestSetupGenesis(t *testing.T) {
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
 				// Commit the 'old' genesis block with Homestead transition at #2.
 				// Advance to block #4, past the homestead transition block of customg.
-				genesis := oldcustomg.MustCommit(db,types.ShardMaster)
+				genesis := oldcustomg.MustCommit(db,ShardId)
 
-				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, ethash.NewFullFaker(), vm.Config{}, nil,0xFFFF)
+				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, ethash.NewFullFaker(), vm.Config{}, nil,ShardId)
 				defer bc.Stop()
 
 				blocks, _ := GenerateChain(oldcustomg.Config, genesis, ethash.NewFaker(), db, 4, nil)
 				bc.InsertChain(blocks)
 				bc.CurrentBlock()
 				// This should return a compatibility error.
-				return SetupGenesisBlock(db, &customg,types.ShardMaster)
+				return SetupGenesisBlock(db, &customg,ShardId)
 			},
 			wantHash:   customghash,
 			wantConfig: customg.Config,
@@ -156,7 +161,7 @@ func TestSetupGenesis(t *testing.T) {
 			t.Errorf("%s: returned hash %s, want %s", test.name, hash.Hex(), test.wantHash.Hex())
 		} else if err == nil {
 			// Check database content.
-			stored := rawdb.ReadBlock(db, test.wantHash, 0)
+			stored := rawdb.ReadBlock(db, ShardId, test.wantHash, 0)
 			if stored.Hash() != test.wantHash {
 				t.Errorf("%s: block in DB has hash %s, want %s", test.name, stored.Hash(), test.wantHash)
 			}
