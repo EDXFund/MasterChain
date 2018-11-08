@@ -112,7 +112,10 @@ type scheaderMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *SHeader) Hash() common.Hash {
-	return rlpHash(h.ToStruct())
+
+	hash:= rlpHash(h.ToStruct())
+
+	return hash;
 }
 func (h *SHeader) FillBy(h2 *SHeaderStruct)  {
 	h.shardId    = h2.ShardId
@@ -174,7 +177,8 @@ func (b *SHeader) GasUsed() uint64      { return b.gasUsed }
 func (b *SHeader) GasUsedPtr() *uint64      { return &b.gasUsed }
 func (b *SHeader) CoinbasePtr() *common.Address { return &b.coinbase }
 func (b *SHeader) Difficulty() *big.Int { return new(big.Int).Set(b.difficulty) }
-func (b *SHeader) Time() *big.Int       { return new(big.Int).Set(b.time) }
+func (b *SHeader) Time() *big.Int       {
+	if b.time == nil {return common.Big0 } else {return new(big.Int).Set(b.time)}}
 func (b *SHeader) UncleHash() common.Hash { return CalcUncleHash(nil) }
 func (b *SHeader) NumberU64() uint64        { return b.number.Uint64() }
 func (b *SHeader) MixDigest() common.Hash   { return b.mixDigest }
@@ -251,10 +255,14 @@ type SBlocks []*SBlock
 func (b *SBlock) DeprecatedTd() *big.Int {
 	return b.td
 }
+func (b *SBlock) ClearHashCache(){
+	b.hash.Store(common.Hash{})
+}
 func (b *SBlock) ReceivedAt() time.Time {
 	return b.receivedAt
 }
 func (b *SBlock) SetReceivedAt(t time.Time) {
+	b.hash.Store(nil)
 	b.receivedAt = t
 }
 func (b *SBlock) ToSBlock() *SBlock { return b }
@@ -499,7 +507,7 @@ func (b *SBlock)WithBodyOfShardBlocks(shardBlocksInfos []*ShardBlockInfo, uncles
 // Hash returns the keccak256 hash of b's header.
 // The hash is computed on the first call and cached thereafter.
 func (b *SBlock) Hash() common.Hash {
-	if hash := b.hash.Load(); hash != nil {
+	if hash := b.hash.Load(); (hash != nil && hash != common.Hash{} ){
 		return hash.(common.Hash)
 	}
 	v := b.header.Hash()

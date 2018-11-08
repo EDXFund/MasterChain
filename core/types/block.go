@@ -164,7 +164,7 @@ func (b *Header) Number() *big.Int     { return new(big.Int).Set(b.number) }
 func (b *Header) GasLimit() uint64     { return b.gasLimit }
 func (b *Header) GasUsed() uint64      { return b.gasUsed }
 func (b *Header) Difficulty() *big.Int { if(b.difficulty == nil ){return nil } else {return new(big.Int).Set(b.difficulty) }}
-func (b *Header) Time() *big.Int       {  if b.time == nil {return nil } else {return new(big.Int).Set(b.time)} }
+func (b *Header) Time() *big.Int       {  if b.time == nil {return common.Big0 } else {return new(big.Int).Set(b.time)} }
 func (b *Header) GasUsedPtr() *uint64      { return &b.gasUsed }
 func (b *Header) CoinbasePtr() *common.Address { return &b.coinbase }
 func (b *Header) NumberU64() uint64        { return b.number.Uint64() }
@@ -445,6 +445,9 @@ func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
 	}
 	return nil
 }
+func (b *Block) ClearHashCache(){
+	b.hash.Store(common.Hash{})
+}
 func (b *Block) ShardId() uint16      { return b.header.ShardId() }
 func (b *Block) Header() HeaderIntf      { return b.header }
 func (b *Block) Number() *big.Int     { return new(big.Int).Set(b.header.number) }
@@ -558,7 +561,7 @@ func (b *Block) WithBodyOfTransactions(transactions []*Transaction, receitps []*
 // Hash returns the keccak256 hash of b's header.
 // The hash is computed on the first call and cached thereafter.
 func (b *Block) Hash() common.Hash {
-	if hash := b.hash.Load(); hash != nil {
+	if hash := b.hash.Load(); (hash != nil  && hash != common.Hash{} ){
 		return hash.(common.Hash)
 	}
 	v := b.header.Hash()

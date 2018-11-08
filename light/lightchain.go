@@ -156,7 +156,7 @@ func (self *LightChain) Odr() OdrBackend {
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (self *LightChain) loadLastState() error {
-	if head := rawdb.ReadHeadHeaderHash(self.chainDb); head == (common.Hash{}) {
+	if head := rawdb.ReadHeadHeaderHash(self.chainDb,self.shardId); head == (common.Hash{}) {
 		// Corrupt or empty database, init from scratch
 		self.Reset()
 	} else {
@@ -203,7 +203,7 @@ func (bc *LightChain) ResetWithGenesisBlock(genesis types.BlockIntf) {
 	defer bc.mu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	rawdb.WriteTd(bc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
+	rawdb.WriteTd(bc.chainDb, bc.shardId,genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
 	rawdb.WriteBlock(bc.chainDb, genesis)
 
 	bc.genesisBlock = genesis.ToBlock()
@@ -238,7 +238,7 @@ func (self *LightChain) GetBody(ctx context.Context, hash common.Hash) ( *types.
 	if number == nil {
 		return nil, errors.New("unknown block")
 	}
-	body, err := GetBody(ctx, self.odr, hash, *number)
+	body, err := GetBody(ctx, self.odr,self.shardId, hash, *number)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (self *LightChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.R
 	if number == nil {
 		return nil, errors.New("unknown block")
 	}
-	body, err := GetBodyRLP(ctx, self.odr, hash, *number)
+	body, err := GetBodyRLP(ctx, self.odr, self.shardId,hash, *number)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ func (self *LightChain) GetBlock(ctx context.Context, hash common.Hash, number u
 	if block, ok := self.blockCache.Get(hash); ok {
 		return block.(types.BlockIntf), nil
 	}
-	block, err := GetBlock(ctx, self.odr, hash, number)
+	block, err := GetBlock(ctx, self.odr,self.shardId, hash, number)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +303,7 @@ func (self *LightChain) GetBlockByHash(ctx context.Context, hash common.Hash) (t
 // GetBlockByNumber retrieves a block from the database or ODR service by
 // number, caching it (associated with its hash) if found.
 func (self *LightChain) GetBlockByNumber(ctx context.Context, number uint64) (types.BlockIntf, error) {
-	hash, err := GetCanonicalHash(ctx, self.odr, number)
+	hash, err := GetCanonicalHash(ctx, self.odr, self.shardId, number)
 	if hash == (common.Hash{}) || err != nil {
 		return nil, err
 	}
@@ -479,7 +479,7 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 	if header := self.hc.GetHeaderByNumber(number); header != nil {
 		return header, nil
 	}
-	return GetHeaderByNumber(ctx, self.odr, number)
+	return GetHeaderByNumber(ctx, self.odr, self.shardId, number)
 }
 
 // Config retrieves the header chain's chain configuration.
@@ -502,7 +502,7 @@ func (self *LightChain) SyncCht(ctx context.Context) bool {
 		return false
 	}
 	// Retrieve the latest useful header and update to it
-	if header, err := GetHeaderByNumber(ctx, self.odr, latest); header == nil || reflect.ValueOf(header).IsNil() && err == nil {
+	if header, err := GetHeaderByNumber(ctx, self.odr, self.shardId, latest); header == nil || reflect.ValueOf(header).IsNil() && err == nil {
 		self.mu.Lock()
 		defer self.mu.Unlock()
 

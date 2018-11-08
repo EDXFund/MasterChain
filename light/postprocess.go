@@ -150,19 +150,21 @@ type ChtIndexerBackend struct {
 	section, sectionSize uint64
 	lastHash             common.Hash
 	trie                 *trie.Trie
+	shardId 		     uint16
 }
 
 // NewChtIndexer creates a Cht chain indexer
-func NewChtIndexer(db ethdb.Database, odr OdrBackend, size, confirms uint64) *core.ChainIndexer {
+func NewChtIndexer(db ethdb.Database, odr OdrBackend, size, confirms uint64,shardId uint16) *core.ChainIndexer {
 	trieTable := ethdb.NewTable(db, ChtTablePrefix)
 	backend := &ChtIndexerBackend{
 		diskdb:      db,
 		odr:         odr,
+		shardId:     shardId,
 		trieTable:   trieTable,
 		triedb:      trie.NewDatabase(trieTable),
 		sectionSize: size,
 	}
-	return core.NewChainIndexer(db, ethdb.NewTable(db, "chtIndex-"), backend, size, confirms, time.Millisecond*100, "cht")
+	return core.NewChainIndexer(db, ethdb.NewTable(db, "chtIndex-"), backend, size, confirms, time.Millisecond*100, "cht",shardId)
 }
 
 // fetchMissingNodes tries to retrieve the last entry of the latest trusted CHT from the
@@ -215,7 +217,7 @@ func (c *ChtIndexerBackend) Process(ctx context.Context, header types.HeaderIntf
 	hash, num := header.Hash(), header.NumberU64()
 	c.lastHash = hash
 
-	td := rawdb.ReadTd(c.diskdb, hash, num)
+	td := rawdb.ReadTd(c.diskdb,c.shardId, hash, num)
 	if td == nil {
 		panic(nil)
 	}
@@ -272,10 +274,11 @@ type BloomTrieIndexerBackend struct {
 	bloomTrieRatio    uint64
 	trie              *trie.Trie
 	sectionHeads      []common.Hash
+	shardId 		  uint16
 }
 
 // NewBloomTrieIndexer creates a BloomTrie chain indexer
-func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uint64) *core.ChainIndexer {
+func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uint64,shardId uint16) *core.ChainIndexer {
 	trieTable := ethdb.NewTable(db, BloomTrieTablePrefix)
 	backend := &BloomTrieIndexerBackend{
 		diskdb:     db,
@@ -284,10 +287,11 @@ func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uin
 		triedb:     trie.NewDatabase(trieTable),
 		parentSize: parentSize,
 		size:       size,
+		shardId:    shardId,
 	}
 	backend.bloomTrieRatio = size / parentSize
 	backend.sectionHeads = make([]common.Hash, backend.bloomTrieRatio)
-	return core.NewChainIndexer(db, ethdb.NewTable(db, "bltIndex-"), backend, size, 0, time.Millisecond*100, "bloomtrie")
+	return core.NewChainIndexer(db, ethdb.NewTable(db, "bltIndex-"), backend, size, 0, time.Millisecond*100, "bloomtrie",shardId)
 }
 
 // fetchMissingNodes tries to retrieve the last entries of the latest trusted bloom trie from the

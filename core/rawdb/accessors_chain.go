@@ -19,6 +19,7 @@ package rawdb
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"reflect"
 
@@ -129,7 +130,9 @@ func WriteFastTrieProgress(db DatabaseWriter, count uint64) {
 
 // ReadHeaderRLP retrieves a block header in its raw RLP database encoding.
 func ReadHeaderRLP(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) rlp.RawValue {
-	data, _ := db.Get(headerKey(number, shardId,hash))
+	key:=headerKey(number, shardId,hash)
+	fmt.Println("retrieve len:",len(key),"\tval:",key)
+	data, _ := db.Get(key)
 	return data
 }
 
@@ -204,6 +207,8 @@ func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
 	key = headerKey(number, header.ShardId(),hash)
+
+	fmt.Println("Set Key len:",len(key), "\t val:",key)
 	if err := db.Put(key, data); err != nil {
 		log.Crit("Failed to store header", "err", err)
 	}
@@ -393,6 +398,7 @@ func ReadBlock(db DatabaseReader,shardId uint16, hash common.Hash, number uint64
 func WriteBlock(db DatabaseWriter, block types.BlockIntf) {
 	WriteBody(db, block.Hash(),block.ShardId(), block.NumberU64(), block.Body())
 	WriteHeader(db, block.Header())
+
 }
 
 // DeleteBlock removes all block data associated with a hash.

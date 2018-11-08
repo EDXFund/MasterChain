@@ -111,6 +111,7 @@ func (req *CodeRequest) StoreResult(db ethdb.Database) {
 // BlockRequest is the ODR request type for retrieving block bodies
 type BlockRequest struct {
 	OdrRequest
+	ShardId uint16
 	Hash   common.Hash
 	Number uint64
 	Rlp    []byte
@@ -118,7 +119,7 @@ type BlockRequest struct {
 
 // StoreResult stores the retrieved data in local database
 func (req *BlockRequest) StoreResult(db ethdb.Database) {
-	rawdb.WriteBodyRLP(db, req.Hash, req.Number, req.Rlp)
+	rawdb.WriteBodyRLP(db,req.ShardId, req.Hash, req.Number, req.Rlp)
 }
 
 // ReceiptsRequest is the ODR request type for retrieving block bodies
@@ -131,7 +132,7 @@ type ReceiptsRequest struct {
 
 // StoreResult stores the retrieved data in local database
 func (req *ReceiptsRequest) StoreResult(db ethdb.Database) {
-	rawdb.WriteReceipts(db, req.Hash, req.Number, req.Receipts)
+	rawdb.WriteReceipts(db, types.ShardMaster, req.Hash, req.Number, req.Receipts)
 }
 
 // ChtRequest is the ODR request type for state/storage trie entries
@@ -150,13 +151,14 @@ func (req *ChtRequest) StoreResult(db ethdb.Database) {
 	hash, num := req.Header.Hash(), req.Header.NumberU64()
 
 	rawdb.WriteHeader(db, req.Header)
-	rawdb.WriteTd(db, hash, num, req.Td)
-	rawdb.WriteCanonicalHash(db, hash, num)
+	rawdb.WriteTd(db,req.Header.ShardId(), hash, num, req.Td)
+	rawdb.WriteCanonicalHash(db, req.Header.ShardId(),hash, num)
 }
 
 // BloomRequest is the ODR request type for retrieving bloom filters from a CHT structure
 type BloomRequest struct {
 	OdrRequest
+	ShardId          uint16
 	Config           *IndexerConfig
 	BloomTrieNum     uint64
 	BitIdx           uint
@@ -169,7 +171,7 @@ type BloomRequest struct {
 // StoreResult stores the retrieved data in local database
 func (req *BloomRequest) StoreResult(db ethdb.Database) {
 	for i, sectionIdx := range req.SectionIndexList {
-		sectionHead := rawdb.ReadCanonicalHash(db, (sectionIdx+1)*req.Config.BloomTrieSize-1)
+		sectionHead := rawdb.ReadCanonicalHash(db, req.ShardId, (sectionIdx+1)*req.Config.BloomTrieSize-1)
 		// if we don't have the canonical hash stored for this section head number, we'll still store it under
 		// a key with a zero sectionHead. GetBloomBits will look there too if we still don't have the canonical
 		// hash. In the unlikely case we've retrieved the section head hash since then, we'll just retrieve the

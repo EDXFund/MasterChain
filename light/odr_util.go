@@ -31,12 +31,12 @@ import (
 
 var sha3_nil = crypto.Keccak256Hash(nil)
 
-func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (types.HeaderIntf, error) {
+func GetHeaderByNumber(ctx context.Context, odr OdrBackend, shardId uint16,number uint64) (types.HeaderIntf, error) {
 	db := odr.Database()
-	hash := rawdb.ReadCanonicalHash(db, number)
+	hash := rawdb.ReadCanonicalHash(db, shardId,number)
 	if (hash != common.Hash{}) {
 		// if there is a canonical hash, there is a header too
-		header := rawdb.ReadHeader(db, hash, number)
+		header := rawdb.ReadHeader(db, shardId,hash, number)
 		if header  == nil || reflect.ValueOf(header).IsNil() {
 			panic("Canonical hash present but header not found")
 		}
@@ -49,14 +49,14 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (type
 	)
 	if odr.ChtIndexer() != nil {
 		chtCount, sectionHeadNum, sectionHead = odr.ChtIndexer().Sections()
-		canonicalHash := rawdb.ReadCanonicalHash(db, sectionHeadNum)
+		canonicalHash := rawdb.ReadCanonicalHash(db,shardId, sectionHeadNum)
 		// if the CHT was injected as a trusted checkpoint, we have no canonical hash yet so we accept zero hash too
 		for chtCount > 0 && canonicalHash != sectionHead && canonicalHash != (common.Hash{}) {
 			chtCount--
 			if chtCount > 0 {
 				sectionHeadNum = chtCount*odr.IndexerConfig().ChtSize - 1
 				sectionHead = odr.ChtIndexer().SectionHead(chtCount - 1)
-				canonicalHash = rawdb.ReadCanonicalHash(db, sectionHeadNum)
+				canonicalHash = rawdb.ReadCanonicalHash(db, shardId,sectionHeadNum)
 			}
 		}
 	}
@@ -70,12 +70,12 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (type
 	return r.Header, nil
 }
 
-func GetCanonicalHash(ctx context.Context, odr OdrBackend, number uint64) (common.Hash, error) {
-	hash := rawdb.ReadCanonicalHash(odr.Database(), number)
+func GetCanonicalHash(ctx context.Context, odr OdrBackend, shardId uint16, number uint64) (common.Hash, error) {
+	hash := rawdb.ReadCanonicalHash(odr.Database(),shardId, number)
 	if (hash != common.Hash{}) {
 		return hash, nil
 	}
-	header, err := GetHeaderByNumber(ctx, odr, number)
+	header, err := GetHeaderByNumber(ctx, odr,shardId, number)
 	if header != nil {
 		return header.Hash(), nil
 	}
@@ -83,11 +83,11 @@ func GetCanonicalHash(ctx context.Context, odr OdrBackend, number uint64) (commo
 }
 
 // GetBodyRLP retrieves the block body (transactions and uncles) in RLP encoding.
-func GetBodyRLP(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) (rlp.RawValue, error) {
-	if data := rawdb.ReadBodyRLP(odr.Database(), hash, number); data != nil {
+func GetBodyRLP(ctx context.Context, odr OdrBackend,shardId uint16, hash common.Hash, number uint64) (rlp.RawValue, error) {
+	if data := rawdb.ReadBodyRLP(odr.Database(), shardId,hash, number); data != nil {
 		return data, nil
 	}
-	r := &BlockRequest{Hash: hash, Number: number}
+	r := &BlockRequest{Hash: hash, Number: number,ShardId:shardId}
 	if err := odr.Retrieve(ctx, r); err != nil {
 		return nil, err
 	} else {
@@ -97,8 +97,8 @@ func GetBodyRLP(ctx context.Context, odr OdrBackend, hash common.Hash, number ui
 
 // GetBody retrieves the block body (transactons, uncles) corresponding to the
 // hash.
-func GetBody(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) (*types.SuperBody, error) {
-	data, err := GetBodyRLP(ctx, odr, hash, number)
+func GetBody(ctx context.Context, odr OdrBackend, shardId uint16,hash common.Hash, number uint64) (*types.SuperBody, error) {
+	data, err := GetBodyRLP(ctx, odr, shardId,hash, number)
 	if err != nil {
 		return nil, err
 	}
@@ -112,17 +112,17 @@ func GetBody(ctx context.Context, odr OdrBackend, hash common.Hash, number uint6
 
 // GetBlock retrieves an entire block corresponding to the hash, assembling it
 // back from the stored header and body.
-func GetBlock(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) (types.BlockIntf, error) {
+func GetBlock(ctx context.Context, odr OdrBackend, shardId uint16,hash common.Hash, number uint64) (types.BlockIntf, error) {
 	// Retrieve the block header and body contents
-	header := rawdb.ReadHeader(odr.Database(), hash, number)
+	header := rawdb.ReadHeader(odr.Database(), shardId, hash, number)
 	if header  == nil || reflect.ValueOf(header).IsNil() {
 		return nil, ErrNoHeader
 	}
-	body, err := GetBody(ctx, odr, hash, number)
+	body, err := GetBody(ctx, odr, shardId, hash, number)
 	if err != nil {
 		return nil, err
 	}
-	if header.ShardId() == types.ShardMaster {
+	if shardId == types.ShardMaster {
 		// Reassemble the block and return
 		return types.NewBlockWithHeader(header).WithBody(body.ShardBlocks, body.Receipts,body.Transactions, body.Results), nil
 		}else {
@@ -135,7 +135,8 @@ func GetBlock(ctx context.Context, odr OdrBackend, hash common.Hash, number uint
 // in a block given by its hash.
 func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) (types.Receipts, error) {
 	// Retrieve the potentially incomplete receipts from disk or network
-	receipts := rawdb.ReadReceipts(odr.Database(), hash, number)
+	//only master has receipts
+	receipts := rawdb.ReadReceipts(odr.Database(), types.ShardMaster, hash, number)
 	if receipts == nil {
 		r := &ReceiptsRequest{Hash: hash, Number: number}
 		if err := odr.Retrieve(ctx, r); err != nil {
@@ -145,17 +146,17 @@ func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, num
 	}
 	// If the receipts are incomplete, fill the derived fields
 	if len(receipts) > 0 && receipts[0].TxHash == (common.Hash{}) {
-		block, err := GetBlock(ctx, odr, hash, number)
+		block, err := GetBlock(ctx, odr, types.ShardMaster,hash, number)
 		if err != nil {
 			return nil, err
 		}
-		genesis := rawdb.ReadCanonicalHash(odr.Database(), 0)
+		genesis := rawdb.ReadCanonicalHash(odr.Database(), types.ShardMaster,0)
 		config := rawdb.ReadChainConfig(odr.Database(), genesis)
 
 		if err := core.SetReceiptsData(config, block, receipts); err != nil {
 			return nil, err
 		}
-		rawdb.WriteReceipts(odr.Database(), hash, number, receipts)
+		rawdb.WriteReceipts(odr.Database(),types.ShardMaster, hash, number, receipts)
 	}
 	return receipts, nil
 }
@@ -164,7 +165,8 @@ func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, num
 // block given by its hash.
 func GetBlockLogs(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) ([][]*types.Log, error) {
 	// Retrieve the potentially incomplete receipts from disk or network
-	receipts := rawdb.ReadReceipts(odr.Database(), hash, number)
+	//only master has logs
+	receipts := rawdb.ReadReceipts(odr.Database(),types.ShardMaster, hash, number)
 	if receipts == nil {
 		r := &ReceiptsRequest{Hash: hash, Number: number}
 		if err := odr.Retrieve(ctx, r); err != nil {
@@ -181,7 +183,7 @@ func GetBlockLogs(ctx context.Context, odr OdrBackend, hash common.Hash, number 
 }
 
 // GetBloomBits retrieves a batch of compressed bloomBits vectors belonging to the given bit index and section indexes
-func GetBloomBits(ctx context.Context, odr OdrBackend, bitIdx uint, sectionIdxList []uint64) ([][]byte, error) {
+func GetBloomBits(ctx context.Context, odr OdrBackend, shardId uint16,bitIdx uint, sectionIdxList []uint64) ([][]byte, error) {
 	var (
 		db      = odr.Database()
 		result  = make([][]byte, len(sectionIdxList))
@@ -195,20 +197,20 @@ func GetBloomBits(ctx context.Context, odr OdrBackend, bitIdx uint, sectionIdxLi
 	)
 	if odr.BloomTrieIndexer() != nil {
 		bloomTrieCount, sectionHeadNum, sectionHead = odr.BloomTrieIndexer().Sections()
-		canonicalHash := rawdb.ReadCanonicalHash(db, sectionHeadNum)
+		canonicalHash := rawdb.ReadCanonicalHash(db, shardId,sectionHeadNum)
 		// if the BloomTrie was injected as a trusted checkpoint, we have no canonical hash yet so we accept zero hash too
 		for bloomTrieCount > 0 && canonicalHash != sectionHead && canonicalHash != (common.Hash{}) {
 			bloomTrieCount--
 			if bloomTrieCount > 0 {
 				sectionHeadNum = bloomTrieCount*odr.IndexerConfig().BloomTrieSize - 1
 				sectionHead = odr.BloomTrieIndexer().SectionHead(bloomTrieCount - 1)
-				canonicalHash = rawdb.ReadCanonicalHash(db, sectionHeadNum)
+				canonicalHash = rawdb.ReadCanonicalHash(db,shardId, sectionHeadNum)
 			}
 		}
 	}
 
 	for i, sectionIdx := range sectionIdxList {
-		sectionHead := rawdb.ReadCanonicalHash(db, (sectionIdx+1)*odr.IndexerConfig().BloomSize-1)
+		sectionHead := rawdb.ReadCanonicalHash(db, shardId,(sectionIdx+1)*odr.IndexerConfig().BloomSize-1)
 		// if we don't have the canonical hash stored for this section head number, we'll still look for
 		// an entry with a zero sectionHead (we store it with zero section head too if we don't know it
 		// at the time of the retrieval)

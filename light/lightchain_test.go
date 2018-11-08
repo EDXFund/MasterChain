@@ -63,7 +63,7 @@ func newCanonical(n int,shardId uint16) (ethdb.Database, *LightChain, error) {
 	db := ethdb.NewMemDatabase()
 	gspec := core.Genesis{Config: params.TestChainConfig}
 	genesis := gspec.MustCommit(db,shardId)
-	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, ethash.NewFaker(),shardId)
+	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig,shardId:shardId}, gspec.Config, ethash.NewFaker(),shardId)
 
 	// Create and inject the requested chain
 	if n == 0 {
@@ -84,7 +84,7 @@ func newTestLightChain(shardId uint16) *LightChain {
 		Config:     params.TestChainConfig,
 	}
 	gspec.MustCommit(db,shardId)
-	lc, err := NewLightChain(&dummyOdr{db: db}, gspec.Config, ethash.NewFullFaker(),shardId)
+	lc, err := NewLightChain(&dummyOdr{db: db,shardId:shardId}, gspec.Config, ethash.NewFullFaker(),shardId)
 	if err != nil {
 		panic(err)
 	}
@@ -132,7 +132,7 @@ func testHeaderChainImport(chain []types.HeaderIntf, lightchain *LightChain) err
 		}
 		// Manually insert the header into the database, but don't reorganize (allows subsequent testing)
 		lightchain.mu.Lock()
-		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.NumberU64(), new(big.Int).Add(header.Difficulty(), lightchain.GetTdByHash(header.ParentHash())))
+		rawdb.WriteTd(lightchain.chainDb,lightchain.shardId, header.Hash(), header.NumberU64(), new(big.Int).Add(header.Difficulty(), lightchain.GetTdByHash(header.ParentHash())))
 		rawdb.WriteHeader(lightchain.chainDb, header)
 		lightchain.mu.Unlock()
 	}
@@ -318,6 +318,7 @@ func makeHeaderChainWithDiff(genesis types.BlockIntf, d []int, seed byte) []type
 
 type dummyOdr struct {
 	OdrBackend
+	shardId       uint16
 	db            ethdb.Database
 	indexerConfig *IndexerConfig
 }
@@ -325,7 +326,9 @@ type dummyOdr struct {
 func (odr *dummyOdr) Database() ethdb.Database {
 	return odr.db
 }
-
+func (odr *dummyOdr) ShardId() uint16{
+	return odr.shardId
+}
 func (odr *dummyOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 	return nil
 }

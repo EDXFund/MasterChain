@@ -271,6 +271,7 @@ type BlockIntf interface {
 	//extract as shard block
 	ToSBlock() *SBlock
 	Hash() common.Hash
+	ClearHashCache()
 
 	//Uncles()       []*Header
 

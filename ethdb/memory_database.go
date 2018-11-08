@@ -18,6 +18,7 @@ package ethdb
 
 import (
 	"errors"
+	. "fmt"
 	"sync"
 
 	"github.com/EDXFund/MasterChain/common"
@@ -28,6 +29,7 @@ import (
  */
 type MemDatabase struct {
 	db   map[string][]byte
+
 	lock sync.RWMutex
 }
 
@@ -46,7 +48,7 @@ func NewMemDatabaseWithCap(size int) *MemDatabase {
 func (db *MemDatabase) Put(key []byte, value []byte) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-
+	Println("key:",key)
 	db.db[string(key)] = common.CopyBytes(value)
 	return nil
 }

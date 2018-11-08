@@ -1137,6 +1137,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 	// Iterate over the blocks and insert when the verifier permits
 	for i, block := range chain {
+		fmt.Println("Number:",block.NumberU64(),"hash:",block.Hash(),"header:",block.Header().Hash())
 		// If the chain is terminating, stop processing blocks
 		if atomic.LoadInt32(&bc.procInterrupt) == 1 {
 			log.Debug("Premature abort during blocks processing")
@@ -1196,6 +1197,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 			var winner []types.BlockIntf
 
 			parent := bc.GetBlock(block.ParentHash(), block.NumberU64()-1)
+
 			for !bc.HasState(parent.Root()) {
 				winner = append(winner, parent)
 				parent = bc.GetBlock(parent.ParentHash(), parent.NumberU64()-1)
@@ -1217,6 +1219,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 			bc.reportBlock(block, nil, err)
 			return i, events, coalescedLogs, err
 		}
+
 		// Create a new statedb using the parent block and report an
 		// error if it fails.
 		var parent types.BlockIntf
@@ -1245,6 +1248,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 		// Write the block to the chain and get the status.
 		status, err := bc.WriteBlockWithState(block, receipts, state)
+		fmt.Println("Number:",block.NumberU64(),"hash:",block.Hash(),"header:",block.Header().Hash())
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}

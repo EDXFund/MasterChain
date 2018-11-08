@@ -228,10 +228,15 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 			panic(err)
 		}
 		block, receipt := genblock(i, parent, statedb)
+
 		blocks[i] = block
 		receipts[i] = receipt
-		fmt.Println("number",block.NumberU64(),"hash:",block.Hash(),"parent:",parent.Hash())
+		blocks[i].ClearHashCache();
+
 		parent = block
+	}
+	for _, block := range blocks {
+	 block.ClearHashCache();
 	}
 	return blocks, receipts
 }

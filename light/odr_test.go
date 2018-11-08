@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"testing"
@@ -73,14 +74,14 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 	}
 	switch req := req.(type) {
 	case *BlockRequest:
-		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
+		number := rawdb.ReadHeaderNumber(odr.sdb, req.ShardId, req.Hash)
 		if number != nil {
-			req.Rlp = rawdb.ReadBodyRLP(odr.sdb, req.Hash, *number)
+			req.Rlp = rawdb.ReadBodyRLP(odr.sdb, req.ShardId, req.Hash, *number)
 		}
 	case *ReceiptsRequest:
-		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
+		number := rawdb.ReadHeaderNumber(odr.sdb, types.ShardMaster,req.Hash)
 		if number != nil {
-			req.Receipts = rawdb.ReadReceipts(odr.sdb, req.Hash, *number)
+			req.Receipts = rawdb.ReadReceipts(odr.sdb, types.ShardMaster,req.Hash, *number)
 		}
 	case *TrieRequest:
 		t, _ := trie.New(req.Id.Root, trie.NewDatabase(odr.sdb))
@@ -102,7 +103,10 @@ type odrTestFn func(ctx context.Context, db ethdb.Database, bc *core.BlockChain,
 
 func TestOdrGetBlockLes1Master(t *testing.T) { testChainOdr(t, 1, odrGetBlock,types.ShardMaster) }
 
-func TestOdrGetBlockLes1Shard(t *testing.T) { testChainOdr(t, 1, odrGetBlock,0) }
+func TestOdrGetBlockLes1Shard(t *testing.T) {
+	testChainOdr(t, 1, odrGetBlock,0)
+}
+
 func odrGetBlock(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	var block types.BlockIntf
 	if bc != nil {
@@ -122,12 +126,12 @@ func TestOdrGetReceiptsLes1Shard(t *testing.T) { testChainOdr(t, 1, odrGetReceip
 func odrGetReceipts(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	var receipts types.Receipts
 	if bc != nil {
-		number := rawdb.ReadHeaderNumber(db, bhash)
+		number := rawdb.ReadHeaderNumber(db, bc.ShardId(), bhash)
 		if number != nil {
-			receipts = rawdb.ReadReceipts(db, bhash, *number)
+			receipts = rawdb.ReadReceipts(db, bc.ShardId(), bhash, *number)
 		}
 	} else {
-		number := rawdb.ReadHeaderNumber(db, bhash)
+		number := rawdb.ReadHeaderNumber(db,  bc.ShardId(),bhash)
 		if number != nil {
 			receipts, _ = GetBlockReceipts(ctx, lc.Odr(), bhash, *number)
 		}
@@ -238,12 +242,13 @@ func testChainGen(i int, block *core.BlockGen) {
 		block.AddTx(tx)
 	case 3:
 		// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-		b2 := block.PrevBlock(1).Header()
+	/*	b2 := block.PrevBlock(1).Header()
 		b2.SetExtra ([]byte("foo"))
 		block.AddUncle(b2)
 		b3 := block.PrevBlock(2).Header()
 		b3.SetExtra ([]byte("foo"))
 		block.AddUncle(b3)
+	*/
 		data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002")
 		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, nil, data), signer, testBankKey)
 		block.AddTx(tx)
@@ -261,6 +266,8 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn,shardId uint16) {
 	// Assemble the test environment
 	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil,shardId)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), sdb, 4, testChainGen)
+
+	fmt.Println("Number:",gchain[1].NumberU64(),"hash:",gchain[1].Hash(),"header:",gchain[1].Header().Hash())
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +287,7 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn,shardId uint16) {
 
 	test := func(expFail int) {
 		for i := uint64(0); i <= blockchain.CurrentHeader().NumberU64(); i++ {
-			bhash := rawdb.ReadCanonicalHash(sdb, i)
+			bhash := rawdb.ReadCanonicalHash(sdb, blockchain.ShardId(), i)
 			b1, err := fn(NoOdr, sdb, blockchain, nil, bhash)
 			if err != nil {
 				t.Fatalf("error in full-node test for block %d: %v", i, err)

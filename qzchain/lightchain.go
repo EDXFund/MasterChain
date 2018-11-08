@@ -156,7 +156,7 @@ func (self *QzChain) Odr() OdrBackend {
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (self *QzChain) loadLastState() error {
-	if head := rawdb.ReadHeadHeaderHash(self.chainDb); head == (common.Hash{}) {
+	if head := rawdb.ReadHeadHeaderHash(self.chainDb,self.shardId); head == (common.Hash{}) {
 		// Corrupt or empty database, init from scratch
 		self.Reset()
 	} else {
@@ -203,10 +203,10 @@ func (bc *QzChain) ResetWithGenesisBlock(genesis types.BlockIntf) {
 	defer bc.mu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	rawdb.WriteTd(bc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
+	rawdb.WriteTd(bc.chainDb, bc.shardId, genesis.Hash(), genesis.NumberU64(), genesis.Difficulty())
 	rawdb.WriteBlock(bc.chainDb, genesis)
 
-	bc.genesisBlock = genesis.ToBlock()
+	bc.genesisBlock = genesis.ToSBlock()
 	bc.hc.SetGenesis(bc.genesisBlock.Header())
 	bc.hc.SetCurrentHeader(bc.genesisBlock.Header())
 }
