@@ -104,8 +104,8 @@ func NewQzHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine
 	}
 
 	hc.currentHeader.Store(hc.genesisHeader)
-	if headHash := rawdb.ReadHeadBlockHash(chainDb，hc.shardId); headHash != (common.Hash{}) {
-		if chead := hc.GetHeaderByHash(head); chead != nil {
+	if headHash := rawdb.ReadHeadBlockHash(chainDb, hc.shardId); headHash != (common.Hash{}) {
+		if chead := hc.GetHeaderByHash(headHash); chead != nil {
 			hc.currentHeader.Store(chead)
 		}
 	}
@@ -194,8 +194,6 @@ func (hc *QzHeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatu
 		hc.currentHeader.Store(types.CopyHeaderIntf(header))
 
 		status = CanonStatTy
-	} else {
-		status = SideStatTy
 	}
 
 	hc.headerCache.Add(hash, header)

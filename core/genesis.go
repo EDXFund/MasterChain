@@ -217,13 +217,21 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return params.AllEthashProtocolChanges
 	}
 }
+func (g *Genesis) Hashof(shardId uint16) common.Hash {
+	db := ethdb.NewMemDatabase()
+	defer db.Close()
+	block, err := g.Commit(db,shardId)
+	panic(err)
+	return block.Hash()
 
-// ToBlock creates the genesis block and writes state of a genesis specification
+}
+// ToBlock creates the genesis b lock and writes state of a genesis specification
 // to the given database (or discards it if nil).
 func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	if db == nil {
 		db = ethdb.NewMemDatabase()
 	}
+
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, account.Balance)

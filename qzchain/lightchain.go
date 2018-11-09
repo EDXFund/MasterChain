@@ -78,7 +78,7 @@ type QzChain struct {
 // NewLightChain returns a fully initialised light chain using information
 // available in the database. It initialises the default Ethereum header
 // validator.
-func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine,shardId uint16) (*QzChain, error) {
+func NewShardChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine,shardId uint16) (*QzChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
