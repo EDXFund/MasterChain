@@ -20,6 +20,7 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/core"
 	"math"
 	"math/big"
 	mrand "math/rand"
@@ -64,9 +65,10 @@ type QzHeaderChain struct {
 
 	procInterrupt func() bool
 
-	trees map[common.Hash]*HeaderTree
+	headerManager *HeaderTreeManager
 	//rootHash common.Hash		//current block
-
+	blockCh     chan types.HeaderIntf
+	quitCh      chan interface{}
 	rand   *mrand.Rand
 	engine consensus.Engine
 }
@@ -96,7 +98,13 @@ func NewQzHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine
 		procInterrupt: procInterrupt,
 		rand:          mrand.New(mrand.NewSource(seed.Int64())),
 		engine:        engine,
+
+		blockCh:	   make(chan types.HeaderIntf),
+		quitCh:		   make(chan interface{}),
+
 	}
+
+	hc.headerManager = &HeaderTreeManager{blockCh:hc.blockCh}
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
 	if  hc.genesisHeader == nil  || reflect.ValueOf(hc.genesisHeader).IsNil() {
@@ -110,7 +118,7 @@ func NewQzHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine
 		}
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
-
+	go     hc.loop()
 	return hc, nil
 }
 func (hc *QzHeaderChain) ShardId()  uint16 {return hc.shardId}
@@ -128,6 +136,16 @@ func (hc *QzHeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 	}
 	return number
 }
+func (hc *QzHeaderChain) loop()  {
+	for {
+		select {
+		case ahead := <-hc.blockCh:
+			hc.onValidChainBlocks([]types.HeaderIntf{ahead},hc.writeHeader,now)
+			case <-hc.quitCh:
+				return
+		}
+	}
+}
 
 // WriteHeader writes a header into the local chain, given that its parent is
 // already known. If the total difficulty of the newly inserted header becomes
@@ -138,7 +156,7 @@ func (hc *QzHeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 // without the real blocks. Hence, writing headers directly should only be done
 // in two scenarios: pure-header mode of operation (light clients), or properly
 // separated header/block phases (non-archive clients).
-func (hc *QzHeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatus, err error) {
+func (hc *QzHeaderChain) WriteHeader(header types.HeaderIntf)   error{
 	// Cache some values to prevent constant recalculation
 	var (
 		hash   = header.Hash()
@@ -147,7 +165,7 @@ func (hc *QzHeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatu
 	// Calculate the total difficulty of the header
 	ptd := hc.GetTd(header.ParentHash(), number-1)
 	if ptd == nil {
-		return NonStatTy, consensus.ErrUnknownAncestor
+		return  consensus.ErrUnknownAncestor
 	}
 	localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().NumberU64())
 	externTd := new(big.Int).Add(header.Difficulty(), ptd)
@@ -193,13 +211,13 @@ func (hc *QzHeaderChain) WriteHeader(header types.HeaderIntf) (status WriteStatu
 		hc.currentHeaderHash = hash
 		hc.currentHeader.Store(types.CopyHeaderIntf(header))
 
-		status = CanonStatTy
+
 	}
 
 	hc.headerCache.Add(hash, header)
 	hc.numberCache.Add(hash, number)
 
-	return
+	return nil
 }
 
 // WhCallback is a callback function for inserting individual headers.
@@ -246,8 +264,8 @@ func (hc *QzHeaderChain) ValidateQzHeaderChain(chain []types.HeaderIntf, checkFr
 			return 0, errors.New("aborted")
 		}
 		// If the header is a banned one, straight out abort
-		if BadHashes[header.Hash()] {
-			return i, ErrBlacklistedHash
+		if core.BadHashes[header.Hash()] {
+			return i, core.ErrBlacklistedHash
 		}
 		// Otherwise wait for headers checks and ensure they pass
 		if err := <-results; err != nil {
@@ -257,7 +275,13 @@ func (hc *QzHeaderChain) ValidateQzHeaderChain(chain []types.HeaderIntf, checkFr
 
 	return 0, nil
 }
-
+func (hc *QzHeaderChain) InsertHeaderChain(chain []types.HeaderIntf, writeHeader WhCallback, start time.Time) (int, error) {
+	//simple put headers into qztree
+	for _,val := range chain {
+		hc.headerManager.AddNewHead(val)
+	}
+	return 0,nil
+}
 // InsertQzHeaderChain attempts to insert the given header chain in to the local
 // chain, possibly creating a reorg. If an error is returned, it will return the
 // index number of the failing header as well an error describing what went wrong.
@@ -266,7 +290,7 @@ func (hc *QzHeaderChain) ValidateQzHeaderChain(chain []types.HeaderIntf, checkFr
 // should be done or not. The reason behind the optional check is because some
 // of the header retrieval mechanisms already need to verfy nonces, as well as
 // because nonces can be verified sparsely, not needing to check each.
-func (hc *QzHeaderChain) InsertQzHeaderChain(chain []types.HeaderIntf, writeHeader WhCallback, start time.Time) (int, error) {
+func (hc *QzHeaderChain) onValidChainBlocks(chain []types.HeaderIntf, writeHeader WhCallback, start time.Time) (int, error) {
 	// Collect some import statistics to report on
 	stats := struct{ processed, ignored int }{}
 	// All headers passed verification, import them into the database

@@ -19,6 +19,7 @@ package qzchain
 import (
 	"container/list"
 	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core/types"
 	"math/big"
 	"sync"
 )
@@ -311,6 +312,7 @@ type  HeaderTreeManager struct{
 	shardId uint16
 	trees map[common.Hash]*HeaderTree
 	rootHash common.Hash
+	blockCh  chan types.HeaderIntf
 
 }
 
@@ -319,7 +321,7 @@ func (t *HeaderTreeManager)TreeOf(hash common.Hash) (*HeaderTree){ return t.tree
 func (t* HeaderTreeManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
 //add new BLock to tree, if more than 6 blocks has reached, a new block will popup to shard_pool
 //if the node can not be add to  any existing tree, a new tree will be established
-func (t *HeaderTreeManager)AddNewBlock(node Header)  {
+func (t *HeaderTreeManager)AddNewHead(node Header)  {
 
 	var found *HeaderTree = nil
 	for _, tree := range t.trees {
@@ -341,13 +343,13 @@ func (t *HeaderTreeManager)AddNewBlock(node Header)  {
 	}
 }
 // remove shard block with given hash, do nothing if the block does not exist
-func (t *HeaderTreeManager)RemoveBlock(node Header) {
+func (t *HeaderTreeManager)RemoveHead(node Header) {
 	for _,value := range t.trees {
 		value.Remove(node,true)
 	}
 }
 
-func (t *HeaderTreeManager)RemoveBlockByHash(hash common.Hash) {
+func (t *HeaderTreeManager)RemoveHeadByHash(hash common.Hash) {
 	for _,value := range t.trees {
 		value.RemoveByHash(hash,true)
 	}

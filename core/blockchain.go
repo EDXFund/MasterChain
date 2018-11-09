@@ -228,6 +228,45 @@ func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16{
 		return 0
 	}
 }
+func (bc *BlockChain) GenesisHashOf (shardId uint16) common.Hash {
+	if shardId == types.ShardMaster{
+		head_ := &types.HeaderStruct{
+			Number:     bc.genesisBlock.Number(),
+			Nonce:      bc.genesisBlock.Nonce(),
+			Time:       bc.genesisBlock.Time(),
+			ParentHash: bc.genesisBlock.ParentHash(),
+			Extra:      bc.genesisBlock.Extra(),
+			GasLimit:   bc.genesisBlock.GasLimit(),
+			GasUsed:    bc.genesisBlock.GasUsed(),
+			Difficulty: bc.genesisBlock.Difficulty(),
+			MixDigest:  bc.genesisBlock.MixDigest(),
+			Coinbase:   bc.genesisBlock.Coinbase(),
+			Root:       bc.genesisBlock.Root(),
+		}
+		head := types.Header{}
+		head.FillBy(head_)
+		return head.Hash()
+	}else {
+		head_ := &types.SHeaderStruct{
+			ShardId:	shardId,
+			Number:     bc.genesisBlock.Number(),
+			Nonce:      bc.genesisBlock.Nonce(),
+			Time:       bc.genesisBlock.Time(),
+			ParentHash: bc.genesisBlock.ParentHash(),
+			Extra:      bc.genesisBlock.Extra(),
+			GasLimit:   bc.genesisBlock.GasLimit(),
+			GasUsed:    bc.genesisBlock.GasUsed(),
+			Difficulty: bc.genesisBlock.Difficulty(),
+			MixDigest:  bc.genesisBlock.MixDigest(),
+			Coinbase:   bc.genesisBlock.Coinbase(),
+			Root:       bc.genesisBlock.Root(),
+		}
+		head := types.SHeader{}
+		head.FillBy(head_)
+		return head.Hash()
+	}
+
+}
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (bc *BlockChain) loadLastState() error {
