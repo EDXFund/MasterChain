@@ -20,6 +20,10 @@ package core
 import (
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/common/math"
+	"github.com/EDXFund/MasterChain/consensus/ethash"
+	"github.com/EDXFund/MasterChain/qchain"
+
 	"io"
 	"math/big"
 	mrand "math/rand"
@@ -54,6 +58,10 @@ var (
 	ErrInvalidBlocks  = errors.New("no blocks")
 )
 
+type ShardPoolManagerIntf interface {
+	Setup(rootHash common.Hash)
+	InsertHeaders([]*types.HeaderIntf)
+}
 const (
 	bodyCacheLimit      = 256
 	blockCacheLimit     = 256
@@ -134,6 +142,8 @@ type BlockChain struct {
 	validator Validator // block and state validator interface
 	vmConfig  vm.Config
 
+	shards     map[uint16]*qchain.QChain
+
 	badBlocks      *lru.Cache              // Bad block cache
 	shouldPreserve func(types.BlockIntf) bool // Function used to determine whether should preserve the given block.
 }
@@ -158,7 +168,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bc := &BlockChain{
 		chainConfig:    chainConfig,
 		cacheConfig:    cacheConfig,
-		shardId:	shardId,
+		shardId:		shardId,
 		db:             db,
 		triegc:         prque.New(nil),
 		stateCache:     state.NewDatabase(db),
@@ -173,6 +183,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		vmConfig:       vmConfig,
 		badBlocks:      badBlocks,
 	}
+
+
 	bc.SetValidator(NewBlockValidator(chainConfig, bc, engine))
 	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine))
 
@@ -228,6 +240,36 @@ func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16{
 		return 0
 	}
 }
+
+// TestClientIndexerConfig wraps a set of configs as a test indexer config for client side.
+func (bc *BlockChain) SetupShardBlockInfos(shardInfos map[uint16]*types.ShardBlockInfo) {
+	if bc.shardId == types.ShardMaster {
+		bc.shards = make(map[uint16]*qchain.QChain)
+		//Load QChain from db
+		shardInfos := rawdb.ReadLastShardInfo(bc.db)
+		TestClientIndexerConfig := &qchain.IndexerConfig{
+			ChtSize:           512,
+			PairChtSize:       64,
+			ChtConfirms:       32,
+			BloomSize:         512,
+			BloomConfirms:     32,
+			BloomTrieSize:     512,
+			BloomTrieConfirms: 32,
+		}
+		allShards := math.Exp(common.Big2,new(big.Int).SetUint64( uint64(bc.CurrentHeader().ToHeader().ShardExp()))).Uint64()
+		for i := 0; i <= int(allShards); i++ {
+			shard,ok :=bc.shards[uint16(i)]
+			if !ok {
+				odr := &qchain.QOdr{sdb: bc.db, ldb: bc.db, indexerConfig: TestClientIndexerConfig}
+				shard,_ = qchain.NewQChain(odr, bc.chainConfig,ethash.NewFullFaker(),uint16(i))
+				bc.shards[uint16(i)] = shard
+			}
+
+			shard.SetHead(shardInfos[uint16(i)].NumberU64())
+		}
+	}
+}
+
 func (bc *BlockChain) GenesisHashOf (shardId uint16) common.Hash {
 	if shardId == types.ShardMaster{
 		head_ := &types.HeaderStruct{
@@ -1095,7 +1137,11 @@ func (bc *BlockChain) WriteBlockWithState(block types.BlockIntf, receipts []*typ
 	bc.futureBlocks.Remove(block.Hash())
 	return status, nil
 }
-
+//// InsertChain有三种情况：
+//// 1)当前是子链节点，需要插入对应的子链区块
+//// 2)当前是主链，需要插入对应的主链区块
+///  3)当前是主链，需要将区块插入到对应的分片系统中
+//// 在1和2的情况下，需要更新状态 3只需要把区块头插入到分片管理系统中
 // InsertChain attempts to insert the given batch of blocks in to the canonical
 // chain or, otherwise, create a fork. If an error is returned it will return
 // the index number of the failing block as well an error describing what went
@@ -1176,7 +1222,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 	// Iterate over the blocks and insert when the verifier permits
 	for i, block := range chain {
-		fmt.Println("Number:",block.NumberU64(),"hash:",block.Hash(),"header:",block.Header().Hash())
+//		fmt.Println("Number:",block.NumberU64(),"hash:",block.Hash(),"header:",block.Header().Hash())
 		// If the chain is terminating, stop processing blocks
 		if atomic.LoadInt32(&bc.procInterrupt) == 1 {
 			log.Debug("Premature abort during blocks processing")
@@ -1287,7 +1333,6 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 		// Write the block to the chain and get the status.
 		status, err := bc.WriteBlockWithState(block, receipts, state)
-		fmt.Println("Number:",block.NumberU64(),"hash:",block.Hash(),"header:",block.Header().Hash())
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}

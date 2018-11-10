@@ -38,6 +38,7 @@ type SHeader struct {
 	extra       []byte      `json:"extraData"        gencodec:"required"`
 	mixDigest   common.Hash `json:"mixHash"          gencodec:"required"`
 	nonce       BlockNonce  `json:"nonce"            gencodec:"required"`
+	dirty       bool
 }
 type SHeaderStruct struct {
 	ShardId    uint16      `json:"shardId"			gencodec:"required"`
@@ -193,28 +194,28 @@ func (b *SHeader) Extra() []byte { return b.extra }
 func (b *SHeader) ShardTxsHash() common.Hash {return EmptyRootHash }
 func (b *SHeader) ResultHash() common.Hash {return b.receiptHash }
 
-func (b *SHeader) SetShardId(shardId uint16)  { b.shardId = shardId }
+func (b *SHeader) SetShardId(shardId uint16)  { b.shardId = shardId ; b.setHashDirty(true) }
 
-func (b *SHeader) SetNumber(v *big.Int){b.number = new(big.Int).Set(v)}
-func (b *SHeader) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v)}
+func (b *SHeader) SetNumber(v *big.Int){b.number = new(big.Int).Set(v); b.setHashDirty(true) }
+func (b *SHeader) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v); b.setHashDirty(true) }
 
-func (b *SHeader) SetParentHash(v common.Hash){b.parentHash = v}
-func (b *SHeader) SetUncleHash(v common.Hash){}
-func (b *SHeader) SetReceiptHash(v common.Hash){b.receiptHash =v }
-func (b *SHeader) SetTxHash(v common.Hash){b.txHash = v}
+func (b *SHeader) SetParentHash(v common.Hash){b.parentHash = v; b.setHashDirty(true) }
+func (b *SHeader) SetUncleHash(v common.Hash){; b.setHashDirty(true) }
+func (b *SHeader) SetReceiptHash(v common.Hash){b.receiptHash =v ; b.setHashDirty(true) }
+func (b *SHeader) SetTxHash(v common.Hash){b.txHash = v; b.setHashDirty(true) }
 func (b *SHeader) SetExtra(v []byte){
-	b.extra = common.CopyBytes(v)
-	}
-func (b *SHeader) SetTime(v *big.Int){b.time = v}
-func (b *SHeader) SetCoinbase(v common.Address) {b.coinbase = v}
-func (b *SHeader) SetRoot(v common.Hash){b.root = v}
-func (b *SHeader) SetBloom(v Bloom){b.bloom = v}
-func (b *SHeader) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64())}
-func (b *SHeader) SetGasLimit(v  uint64) { b.gasLimit = v}
-func (b *SHeader) SetGasUsed(v uint64) { b.gasUsed = v}
-func (b *SHeader) SetMixDigest(v common.Hash){b.mixDigest = v}
-func (b *SHeader) SetNonce(v BlockNonce) {b.nonce = v}
-
+	b.extra = common.CopyBytes(v); b.setHashDirty(true)
+}
+func (b *SHeader) SetTime(v *big.Int){b.time = v; b.setHashDirty(true) }
+func (b *SHeader) SetCoinbase(v common.Address) {b.coinbase = v; b.setHashDirty(true) }
+func (b *SHeader) SetRoot(v common.Hash){b.root = v; b.setHashDirty(true) }
+func (b *SHeader) SetBloom(v Bloom){b.bloom = v; b.setHashDirty(true) }
+func (b *SHeader) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64()); b.setHashDirty(true) }
+func (b *SHeader) SetGasLimit(v  uint64) { b.gasLimit = v; b.setHashDirty(true) }
+func (b *SHeader) SetGasUsed(v uint64) { b.gasUsed = v; b.setHashDirty(true) }
+func (b *SHeader) SetMixDigest(v common.Hash){b.mixDigest = v; b.setHashDirty(true) }
+func (b *SHeader) SetNonce(v BlockNonce) {b.nonce = v; b.setHashDirty(true) }
+func (b *SHeader) setHashDirty(v bool) {b.dirty = v }
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type SBody struct {
@@ -262,7 +263,7 @@ func (b *SBlock) ReceivedAt() time.Time {
 	return b.receivedAt
 }
 func (b *SBlock) SetReceivedAt(t time.Time) {
-	b.hash.Store(nil)
+
 	b.receivedAt = t
 }
 func (b *SBlock) ToSBlock() *SBlock { return b }
@@ -507,11 +508,12 @@ func (b *SBlock)WithBodyOfShardBlocks(shardBlocksInfos []*ShardBlockInfo, uncles
 // Hash returns the keccak256 hash of b's header.
 // The hash is computed on the first call and cached thereafter.
 func (b *SBlock) Hash() common.Hash {
-	if hash := b.hash.Load(); (hash != nil && hash != common.Hash{} ){
+	if  hash := b.hash.Load(); (!b.header.dirty && hash != nil  && hash != common.Hash{} ){
 		return hash.(common.Hash)
 	}
 	v := b.header.Hash()
 	b.hash.Store(v)
+	b.header.dirty = false
 	return v
 }
 

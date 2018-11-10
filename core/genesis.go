@@ -165,6 +165,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 			log.Info("Writing custom genesis block")
 		}
 		block, err := genesis.Commit(db,shardId)
+
 		return genesis.Config, block.Hash(), err
 	}
 

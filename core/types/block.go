@@ -56,6 +56,7 @@ type Header struct {
 	extra          []byte         `json:"extraData"        gencodec:"required"`
 	mixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
 	nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
+	dirty          bool
 }
 
 type HeaderStruct struct {
@@ -102,6 +103,8 @@ func (h *Header) FillBy(h2 *HeaderStruct){
 	h.extra  = h2.Extra
 	h.mixDigest = h2.MixDigest
 	h.nonce	    = h2.Nonce
+
+	h.dirty = true
 }
 func (h *Header) ToHeaderStruct() *HeaderStruct {
 	return &HeaderStruct{
@@ -129,6 +132,9 @@ func (h *Header) ToHeaderStruct() *HeaderStruct {
 }
 func (h *Header) ShardId() uint16 {
 	return ShardMaster
+}
+func (h *Header)setHashDirty(dirty bool){
+	h.dirty = dirty
 }
 func (h *Header) ToHeader() *Header {
 	return h
@@ -184,31 +190,33 @@ func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
 func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
 func (b *Header) LastBlocksHash() common.Hash {return b.lastBlocksHash}
 
-func (b *Header) ShardExp() uint16      { return b.shardMaskEp }
+func (b *Header) ShardExp() uint16      {return b.shardMaskEp }
 func (b *Header) ShardEnabled() [32]byte { return b.shardEnabled }
 
-func (b *Header) SetShardId(v uint16){}
-func (b *Header) SetNumber(v *big.Int){b.number = new(big.Int).Set(v)}
-func (b *Header) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v)}
+func (b *Header) SetShardId(v uint16){; b.setHashDirty(true)}
+func (b *Header) SetNumber(v *big.Int){b.number = new(big.Int).Set(v) ; b.setHashDirty(true)}
+func (b *Header) SetNumberU64(v uint64){b.number = new(big.Int).SetUint64(v); b.setHashDirty(true)}
 
-func (b *Header) SetParentHash(v common.Hash){b.parentHash = v}
-func (b *Header) SetUncleHash(v common.Hash){b.uncleHash = v}
-func (b *Header) SetReceiptHash(v common.Hash){b.receiptHash =v }
-func (b *Header) SetTxHash(v common.Hash){}
-func (b *Header) SetShardTxHash(v common.Hash){b.shardTxsHash = v}
-func (b *Header) SetExtra(v []byte){b.extra = common.CopyBytes(v)}
+func (b *Header) SetParentHash(v common.Hash){b.parentHash = v; b.setHashDirty(true)}
+func (b *Header) SetUncleHash(v common.Hash){b.uncleHash = v; b.setHashDirty(true)}
+func (b *Header) SetReceiptHash(v common.Hash){b.receiptHash =v ; b.setHashDirty(true)}
+func (b *Header) SetTxHash(v common.Hash){; b.setHashDirty(true)}
+func (b *Header) SetShardTxHash(v common.Hash){b.shardTxsHash = v; b.setHashDirty(true)}
+func (b *Header) SetExtra(v []byte){b.extra = common.CopyBytes(v); b.setHashDirty(true)}
 func (b *Header) SetTime(v *big.Int){b.time = v}
 func (b *Header) SetCoinbase(v common.Address) {
-	b.coinbase = v
+	b.coinbase = v; b.setHashDirty(true)
 	}
-func (b *Header) SetRoot(v common.Hash){b.root = v}
-func (b *Header) SetBloom(v Bloom){b.bloom = v}
-func (b *Header) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64())}
-func (b *Header) SetGasLimit(v  uint64) { b.gasLimit = v}
-func (b *Header) SetGasUsed(v uint64) { b.gasUsed = v}
-func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v}
-func (b *Header) SetNonce(v BlockNonce) {b.nonce = v}
-func (b *Header) SetLastBlocksHash(v common.Hash ) { b.lastBlocksHash =v }
+func (b *Header) SetRoot(v common.Hash){b.root = v; b.setHashDirty(true)}
+func (b *Header) SetBloom(v Bloom){b.bloom = v; b.setHashDirty(true)}
+func (b *Header) SetDifficulty( v *big.Int){b.difficulty = new(big.Int).SetUint64(v.Uint64()); b.setHashDirty(true)}
+func (b *Header) SetGasLimit(v  uint64) { b.gasLimit = v; b.setHashDirty(true)}
+func (b *Header) SetGasUsed(v uint64) {
+	b.gasUsed = v; b.setHashDirty(true)
+	}
+func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v; b.setHashDirty(true)}
+func (b *Header) SetNonce(v BlockNonce) {b.nonce = v; b.setHashDirty(true)}
+func (b *Header) SetLastBlocksHash(v common.Hash ) { b.lastBlocksHash =v ; b.setHashDirty(true)}
 
 
 type ShardBlockInfo struct {
@@ -291,6 +299,7 @@ func (b *Block) ReceivedAt() time.Time {
 }
 //
 func (b *Block) SetReceivedAt(tm time.Time)  {
+
 	b.receivedAt = tm
 }
 // DeprecatedTd is an old relic for extracting the TD of a block. It is in the
@@ -561,11 +570,13 @@ func (b *Block) WithBodyOfTransactions(transactions []*Transaction, receitps []*
 // Hash returns the keccak256 hash of b's header.
 // The hash is computed on the first call and cached thereafter.
 func (b *Block) Hash() common.Hash {
-	if hash := b.hash.Load(); (hash != nil  && hash != common.Hash{} ){
+
+	if  hash := b.hash.Load(); (!b.header.dirty && hash != nil  && hash != common.Hash{} ){
 		return hash.(common.Hash)
 	}
 	v := b.header.Hash()
 	b.hash.Store(v)
+	b.header.dirty = false
 	return v
 }
 

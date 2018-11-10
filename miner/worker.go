@@ -13,7 +13,10 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
+/***
+   如果是子链分片节点，关心txsch和chainHead通道（Header的ShardId和自身的一致）
+   如果是主链节点，关心的是shardInfo和chainHead通道（Header的ShardId和自身的一致）
+ */
 package miner
 
 import (

@@ -19,7 +19,6 @@ package rawdb
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 	"reflect"
 
@@ -131,7 +130,6 @@ func WriteFastTrieProgress(db DatabaseWriter, count uint64) {
 // ReadHeaderRLP retrieves a block header in its raw RLP database encoding.
 func ReadHeaderRLP(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) rlp.RawValue {
 	key:=headerKey(number, shardId,hash)
-	fmt.Println("retrieve len:",len(key),"\tval:",key)
 	data, _ := db.Get(key)
 	return data
 }
@@ -144,6 +142,17 @@ func HasHeader(db DatabaseReader, shardId uint16, hash common.Hash, number uint6
 	return true
 }
 
+func ReadLastShardInfo(db DatabaseReader) []*types.ShardBlockInfo{
+	key := shardHeadBlockKey
+	data, err := db.Get(key)
+	result := []*types.ShardBlockInfo{}
+	if err == nil {
+		rlp.DecodeBytes(data,result)
+		return result
+	} else {
+		return nil
+	}
+}
 // ReadHeader retrieves the block header corresponding to the hash.
 func ReadHeader(db DatabaseReader, shardId uint16,hash common.Hash, number uint64) types.HeaderIntf {
 	data := ReadHeaderRLP(db, shardId, hash, number)
@@ -208,7 +217,6 @@ func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 	}
 	key = headerKey(number, header.ShardId(),hash)
 
-	fmt.Println("Set Key len:",len(key), "\t val:",key)
 	if err := db.Put(key, data); err != nil {
 		log.Crit("Failed to store header", "err", err)
 	}

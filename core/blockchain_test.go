@@ -199,6 +199,7 @@ func insertChain(done chan bool, blockchain *BlockChain, chain types.BlockIntfs,
 func TestLastBlock(t *testing.T) {
 	testLastBlock(t, types.ShardMaster)
 	testLastBlock(t,0)
+	testLastBlock(t,23)
 }
 func testLastBlock(t *testing.T,shardId uint16) {
 	_, blockchain, err := newCanonical(ethash.NewFaker(), 0, true,shardId)
@@ -214,6 +215,7 @@ func testLastBlock(t *testing.T,shardId uint16) {
 	if blocks[len(blocks)-1].Hash() != rawdb.ReadHeadBlockHash(blockchain.db, blockchain.ShardId()) {
 		t.Fatalf("Write/Get HeadBlockHash failed")
 	}
+	fmt.Println(" master:",blockchain.GenesisHashOf(0xFFFF)," 0:",blockchain.GenesisHashOf(0)," this:",blockchain.GenesisHashOf(shardId));
 }
 
 // Tests that given a starting canonical chain of a given size, it can be extended

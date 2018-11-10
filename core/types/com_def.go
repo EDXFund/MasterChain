@@ -331,6 +331,8 @@ type HeaderIntf interface {
 	SetGasUsed( uint64)
 	SetMixDigest( common.Hash)
 	SetNonce( BlockNonce)
+
+	setHashDirty(bool)
 }
 
 type SuperBody struct {

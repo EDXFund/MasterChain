@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package qzchain
+package qchain
 
 import (
 	"context"
@@ -59,11 +59,11 @@ func makeHeaderChain(parent types.HeaderIntf, n int, db ethdb.Database, seed int
 // newCanonical creates a chain database, and injects a deterministic canonical
 // chain. Depending on the full flag, if creates either a full block chain or a
 // header only chain.
-func newCanonical(n int,shardId uint16) (ethdb.Database, *LightChain, error) {
+func newCanonical(n int,shardId uint16) (ethdb.Database, *QChain, error) {
 	db := ethdb.NewMemDatabase()
 	gspec := core.Genesis{Config: params.TestChainConfig}
 	genesis := gspec.MustCommit(db,shardId)
-	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, ethash.NewFaker(),shardId)
+	blockchain, _ := NewQChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, ethash.NewFaker(),shardId)
 
 	// Create and inject the requested chain
 	if n == 0 {
@@ -76,15 +76,15 @@ func newCanonical(n int,shardId uint16) (ethdb.Database, *LightChain, error) {
 
 }
 
-// newTestLightChain creates a LightChain that doesn't validate anything.
-func newTestLightChain(shardId uint16) *LightChain {
+// newTestLightChain creates a QChain that doesn't validate anything.
+func newTestLightChain(shardId uint16) *QChain {
 	db := ethdb.NewMemDatabase()
 	gspec := &core.Genesis{
 		Difficulty: big.NewInt(1),
 		Config:     params.TestChainConfig,
 	}
 	gspec.MustCommit(db,shardId)
-	lc, err := NewLightChain(&dummyOdr{db: db}, gspec.Config, ethash.NewFullFaker(),shardId)
+	lc, err := NewQChain(&dummyOdr{db: db}, gspec.Config, ethash.NewFullFaker(),shardId)
 	if err != nil {
 		panic(err)
 	}
@@ -92,15 +92,15 @@ func newTestLightChain(shardId uint16) *LightChain {
 }
 
 // Test fork of length N starting from block i
-func testFork(t *testing.T, LightChain *LightChain, i, n int, shardId uint16,comparator func(td1, td2 *big.Int)) {
+func testFork(t *testing.T, QChain *QChain, i, n int, shardId uint16,comparator func(td1, td2 *big.Int)) {
 	// Copy old chain up to #i into a new db
-	db, LightChain2, err := newCanonical(i,shardId)
+	db, LightChain2, err := newCanonical(i+7,shardId)
 	if err != nil {
 		t.Fatal("could not make new canonical in testFork", err)
 	}
 	// Assert the chains have the same header/block at #i
 	var hash1, hash2 common.Hash
-	hash1 = LightChain.GetHeaderByNumber(uint64(i)).Hash()
+	hash1 = QChain.GetHeaderByNumber(uint64(i)).Hash()
 	hash2 = LightChain2.GetHeaderByNumber(uint64(i)).Hash()
 	if hash1 != hash2 {
 		t.Errorf("chain content mismatch at %d: have hash %v, want hash %v", i, hash2, hash1)
@@ -113,18 +113,18 @@ func testFork(t *testing.T, LightChain *LightChain, i, n int, shardId uint16,com
 	// Sanity check that the forked chain can be imported into the original
 	var tdPre, tdPost *big.Int
 
-	tdPre = LightChain.GetTdByHash(LightChain.CurrentHeader().Hash())
-	if err := testHeaderChainImport(headerChainB, LightChain); err != nil {
+	tdPre = QChain.GetTdByHash(QChain.CurrentHeader().Hash())
+	if err := testHeaderChainImport(headerChainB, QChain); err != nil {
 		t.Fatalf("failed to import forked header chain: %v", err)
 	}
-	tdPost = LightChain.GetTdByHash(headerChainB[len(headerChainB)-1].Hash())
+	tdPost = QChain.GetTdByHash(headerChainB[len(headerChainB)-1].Hash())
 	// Compare the total difficulties of the chains
 	comparator(tdPre, tdPost)
 }
 
 // testHeaderChainImport tries to process a chain of header, writing them into
 // the database if successful.
-func testHeaderChainImport(chain []types.HeaderIntf, lightchain *LightChain) error {
+func testHeaderChainImport(chain []types.HeaderIntf, lightchain *QChain) error {
 	for _, header := range chain {
 		// Try and validate the header
 		if err := lightchain.engine.VerifyHeader(lightchain.hc, header, true); err != nil {
@@ -132,7 +132,7 @@ func testHeaderChainImport(chain []types.HeaderIntf, lightchain *LightChain) err
 		}
 		// Manually insert the header into the database, but don't reorganize (allows subsequent testing)
 		lightchain.mu.Lock()
-		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.NumberU64(), new(big.Int).Add(header.Difficulty(), lightchain.GetTdByHash(header.ParentHash())))
+		rawdb.WriteTd(lightchain.chainDb, lightchain.shardId , header.Hash(), header.NumberU64(), new(big.Int).Add(header.Difficulty(), lightchain.GetTdByHash(header.ParentHash())))
 		rawdb.WriteHeader(lightchain.chainDb, header)
 		lightchain.mu.Unlock()
 	}
@@ -146,7 +146,7 @@ func testExtendCanonicalHeaders(t *testing.T,shardId uint16) {
 	length := 5
 
 	// Make first chain starting from genesis
-	_, processor, err := newCanonical(length,shardId)
+	_, processor, err := newCanonical(length+8,shardId)
 	if err != nil {
 		t.Fatalf("failed to make new canonical chain: %v", err)
 	}
@@ -263,13 +263,13 @@ func TestBrokenHeaderChainShard(t *testing.T) {
 // Tests that chains missing links do not get accepted by the processor.
 func testBrokenHeaderChain(t *testing.T,shardId uint16) {
 	// Make chain starting from genesis
-	db, LightChain, err := newCanonical(10, shardId)
+	db, QChain, err := newCanonical(10, shardId)
 	if err != nil {
 		t.Fatalf("failed to make new canonical chain: %v", err)
 	}
 	// Create a forked chain, and try to insert with a missing link
-	chain := makeHeaderChain(LightChain.CurrentHeader(), 5, db, forkSeed)[1:]
-	if err := testHeaderChainImport(chain, LightChain); err == nil {
+	chain := makeHeaderChain(QChain.CurrentHeader(), 5, db, forkSeed)[1:]
+	if err := testHeaderChainImport(chain, QChain); err == nil {
 		t.Errorf("broken header chain not reported")
 	}
 }
@@ -414,8 +414,8 @@ func testReorgBadHeaderHashes(t *testing.T,shardId uint16) {
 	core.BadHashes[headers[3].Hash()] = true
 	defer func() { delete(core.BadHashes, headers[3].Hash()) }()
 
-	// Create a new LightChain and check that it rolled back the state.
-	ncm, err := NewLightChain(&dummyOdr{db: bc.chainDb}, params.TestChainConfig, ethash.NewFaker(),shardId)
+	// Create a new QChain and check that it rolled back the state.
+	ncm, err := NewQChain(&dummyOdr{db: bc.chainDb}, params.TestChainConfig, ethash.NewFaker(),shardId)
 	if err != nil {
 		t.Fatalf("failed to create new chain manager: %v", err)
 	}

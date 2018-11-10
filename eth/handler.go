@@ -514,6 +514,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		//当主链收到区块信息时，需要同步确认区块中对应的分片区块是否已经读取，如果没有，需要读取完成
 		if request.ShardId == types.ShardMaster {
 			// Deliver them all to the downloader for queuing
 			bodyData := make ([]*blockMasterBody,1)
