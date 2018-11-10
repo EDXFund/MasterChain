@@ -156,7 +156,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 	}
 
 	// Just commit the new block if there is no stored genesis block.
-	stored := rawdb.ReadCanonicalHash(db, shardId,0)
+	stored := rawdb.ReadCanonicalHash(db, shardId, 0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
 			log.Info("Writing default main-net genesis block")
@@ -164,7 +164,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 		} else {
 			log.Info("Writing custom genesis block")
 		}
-		block, err := genesis.Commit(db,shardId)
+		block, err := genesis.Commit(db, shardId)
 		return genesis.Config, block.Hash(), err
 	}
 
@@ -193,7 +193,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
-	height := rawdb.ReadHeaderNumber(db, shardId,rawdb.ReadHeadHeaderHash(db,shardId))
+	height := rawdb.ReadHeaderNumber(db, shardId, rawdb.ReadHeadHeaderHash(db, shardId))
 	if height == nil {
 		return newcfg, stored, fmt.Errorf("missing block number for head header hash")
 	}
@@ -220,11 +220,12 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 func (g *Genesis) Hashof(shardId uint16) common.Hash {
 	db := ethdb.NewMemDatabase()
 	defer db.Close()
-	block, err := g.Commit(db,shardId)
+	block, err := g.Commit(db, shardId)
 	panic(err)
 	return block.Hash()
 
 }
+
 // ToBlock creates the genesis b lock and writes state of a genesis specification
 // to the given database (or discards it if nil).
 func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
@@ -242,7 +243,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 		}
 	}
 	root := statedb.IntermediateRoot(false)
-	head := new (types.Header)
+	head := new(types.Header)
 	head_ := &types.HeaderStruct{
 		Number:     new(big.Int).SetUint64(g.Number),
 		Nonce:      types.EncodeNonce(g.Nonce),
@@ -259,10 +260,10 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	head.FillBy(head_)
 
 	if g.GasLimit == 0 {
-		head.SetGasLimit (params.GenesisGasLimit)
+		head.SetGasLimit(params.GenesisGasLimit)
 	}
 	if g.Difficulty == nil {
-		head.SetDifficulty (params.GenesisDifficulty)
+		head.SetDifficulty(params.GenesisDifficulty)
 	}
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
@@ -272,7 +273,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 
 // ToBlock creates the genesis block and writes state of a genesis specification
 // to the given database (or discards it if nil).
-func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
+func (g *Genesis) ToSBlock(db ethdb.Database, shardId uint16) types.BlockIntf {
 	if db == nil {
 		db = ethdb.NewMemDatabase()
 	}
@@ -286,9 +287,9 @@ func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
 		}
 	}
 	root := statedb.IntermediateRoot(false)
-	head := new (types.SHeader)
+	head := new(types.SHeader)
 	head_ := &types.SHeaderStruct{
-		ShardId:shardId,
+		ShardId:    shardId,
 		Number:     new(big.Int).SetUint64(g.Number),
 		Nonce:      types.EncodeNonce(g.Nonce),
 		Time:       new(big.Int).SetUint64(g.Timestamp),
@@ -304,10 +305,10 @@ func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
 	head.FillBy(head_)
 
 	if g.GasLimit == 0 {
-		head.SetGasLimit (params.GenesisGasLimit)
+		head.SetGasLimit(params.GenesisGasLimit)
 	}
 	if g.Difficulty == nil {
-		head.SetDifficulty (params.GenesisDifficulty)
+		head.SetDifficulty(params.GenesisDifficulty)
 	}
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
@@ -315,17 +316,14 @@ func (g *Genesis) ToSBlock(db ethdb.Database,shardId uint16) types.BlockIntf {
 	return types.NewSBlock(head, nil, nil)
 }
 
-
-
-
 // Commit writes the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
-func (g *Genesis) Commit(db ethdb.Database,shardId uint16) (types.BlockIntf, error) {
+func (g *Genesis) Commit(db ethdb.Database, shardId uint16) (types.BlockIntf, error) {
 	var block types.BlockIntf
 	if shardId == types.ShardMaster {
 		block = g.ToBlock(db)
-	}else {
-		block = g.ToSBlock(db,shardId)
+	} else {
+		block = g.ToSBlock(db, shardId)
 	}
 
 	if block.Number().Sign() != 0 {
@@ -349,8 +347,8 @@ func (g *Genesis) Commit(db ethdb.Database,shardId uint16) (types.BlockIntf, err
 
 // MustCommit writes the genesis block and state to db, panicking on error.
 // The block is committed as the canonical head block.
-func (g *Genesis) MustCommit(db ethdb.Database,shardId uint16) types.BlockIntf {
-	block, err := g.Commit(db,shardId)
+func (g *Genesis) MustCommit(db ethdb.Database, shardId uint16) types.BlockIntf {
+	block, err := g.Commit(db, shardId)
 	if err != nil {
 		panic(err)
 	}
@@ -358,9 +356,9 @@ func (g *Genesis) MustCommit(db ethdb.Database,shardId uint16) types.BlockIntf {
 }
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
-func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int,shardId uint16) types.BlockIntf {
+func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int, shardId uint16) types.BlockIntf {
 	g := Genesis{Alloc: GenesisAlloc{addr: {Balance: balance}}}
-	return g.MustCommit(db,shardId)
+	return g.MustCommit(db, shardId)
 }
 
 // DefaultGenesisBlock returns the Ethereum main net genesis block.
@@ -369,7 +367,7 @@ func DefaultGenesisBlock() *Genesis {
 		Config:     params.MainnetChainConfig,
 		Nonce:      66,
 		ExtraData:  hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
-		GasLimit:   5000,
+		GasLimit:   16777216,
 		Difficulty: big.NewInt(17179869184),
 		Alloc:      decodePrealloc(mainnetAllocData),
 	}
@@ -406,6 +404,7 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	config := *params.AllCliqueProtocolChanges
 	config.Clique.Period = period
 
+	add, _ := hexutil.Decode("0xEa3a1E0735507dBd305555A48411457D03AD4e88")
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
 		Config:     &config,
@@ -421,6 +420,7 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
 			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
 			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
+			common.BytesToAddress(add):       {Balance: big.NewInt(1024)},
 			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
 		},
 	}

@@ -73,20 +73,21 @@ type txdataMarshaling struct {
 	S            *hexutil.Big
 }
 
-func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data)
+func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, tokenId uint64) *Transaction {
+	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data, tokenId)
 }
 
-func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data)
+func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, tokenId uint64) *Transaction {
+	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data, tokenId)
 }
 
-func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, tokenId uint64) *Transaction {
 	if len(data) > 0 {
 		data = common.CopyBytes(data)
 	}
 	d := txdata{
 		AccountNonce: nonce,
+		TokenId:      tokenId,
 		Recipient:    to,
 		Payload:      data,
 		Amount:       new(big.Int),
@@ -415,7 +416,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, token uin
 func (m Message) From() common.Address { return m.from }
 func (m Message) To() *common.Address  { return m.to }
 func (m Message) GasPrice() *big.Int   { return m.gasPrice }
-func (m Message) TokenId() uint64        { return m.token }
+func (m Message) TokenId() uint64      { return m.token }
 func (m Message) Value() *big.Int      { return m.amount }
 func (m Message) Gas() uint64          { return m.gasLimit }
 func (m Message) Nonce() uint64        { return m.nonce }
