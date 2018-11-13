@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package qzchain
+package qchain
 
 import (
 	"context"
@@ -58,7 +58,7 @@ type TxPool struct {
 	chainHeadCh  chan core.ChainHeadEvent
 	chainHeadSub event.Subscription
 	mu           sync.RWMutex
-	chain        *LightChain
+	chain        *QChain
 	odr          OdrBackend
 	chainDb      ethdb.Database
 	relay        TxRelayBackend
@@ -87,7 +87,7 @@ type TxRelayBackend interface {
 }
 
 // NewTxPool creates a new light transaction pool
-func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBackend) *TxPool {
+func NewTxPool(config *params.ChainConfig, chain *QChain, relay TxRelayBackend) *TxPool {
 	pool := &TxPool{
 		config:      config,
 		signer:      types.NewEIP155Signer(config.ChainID),
@@ -163,12 +163,12 @@ func (txc txStateChanges) getLists() (mined []common.Hash, rollback []common.Has
 // checkMinedTxs checks newly added blocks for the currently pending transactions
 // and marks them as mined if necessary. It also stores block position in the db
 // and adds them to the received txStateChanges map.
-func (pool *TxPool) checkMinedTxs(ctx context.Context, hash common.Hash, number uint64, txc txStateChanges) error {
+func (pool *TxPool) checkMinedTxs(ctx context.Context, shardId uint16, hash common.Hash, number uint64, txc txStateChanges) error {
 	// If no transactions are pending, we don't care about anything
 	if len(pool.pending) == 0 {
 		return nil
 	}
-	block, err := GetBlock(ctx, pool.odr, hash, number)
+	block, err := GetBlock(ctx, pool.odr, shardId, hash, number)
 	if err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader types.HeaderIn
 	// check mined txs of new blocks (array is in reversed order)
 	for i := len(newHashes) - 1; i >= 0; i-- {
 		hash := newHashes[i]
-		if err := pool.checkMinedTxs(ctx, hash, newHeader.NumberU64()-uint64(i), txc); err != nil {
+		if err := pool.checkMinedTxs(ctx, newHeader.ShardId(), hash, newHeader.NumberU64()-uint64(i), txc); err != nil {
 			return txc, err
 		}
 		pool.head = hash
@@ -261,7 +261,7 @@ func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader types.HeaderIn
 		idx2 := idx - txPermanent
 		if len(pool.mined) > 0 {
 			for i := pool.clearIdx; i < idx2; i++ {
-				hash := rawdb.ReadCanonicalHash(pool.chainDb, i)
+				hash := rawdb.ReadCanonicalHash(pool.chainDb, newHeader.ShardId(), i)
 				if list, ok := pool.mined[hash]; ok {
 					hashes := make([]common.Hash, len(list))
 					for i, tx := range list {

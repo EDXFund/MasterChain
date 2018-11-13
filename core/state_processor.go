@@ -45,7 +45,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 		engine: engine,
 	}
 }
-
+//状态处理有两种：当前是主链，处理某个分片信息或者当前是子链，同步其他节点生成的子链区块
 // Process processes the state changes according to the Ethereum rules by running
 // the transaction messages using the statedb and applying any rewards to both
 // the processor (coinbase) and any included uncles.

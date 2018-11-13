@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package qzchain
+package qchain
 
 import (
 	"context"
@@ -44,11 +44,11 @@ var (
 	blockCacheLimit = 256
 )
 
-// QzChain represents a canonical chain that by default only handles block
+// QChain represents a canonical chain that by default only handles block
 // headers, downloading block bodies and receipts on demand through an ODR
 // interface. It only does header validation during chain insertion.
-type QzChain struct {
-	hc            *core.HeaderChain
+type QChain struct {
+	hc            *QHeaderChain
 	shardId       uint16
 	indexerConfig *IndexerConfig
 	chainDb       ethdb.Database
@@ -78,12 +78,12 @@ type QzChain struct {
 // NewLightChain returns a fully initialised light chain using information
 // available in the database. It initialises the default Ethereum header
 // validator.
-func NewShardChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine,shardId uint16) (*QzChain, error) {
+func NewQChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine,shardId uint16) (*QChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
 
-	bc := &QzChain{
+	bc := &QChain{
 		chainDb:       odr.Database(),
 		indexerConfig: odr.IndexerConfig(),
 		shardId:	   shardId,
@@ -95,7 +95,7 @@ func NewShardChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		engine:        engine,
 	}
 	var err error
-	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt,shardId)
+	bc.hc, err = NewQHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt,shardId)
 	if err != nil {
 		return nil, err
 	}
@@ -125,11 +125,11 @@ func NewShardChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	}
 	return bc, nil
 }
-func (self *QzChain) ShardId() uint16 {
+func (self *QChain) ShardId() uint16 {
 	return self.shardId
 }
 // addTrustedCheckpoint adds a trusted checkpoint to the blockchain
-func (self *QzChain) addTrustedCheckpoint(cp *params.TrustedCheckpoint) {
+func (self *QChain) addTrustedCheckpoint(cp *params.TrustedCheckpoint) {
 	if self.odr.ChtIndexer() != nil {
 		StoreChtRoot(self.chainDb, cp.SectionIndex, cp.SectionHead, cp.CHTRoot)
 		self.odr.ChtIndexer().AddCheckpoint(cp.SectionIndex, cp.SectionHead)
@@ -144,18 +144,18 @@ func (self *QzChain) addTrustedCheckpoint(cp *params.TrustedCheckpoint) {
 	log.Info("Added trusted checkpoint", "chain", cp.Name, "block", (cp.SectionIndex+1)*self.indexerConfig.ChtSize-1, "hash", cp.SectionHead)
 }
 
-func (self *QzChain) getProcInterrupt() bool {
+func (self *QChain) getProcInterrupt() bool {
 	return atomic.LoadInt32(&self.procInterrupt) == 1
 }
 
 // Odr returns the ODR backend of the chain
-func (self *QzChain) Odr() OdrBackend {
+func (self *QChain) Odr() OdrBackend {
 	return self.odr
 }
 
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
-func (self *QzChain) loadLastState() error {
+func (self *QChain) loadLastState() error {
 	if head := rawdb.ReadHeadHeaderHash(self.chainDb,self.shardId); head == (common.Hash{}) {
 		// Corrupt or empty database, init from scratch
 		self.Reset()
@@ -175,7 +175,7 @@ func (self *QzChain) loadLastState() error {
 
 // SetHead rewinds the local chain to a new head. Everything above the new
 // head will be deleted and the new one set.
-func (bc *QzChain) SetHead(head uint64) {
+func (bc *QChain) SetHead(head uint64) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
@@ -184,18 +184,18 @@ func (bc *QzChain) SetHead(head uint64) {
 }
 
 // GasLimit returns the gas limit of the current HEAD block.
-func (self *QzChain) GasLimit() uint64 {
+func (self *QChain) GasLimit() uint64 {
 	return self.hc.CurrentHeader().GasLimit()
 }
 
 // Reset purges the entire blockchain, restoring it to its genesis state.
-func (bc *QzChain) Reset() {
+func (bc *QChain) Reset() {
 	bc.ResetWithGenesisBlock(bc.genesisBlock)
 }
 
 // ResetWithGenesisBlock purges the entire blockchain, restoring it to the
 // specified genesis state.
-func (bc *QzChain) ResetWithGenesisBlock(genesis types.BlockIntf) {
+func (bc *QChain) ResetWithGenesisBlock(genesis types.BlockIntf) {
 	// Dump the entire block chain and purge the caches
 	bc.SetHead(0)
 
@@ -214,21 +214,21 @@ func (bc *QzChain) ResetWithGenesisBlock(genesis types.BlockIntf) {
 // Accessors
 
 // Engine retrieves the light chain's consensus engine.
-func (bc *QzChain) Engine() consensus.Engine { return bc.engine }
+func (bc *QChain) Engine() consensus.Engine { return bc.engine }
 
 // Genesis returns the genesis block
-func (bc *QzChain) Genesis() types.BlockIntf {
+func (bc *QChain) Genesis() types.BlockIntf {
 	return bc.genesisBlock
 }
 
 // State returns a new mutable state based on the current HEAD block.
-func (bc *QzChain) State() (*state.StateDB, error) {
+func (bc *QChain) State() (*state.StateDB, error) {
 	return nil, errors.New("not implemented, needs client/server interface split")
 }
 
 // GetBody retrieves a block body (transactions and uncles) from the database
 // or ODR service by hash, caching it if found.
-func (self *QzChain) GetBody(ctx context.Context, hash common.Hash) ( *types.SuperBody, error) {
+func (self *QChain) GetBody(ctx context.Context, hash common.Hash) ( *types.SuperBody, error) {
 	// Short circuit if the body's already in the cache, retrieve otherwise
 	if cached, ok := self.bodyCache.Get(hash); ok {
 		body := cached.(*types.SuperBody)
@@ -238,7 +238,7 @@ func (self *QzChain) GetBody(ctx context.Context, hash common.Hash) ( *types.Sup
 	if number == nil {
 		return nil, errors.New("unknown block")
 	}
-	body, err := GetBody(ctx, self.odr, hash, *number)
+	body, err := GetBody(ctx, self.odr,self.shardId, hash, *number)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (self *QzChain) GetBody(ctx context.Context, hash common.Hash) ( *types.Sup
 
 // GetBodyRLP retrieves a block body in RLP encoding from the database or
 // ODR service by hash, caching it if found.
-func (self *QzChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.RawValue, error) {
+func (self *QChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.RawValue, error) {
 	// Short circuit if the body's already in the cache, retrieve otherwise
 	if cached, ok := self.bodyRLPCache.Get(hash); ok {
 		return cached.(rlp.RawValue), nil
@@ -258,7 +258,7 @@ func (self *QzChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.RawV
 	if number == nil {
 		return nil, errors.New("unknown block")
 	}
-	body, err := GetBodyRLP(ctx, self.odr, hash, *number)
+	body, err := GetBodyRLP(ctx, self.odr,self.shardId, hash, *number)
 	if err != nil {
 		return nil, err
 	}
@@ -269,19 +269,19 @@ func (self *QzChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.RawV
 
 // HasBlock checks if a block is fully present in the database or not, caching
 // it if present.
-func (bc *QzChain) HasBlock(hash common.Hash, number uint64) bool {
+func (bc *QChain) HasBlock(hash common.Hash, number uint64) bool {
 	blk, _ := bc.GetBlock(NoOdr, hash, number)
 	return blk != nil
 }
 
 // GetBlock retrieves a block from the database or ODR service by hash and number,
 // caching it if found.
-func (self *QzChain) GetBlock(ctx context.Context, hash common.Hash, number uint64) (types.BlockIntf, error) {
+func (self *QChain) GetBlock(ctx context.Context, hash common.Hash, number uint64) (types.BlockIntf, error) {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := self.blockCache.Get(hash); ok {
 		return block.(types.BlockIntf), nil
 	}
-	block, err := GetBlock(ctx, self.odr, hash, number)
+	block, err := GetBlock(ctx, self.odr,self.shardId, hash, number)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +292,7 @@ func (self *QzChain) GetBlock(ctx context.Context, hash common.Hash, number uint
 
 // GetBlockByHash retrieves a block from the database or ODR service by hash,
 // caching it if found.
-func (self *QzChain) GetBlockByHash(ctx context.Context, hash common.Hash) (types.BlockIntf, error) {
+func (self *QChain) GetBlockByHash(ctx context.Context, hash common.Hash) (types.BlockIntf, error) {
 	number := self.hc.GetBlockNumber(hash)
 	if number == nil {
 		return nil, errors.New("unknown block")
@@ -302,8 +302,8 @@ func (self *QzChain) GetBlockByHash(ctx context.Context, hash common.Hash) (type
 
 // GetBlockByNumber retrieves a block from the database or ODR service by
 // number, caching it (associated with its hash) if found.
-func (self *QzChain) GetBlockByNumber(ctx context.Context, number uint64) (types.BlockIntf, error) {
-	hash, err := GetCanonicalHash(ctx, self.odr, number)
+func (self *QChain) GetBlockByNumber(ctx context.Context, number uint64) (types.BlockIntf, error) {
+	hash, err := GetCanonicalHash(ctx, self.odr, self.shardId, number)
 	if hash == (common.Hash{}) || err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (self *QzChain) GetBlockByNumber(ctx context.Context, number uint64) (types
 
 // Stop stops the blockchain service. If any imports are currently in progress
 // it will abort them using the procInterrupt.
-func (bc *QzChain) Stop() {
+func (bc *QChain) Stop() {
 	if !atomic.CompareAndSwapInt32(&bc.running, 0, 1) {
 		return
 	}
@@ -325,7 +325,7 @@ func (bc *QzChain) Stop() {
 
 // Rollback is designed to remove a chain of links from the database that aren't
 // certain enough to be valid.
-func (self *QzChain) Rollback(chain []common.Hash) {
+func (self *QChain) Rollback(chain []common.Hash) {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
@@ -340,7 +340,7 @@ func (self *QzChain) Rollback(chain []common.Hash) {
 
 // postChainEvents iterates over the events generated by a chain insertion and
 // posts them into the event feed.
-func (self *QzChain) postChainEvents(events []interface{}) {
+func (self *QChain) postChainEvents(events []interface{}) {
 	for _, event := range events {
 		switch ev := event.(type) {
 		case core.ChainEvent:
@@ -365,9 +365,9 @@ func (self *QzChain) postChainEvents(events []interface{}) {
 //
 // In the case of a light chain, InsertHeaderChain also creates and posts light
 // chain events when necessary.
-func (self *QzChain) InsertHeaderChain(chain []types.HeaderIntf, checkFreq int) (int, error) {
+func (self *QChain) InsertHeaderChain(chain []types.HeaderIntf, checkFreq int) (int, error) {
 	start := time.Now()
-	if i, err := self.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
+	if i, err := self.hc.ValidateHeader(chain, checkFreq); err != nil {
 		return i, err
 	}
 
@@ -382,76 +382,50 @@ func (self *QzChain) InsertHeaderChain(chain []types.HeaderIntf, checkFreq int) 
 	defer self.wg.Done()
 
 	var events []interface{}
-	whFunc := func(header types.HeaderIntf) error {
-		self.mu.Lock()
-		defer self.mu.Unlock()
 
-		status, err := self.hc.WriteHeader(header)
-
-		switch status {
-		case core.CanonStatTy:
-			log.Debug("Inserted new header", "number", header.Number(), "hash", header.Hash())
-		    if header.ShardId() == types.ShardMaster {
-				events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
-			}else{
-				events = append(events, core.ChainEvent{Block: types.NewSBlockWithHeader(header), Hash: header.Hash()})
-			}
-
-
-		case core.SideStatTy:
-			log.Debug("Inserted forked header", "number", header.Number(), "hash", header.Hash())
-			if header.ShardId() == types.ShardMaster {
-				events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
-			}else{
-				events = append(events, core.ChainSideEvent{Block: types.NewSBlockWithHeader(header)})
-			}
-		}
-		return err
-	}
-	i, err := self.hc.InsertHeaderChain(chain, whFunc, start)
-	self.postChainEvents(events)
-	return i, err
+	headers, err := self.hc.InsertHeaderChain(chain, start)
+	return headers, err
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
-func (self *QzChain) CurrentHeader() types.HeaderIntf {
+func (self *QChain) CurrentHeader() types.HeaderIntf {
 	return self.hc.CurrentHeader()
 }
 
 // GetTd retrieves a block's total difficulty in the canonical chain from the
 // database by hash and number, caching it if found.
-func (self *QzChain) GetTd(hash common.Hash, number uint64) *big.Int {
+func (self *QChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	return self.hc.GetTd(hash, number)
 }
 
 // GetTdByHash retrieves a block's total difficulty in the canonical chain from the
 // database by hash, caching it if found.
-func (self *QzChain) GetTdByHash(hash common.Hash) *big.Int {
+func (self *QChain) GetTdByHash(hash common.Hash) *big.Int {
 	return self.hc.GetTdByHash(hash)
 }
 
 // GetHeader retrieves a block header from the database by hash and number,
 // caching it if found.
-func (self *QzChain) GetHeader(hash common.Hash, number uint64) types.HeaderIntf {
+func (self *QChain) GetHeader(hash common.Hash, number uint64) types.HeaderIntf {
 	return self.hc.GetHeader(hash, number)
 }
 
 // GetHeaderByHash retrieves a block header from the database by hash, caching it if
 // found.
-func (self *QzChain) GetHeaderByHash(hash common.Hash) types.HeaderIntf {
+func (self *QChain) GetHeaderByHash(hash common.Hash) types.HeaderIntf {
 	return self.hc.GetHeaderByHash(hash)
 }
 
 // HasHeader checks if a block header is present in the database or not, caching
 // it if present.
-func (bc *QzChain) HasHeader(hash common.Hash, number uint64) bool {
+func (bc *QChain) HasHeader(hash common.Hash, number uint64) bool {
 	return bc.hc.HasHeader(hash, number)
 }
 
 // GetBlockHashesFromHash retrieves a number of block hashes starting at a given
 // hash, fetching towards the genesis block.
-func (self *QzChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []common.Hash {
+func (self *QChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []common.Hash {
 	return self.hc.GetBlockHashesFromHash(hash, max)
 }
 
@@ -460,7 +434,7 @@ func (self *QzChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []comm
 // number of blocks to be individually checked before we reach the canonical chain.
 //
 // Note: ancestor == 0 returns the same block, 1 returns its parent and so on.
-func (bc *QzChain) GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64) {
+func (bc *QChain) GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64) {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 
@@ -469,23 +443,23 @@ func (bc *QzChain) GetAncestor(hash common.Hash, number, ancestor uint64, maxNon
 
 // GetHeaderByNumber retrieves a block header from the database by number,
 // caching it (associated with its hash) if found.
-func (self *QzChain) GetHeaderByNumber(number uint64) types.HeaderIntf {
+func (self *QChain) GetHeaderByNumber(number uint64) types.HeaderIntf {
 	return self.hc.GetHeaderByNumber(number)
 }
 
 // GetHeaderByNumberOdr retrieves a block header from the database or network
 // by number, caching it (associated with its hash) if found.
-func (self *QzChain) GetHeaderByNumberOdr(ctx context.Context, number uint64) (types.HeaderIntf, error) {
+func (self *QChain) GetHeaderByNumberOdr(ctx context.Context, number uint64) (types.HeaderIntf, error) {
 	if header := self.hc.GetHeaderByNumber(number); header != nil {
 		return header, nil
 	}
-	return GetHeaderByNumber(ctx, self.odr, number)
+	return GetHeaderByNumber(ctx, self.odr, self.shardId, number)
 }
 
 // Config retrieves the header chain's chain configuration.
-func (self *QzChain) Config() *params.ChainConfig { return self.hc.Config() }
+func (self *QChain) Config() *params.ChainConfig { return self.hc.Config() }
 
-func (self *QzChain) SyncCht(ctx context.Context) bool {
+func (self *QChain) SyncCht(ctx context.Context) bool {
 	// If we don't have a CHT indexer, abort
 	if self.odr.ChtIndexer() == nil {
 		return false
@@ -502,7 +476,7 @@ func (self *QzChain) SyncCht(ctx context.Context) bool {
 		return false
 	}
 	// Retrieve the latest useful header and update to it
-	if header, err := GetHeaderByNumber(ctx, self.odr, latest); header == nil || reflect.ValueOf(header).IsNil() && err == nil {
+	if header, err := GetHeaderByNumber(ctx, self.odr, self.shardId, latest); header == nil || reflect.ValueOf(header).IsNil() && err == nil {
 		self.mu.Lock()
 		defer self.mu.Unlock()
 
@@ -518,38 +492,40 @@ func (self *QzChain) SyncCht(ctx context.Context) bool {
 
 // LockChain locks the chain mutex for reading so that multiple canonical hashes can be
 // retrieved while it is guaranteed that they belong to the same version of the chain
-func (self *QzChain) LockChain() {
+func (self *QChain) LockChain() {
 	self.chainmu.RLock()
 }
 
 // UnlockChain unlocks the chain mutex
-func (self *QzChain) UnlockChain() {
+func (self *QChain) UnlockChain() {
 	self.chainmu.RUnlock()
 }
 
 // SubscribeChainEvent registers a subscription of ChainEvent.
-func (self *QzChain) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
+func (self *QChain) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
 	return self.scope.Track(self.chainFeed.Subscribe(ch))
 }
 
 // SubscribeChainHeadEvent registers a subscription of ChainHeadEvent.
-func (self *QzChain) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
+func (self *QChain) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
 	return self.scope.Track(self.chainHeadFeed.Subscribe(ch))
 }
 
 // SubscribeChainSideEvent registers a subscription of ChainSideEvent.
-func (self *QzChain) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
+func (self *QChain) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
 	return self.scope.Track(self.chainSideFeed.Subscribe(ch))
 }
 
 // SubscribeLogsEvent implements the interface of filters.Backend
-// QzChain does not send logs events, so return an empty subscription.
-func (self *QzChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
+// QChain does not send logs events, so return an empty subscription.
+func (self *QChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	return self.scope.Track(new(event.Feed).Subscribe(ch))
 }
 
 // SubscribeRemovedLogsEvent implements the interface of filters.Backend
-// QzChain does not send core.RemovedLogsEvent, so return an empty subscription.
-func (self *QzChain) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
+// QChain does not send core.RemovedLogsEvent, so return an empty subscription.
+func (self *QChain) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
 	return self.scope.Track(new(event.Feed).Subscribe(ch))
 }
+
+

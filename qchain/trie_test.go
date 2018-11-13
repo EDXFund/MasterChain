@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package qzchain
+package qchain
 
 import (
 	"bytes"
@@ -47,7 +47,7 @@ func testNodeIterator(t *testing.T,shardId uint16) {
 	)
 	gspec.MustCommit(lightdb,shardId)
 	blockchain, _ := core.NewBlockChain(fulldb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil,shardId)
-	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), fulldb, 4, testChainGen)
+	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), fulldb, 4, testChainGenMaster)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		panic(err)
 	}

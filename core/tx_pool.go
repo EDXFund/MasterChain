@@ -13,7 +13,21 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+/**
+  TxPool中除了具有txs外，还有shards，用于管理主链区块里的内容
+  shard有三种状态：
+  unconfirmed:由shardManager管理，保存在shardManager中
+  pending:    在目前的pending队列中
+  confirmed:  被存入到数据库中，在TxPool中不再存在
 
+  除了addTx之外，TxPool通过reset函数来进行管理，reset在收到区块头信息，并且区块经过校验和存储后，通过ChainHeadCh来通知
+  在TxPool中，收到新的区块头时，有三种情况：
+  1.当前是子链，收到了主链的区块头:从主链的区块头中找到最新的子链分片信息，使用这个最新的头来进行reset
+  2.当前是子链，收到了子链分片的区块头：使用这个区块头来reset
+
+  3.当前是主链，收到了主链的区块头：更新所有的shard信息，更新所有的txs信息
+  4.当前是主链，收到了子链的区块头：交给shardManager处理
+ */
 package core
 
 import (
@@ -122,6 +136,13 @@ type blockChain interface {
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 }
 
+type  shardChainManager interface {
+	CurrentBlock(uint16) types.BlockIntf
+	GetBlock(hash common.Hash, number uint64) types.BlockIntf
+	//StateAt(root common.Hash) (*state.StateDB, error)
+	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
+}
+
 // TxPoolConfig are the configuration parameters of the transaction pool.
 type TxPoolConfig struct {
 	Locals    []common.Address // Addresses that should be treated by default as local
@@ -187,6 +208,7 @@ type TxPool struct {
 	config       TxPoolConfig
 	chainconfig  *params.ChainConfig
 	chain        blockChain
+	shardChain   shardChainManager
 	gasPrice     *big.Int
 	txFeed       event.Feed
 	scope        event.SubscriptionScope
@@ -215,7 +237,7 @@ type TxPool struct {
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain,shardManager shardChainManager) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -224,6 +246,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		config:      config,
 		chainconfig: chainconfig,
 		chain:       chain,
+		shardChain:  shardManager,
 		signer:      types.NewEIP155Signer(chainconfig.ChainID),
 		pending:     make(map[common.Address]*txList),
 		queue:       make(map[common.Address]*txList),
@@ -342,19 +365,67 @@ func (pool *TxPool) loop() {
 		}
 	}
 }
+//resetOfMaster compares newHead and oldHead, find the different shardblocks
+//and then recaculates txs of discarded and new added
+func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
+	var reinject types.ShardBlockInfos
 
-// lockedReset is a wrapper around reset to allow calling it in a thread safe
+	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
+		// If the reorg is too deep, avoid doing it (will happen during fast sync)
+		oldNum := oldHead.NumberU64()
+		newNum := newHead.NumberU64()
+
+		if depth := uint64(math.Abs(float64(oldNum) - float64(newNum))); depth > 64 {
+			log.Debug("Skipping deep transaction reorg", "depth", depth)
+		} else {
+			// Reorg seems shallow enough to pull in all transactions into memory
+			var discarded, included types.ShardBlockInfos
+
+			var (
+				rem = pool.chain.GetBlock(oldHead.Hash(), oldHead.NumberU64())
+				add = pool.chain.GetBlock(newHead.Hash(), newHead.NumberU64())
+			)
+			for rem.NumberU64() > add.NumberU64() {
+				discarded = append(discarded, rem.ShardBlocks()...)
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
+					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
+					return
+				}
+			}
+			for add.NumberU64() > rem.NumberU64() {
+				included = append(included, add.ShardBlocks()...)
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
+					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
+					return
+				}
+			}
+			for rem.Hash() != add.Hash() {
+				discarded = append(discarded, rem.ShardBlocks()...)
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
+					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
+					return
+				}
+				included = append(included, add.ShardBlocks()...)
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
+					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
+					return
+				}
+			}
+			reinject = types.ShardInfoDifference(discarded, included)
+		}
+	}
+}
+// lockedResetOfSHeader is a wrapper around resetOfSHeader to allow calling it in a thread safe
 // manner. This method is only ever used in the tester!
-func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
+func (pool *TxPool) lockedResetOfSHeader(oldHead, newHead *types.SHeader) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	pool.reset(oldHead, newHead)
+	pool.resetOfSHeader(oldHead, newHead)
 }
 
-// reset retrieves the current state of the blockchain and ensures the content
-// of the transaction pool is valid with regard to the chain state.
-func (pool *TxPool) reset(oldHead, newHead types.HeaderIntf) {
+// resetOfSHeader is used by shard Chain to deal with txs, it should promote those txs to
+func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
 
@@ -404,7 +475,7 @@ func (pool *TxPool) reset(oldHead, newHead types.HeaderIntf) {
 	}
 	// Initialize the internal state to the current head
 	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
-		newHead = pool.chain.CurrentBlock().Header() // Special case during testing
+		newHead = pool.chain.CurrentBlock().Header().ToSHeader() // Special case during testing
 	}
 	statedb, err := pool.chain.StateAt(newHead.Root())
 	if err != nil {
