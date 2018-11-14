@@ -27,7 +27,7 @@
 
   3.当前是主链，收到了主链的区块头：更新所有的shard信息，更新所有的txs信息
   4.当前是主链，收到了子链的区块头：交给shardManager处理
- */
+*/
 package core
 
 import (
@@ -35,10 +35,10 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
-	"reflect"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/prque"
@@ -136,7 +136,7 @@ type blockChain interface {
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 }
 
-type  shardChainManager interface {
+type shardChainManager interface {
 	CurrentBlock(uint16) types.BlockIntf
 	GetBlock(hash common.Hash, number uint64) types.BlockIntf
 	//StateAt(root common.Hash) (*state.StateDB, error)
@@ -237,7 +237,7 @@ type TxPool struct {
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain,shardManager shardChainManager) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -246,7 +246,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		config:      config,
 		chainconfig: chainconfig,
 		chain:       chain,
-		shardChain:  shardManager,
 		signer:      types.NewEIP155Signer(chainconfig.ChainID),
 		pending:     make(map[common.Address]*txList),
 		queue:       make(map[common.Address]*txList),
@@ -365,67 +364,19 @@ func (pool *TxPool) loop() {
 		}
 	}
 }
-//resetOfMaster compares newHead and oldHead, find the different shardblocks
-//and then recaculates txs of discarded and new added
-func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
-	var reinject types.ShardBlockInfos
 
-	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
-		// If the reorg is too deep, avoid doing it (will happen during fast sync)
-		oldNum := oldHead.NumberU64()
-		newNum := newHead.NumberU64()
-
-		if depth := uint64(math.Abs(float64(oldNum) - float64(newNum))); depth > 64 {
-			log.Debug("Skipping deep transaction reorg", "depth", depth)
-		} else {
-			// Reorg seems shallow enough to pull in all transactions into memory
-			var discarded, included types.ShardBlockInfos
-
-			var (
-				rem = pool.chain.GetBlock(oldHead.Hash(), oldHead.NumberU64())
-				add = pool.chain.GetBlock(newHead.Hash(), newHead.NumberU64())
-			)
-			for rem.NumberU64() > add.NumberU64() {
-				discarded = append(discarded, rem.ShardBlocks()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
-					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
-					return
-				}
-			}
-			for add.NumberU64() > rem.NumberU64() {
-				included = append(included, add.ShardBlocks()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
-					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
-					return
-				}
-			}
-			for rem.Hash() != add.Hash() {
-				discarded = append(discarded, rem.ShardBlocks()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
-					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
-					return
-				}
-				included = append(included, add.ShardBlocks()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
-					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
-					return
-				}
-			}
-			reinject = types.ShardInfoDifference(discarded, included)
-		}
-	}
-}
-// lockedResetOfSHeader is a wrapper around resetOfSHeader to allow calling it in a thread safe
+// lockedReset is a wrapper around reset to allow calling it in a thread safe
 // manner. This method is only ever used in the tester!
-func (pool *TxPool) lockedResetOfSHeader(oldHead, newHead *types.SHeader) {
+func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	pool.resetOfSHeader(oldHead, newHead)
+	pool.reset(oldHead, newHead)
 }
 
-// resetOfSHeader is used by shard Chain to deal with txs, it should promote those txs to
-func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
+// reset retrieves the current state of the blockchain and ensures the content
+// of the transaction pool is valid with regard to the chain state.
+func (pool *TxPool) reset(oldHead, newHead types.HeaderIntf) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
 
@@ -446,26 +397,26 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 			)
 			for rem.NumberU64() > add.NumberU64() {
 				discarded = append(discarded, rem.Transactions()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 			}
 			for add.NumberU64() > rem.NumberU64() {
 				included = append(included, add.Transactions()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
 			}
 			for rem.Hash() != add.Hash() {
 				discarded = append(discarded, rem.Transactions()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 				included = append(included, add.Transactions()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
@@ -475,7 +426,7 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 	}
 	// Initialize the internal state to the current head
 	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
-		newHead = pool.chain.CurrentBlock().Header().ToSHeader() // Special case during testing
+		newHead = pool.chain.CurrentBlock().Header() // Special case during testing
 	}
 	statedb, err := pool.chain.StateAt(newHead.Root())
 	if err != nil {

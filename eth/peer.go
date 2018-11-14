@@ -98,11 +98,11 @@ type peer struct {
 	term chan struct{} // Termination channel to stop the broadcaster
 }
 
-func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter, shardId uint16) *peer {
+func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 	return &peer{
-		Peer:        p,
-		rw:          rw,
-		shardId:     shardId,
+		Peer: p,
+		rw:   rw,
+
 		version:     version,
 		id:          fmt.Sprintf("%x", p.ID().Bytes()[:8]),
 		knownTxs:    mapset.NewSet(),
@@ -399,15 +399,54 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 	errc := make(chan error, 2)
 	var status statusData // safe to read after two values have been received from errc
 	genesis := blockChain.Genesis()
-
+	shardId := genesis.ShardId()
+	genesisBlock := blockChain.GenesisHashOf(shardId)
 	go func() {
 		errc <- p2p.Send(p.rw, StatusMsg, &statusData{
 			ProtocolVersion: uint32(p.version),
 			NetworkId:       network,
-			ShardId:         genesis.ShardId(),
+			ShardId:         shardId,
 			TD:              td,
 			CurrentBlock:    head,
-			GenesisBlock:    blockChain.GenesisHashOf(0xffff),
+			GenesisBlock:    genesisBlock,
+		})
+	}()
+	go func() {
+		errc <- p.readStatus(network, &status, blockChain)
+	}()
+	timeout := time.NewTimer(handshakeTimeout)
+	defer timeout.Stop()
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errc:
+			if err != nil {
+				return err
+			}
+		case <-timeout.C:
+			return p2p.DiscReadTimeout
+		}
+	}
+	p.td, p.head = status.TD, status.CurrentBlock
+	return nil
+}
+
+// Handshake executes the eth protocol handshake, negotiating version number,
+// network IDs, difficulties, head and genesis blocks.
+func (p *peer) THandshake(network uint64, td *big.Int, head common.Hash, blockChain *core.BlockChain) error {
+	// Send out own handshake in a new thread
+	errc := make(chan error, 2)
+	var status statusData // safe to read after two values have been received from errc
+	genesis := blockChain.Genesis()
+	shardId := genesis.ShardId()
+	genesisBlock := blockChain.GenesisHashOf(0xffff)
+	go func() {
+		errc <- p2p.Send(p.rw, StatusMsg, &statusData{
+			ProtocolVersion: uint32(p.version),
+			NetworkId:       network,
+			ShardId:         shardId,
+			TD:              td,
+			CurrentBlock:    head,
+			GenesisBlock:    genesisBlock,
 		})
 	}()
 	go func() {
@@ -444,7 +483,7 @@ func (p *peer) readStatus(network uint64, status *statusData, blockChain *core.B
 	if err := msg.Decode(&status); err != nil {
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
-	genesis := blockChain.GenesisHashOf(0xffff)
+	genesis := blockChain.GenesisHashOf(status.ShardId)
 	if status.GenesisBlock != genesis {
 		return errResp(ErrGenesisBlockMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])
 	}
