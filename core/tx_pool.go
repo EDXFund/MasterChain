@@ -27,7 +27,7 @@
 
   3.当前是主链，收到了主链的区块头：更新所有的shard信息，更新所有的txs信息
   4.当前是主链，收到了子链的区块头：交给shardManager处理
- */
+*/
 package core
 
 import (
@@ -35,10 +35,10 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
-	"reflect"
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/prque"
@@ -137,7 +137,7 @@ type blockChain interface {
 	GetShardBlock(shardId uint16, hash common.Hash, number uint64) types.BlockIntf
 }
 
-type  shardChainManager interface {
+type shardChainManager interface {
 	CurrentBlock(uint16) types.BlockIntf
 	GetBlock(hash common.Hash, number uint64) types.BlockIntf
 	//StateAt(root common.Hash) (*state.StateDB, error)

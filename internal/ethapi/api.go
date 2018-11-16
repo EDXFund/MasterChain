@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/EDXFund/MasterChain/accounts"
 	"github.com/EDXFund/MasterChain/accounts/keystore"
 	"github.com/EDXFund/MasterChain/common"
@@ -42,6 +41,7 @@ import (
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rlp"
 	"github.com/EDXFund/MasterChain/rpc"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -620,17 +620,17 @@ func (s *PublicBlockChainAPI) GetUncleByBlockNumberAndIndex(ctx context.Context,
 // GetUncleByBlockHashAndIndex returns the uncle block for the given block hash and index. When fullTx is true
 // all transactions in the block are returned in full detail, otherwise only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetUncleByBlockHashAndIndex(ctx context.Context, blockHash common.Hash, index hexutil.Uint) (map[string]interface{}, error) {
-/*	block, err := s.b.GetBlock(ctx, blockHash)
-	if block != nil {
-		uncles := block.Uncles()
-		if index >= hexutil.Uint(len(uncles)) {
-			log.Debug("Requested uncle not found", "number", block.Number(), "hash", blockHash, "index", index)
-			return nil, nil
+	/*	block, err := s.b.GetBlock(ctx, blockHash)
+		if block != nil {
+			uncles := block.Uncles()
+			if index >= hexutil.Uint(len(uncles)) {
+				log.Debug("Requested uncle not found", "number", block.Number(), "hash", blockHash, "index", index)
+				return nil, nil
+			}
+			block = types.NewBlockWithHeader(uncles[index])
+			return s.rpcOutputBlock(block, false, false)
 		}
-		block = types.NewBlockWithHeader(uncles[index])
-		return s.rpcOutputBlock(block, false, false)
-	}
-*/
+	*/
 	return nil, errors.New("Uncle not implements")
 }
 
@@ -710,7 +710,7 @@ func (s *PublicBlockChainAPI) doCall(ctx context.Context, args CallArgs, blockNr
 	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0,0, args.Value.ToInt(), gas, gasPrice, args.Data, false)
+	msg := types.NewMessage(addr, args.To, 0, 0, args.Value.ToInt(), gas, gasPrice, args.Data, false)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -1188,6 +1188,7 @@ type SendTxArgs struct {
 	GasPrice *hexutil.Big    `json:"gasPrice"`
 	Value    *hexutil.Big    `json:"value"`
 	Nonce    *hexutil.Uint64 `json:"nonce"`
+	TokenId  *hexutil.Uint64
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1243,9 +1244,9 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Input
 	}
 	if args.To == nil {
-		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input, uint64(*args.TokenId))
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input, uint64(*args.TokenId))
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.

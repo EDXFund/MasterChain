@@ -27,9 +27,10 @@ import (
 	"github.com/EDXFund/MasterChain/ethdb"
 	"github.com/EDXFund/MasterChain/params"
 )
-func ExampleGenerateChain() {exampleGenerateChain(types.ShardMaster)}
-func ExampleGenerateChain0() {exampleGenerateChain(0)}
-func ExampleGenerateChain10() {exampleGenerateChain(10)}
+
+func ExampleGenerateChain()   { exampleGenerateChain(types.ShardMaster) }
+func ExampleGenerateChain0()  { exampleGenerateChain(0) }
+func ExampleGenerateChain10() { exampleGenerateChain(10) }
 func exampleGenerateChain(shardId uint16) {
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -56,13 +57,13 @@ func exampleGenerateChain(shardId uint16) {
 		switch i {
 		case 0:
 			// In block 1, addr1 sends addr2 some ether.
-			tx, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr1), addr2, big.NewInt(10000), params.TxGas, nil, nil), signer, key1)
+			tx, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr1), addr2, big.NewInt(10000), params.TxGas, nil, nil, 0), signer, key1)
 			gen.AddTx(tx)
 		case 1:
 			// In block 2, addr1 sends some more ether to addr2.
 			// addr2 passes it on to addr3.
-			tx1, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr1), addr2, big.NewInt(1000), params.TxGas, nil, nil), signer, key1)
-			tx2, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr2), addr3, big.NewInt(1000), params.TxGas, nil, nil), signer, key2)
+			tx1, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr1), addr2, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, key1)
+			tx2, _ := types.SignTx(types.NewTransaction(gen.TxNonce(addr2), addr3, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, key2)
 			gen.AddTx(tx1)
 			gen.AddTx(tx2)
 		case 2:
@@ -72,16 +73,16 @@ func exampleGenerateChain(shardId uint16) {
 		case 3:
 			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
 			b2 := gen.PrevBlock(1).Header()
-			b2.SetExtra  ([]byte("foo"))
+			b2.SetExtra([]byte("foo"))
 			//gen.AddUncle(b2)
 			b3 := gen.PrevBlock(2).Header()
-			b3.SetExtra  ([]byte("foo"))
+			b3.SetExtra([]byte("foo"))
 			//gen.AddUncle(b3)
 		}
 	})
 
 	// Import the chain. This runs all block validation rules.
-	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil,shardId)
+	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, shardId)
 	defer blockchain.Stop()
 
 	if i, err := blockchain.InsertChain(chain); err != nil {
