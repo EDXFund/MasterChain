@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/EDXFund/MasterChain/cmd/utils"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/core"
@@ -69,8 +70,8 @@ func main() {
 		cfg.Eth.NetworkId = genesis.Config.ChainID.Uint64()
 		cfg.Eth.Genesis = genesis
 		cfg.Eth.Ethash.CacheDir = "ethash" + strconv.Itoa(add)
-		cfg.Eth.Ethash.DatasetDir = "/home/fx/.ethash" + strconv.Itoa(add)
-		cfg.Node.DataDir = "/home/fx/.etherrum" + strconv.Itoa(add)
+		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(add)
+		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(add)
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
 		cfg.Node.HTTPPort = 8545 + add*2
 		cfg.Node.WSPort = 8546 + add*2
@@ -84,7 +85,7 @@ func main() {
 			publicKey := server.PrivateKey.Public()
 			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 			//bootString := stacks[0].Server().NodeInfo().Enode
-			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@192.168.31.9" + cfgs[0].Node.P2P.ListenAddr
+			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@127.0.0.1" + cfgs[0].Node.P2P.ListenAddr
 			node, err := enode.ParseV4(bootString)
 			if err == nil {
 				cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
@@ -112,7 +113,24 @@ func main() {
 		}
 
 		err = stack.Start()
+		var ethereum *eth.Ethereum
+		if err := stack.Service(&ethereum); err != nil {
+			log.Crit("Ethereum service not running: %v", err)
+		}
+		// Set the gas price to the limits from the CLI and start mining
+	/*	gasprice := utils.GlobalBig(ctx, utils.MinerLegacyGasPriceFlag.Name)
+		if ctx.IsSet(utils.MinerGasPriceFlag.Name) {
+			gasprice = utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
+		}
+		ethereum.TxPool().SetGasPrice(gasprice)
 
+		threads := ctx.GlobalInt(utils.MinerLegacyThreadsFlag.Name)
+		if ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
+			threads = ctx.GlobalInt(utils.MinerThreadsFlag.Name)
+		}*/
+		if err := ethereum.StartMining(1); err != nil {
+			utils.Fatalf("Failed to start mining: %v", err)
+		}
 		if err != nil {
 			fmt.Errorf("start node error :%d", i)
 		}

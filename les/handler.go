@@ -524,6 +524,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		var req struct {
 			ReqID  uint64
+			ShardId uint16
 			Hashes []common.Hash
 		}
 		if err := msg.Decode(&req); err != nil {
@@ -578,11 +579,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case GetCodeMsg:
 		p.Log().Trace("Received code request")
 		// Decode the retrieval message
-		var req struct {
+		var reqm struct {
 			ReqID uint64
+			ShardId uint16
 			Reqs  []CodeReq
 		}
-		if err := msg.Decode(&req); err != nil {
+		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Gather state data until the fetch or network limits is reached
@@ -590,11 +592,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			bytes int
 			data  [][]byte
 		)
-		reqCnt := len(req.Reqs)
+		reqCnt := len(reqm.Reqs)
 		if reject(uint64(reqCnt), MaxCodeFetch) {
 			return errResp(ErrRequestRejected, "")
 		}
-		for _, req := range req.Reqs {
+		for _, req := range reqm.Reqs {
 			// Retrieve the requested state entry, stopping if enough was found
 			if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
 				if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
@@ -617,7 +619,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + uint64(reqCnt)*costs.reqCost)
 		pm.server.fcCostStats.update(msg.Code, uint64(reqCnt), rcost)
-		return p.SendCode(req.ReqID, bv, data)
+		return p.SendCode(reqm.ReqID, bv, data)
 
 	case CodeMsg:
 		if pm.odr == nil {
@@ -645,6 +647,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		var req struct {
 			ReqID  uint64
+			ShardId uint16
 			Hashes []common.Hash
 		}
 		if err := msg.Decode(&req); err != nil {
@@ -709,11 +712,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case GetProofsV1Msg:
 		p.Log().Trace("Received proofs request")
 		// Decode the retrieval message
-		var req struct {
+		var reqm struct {
 			ReqID uint64
+			ShardId uint16
 			Reqs  []ProofReq
 		}
-		if err := msg.Decode(&req); err != nil {
+		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Gather state data until the fetch or network limits is reached
@@ -721,14 +725,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			bytes  int
 			proofs proofsData
 		)
-		reqCnt := len(req.Reqs)
+		reqCnt := len(reqm.Reqs)
 		if reject(uint64(reqCnt), MaxProofsFetch) {
 			return errResp(ErrRequestRejected, "")
 		}
-		for _, req := range req.Reqs {
+		for _, req := range reqm.Reqs {
 			// Retrieve the requested state entry, stopping if enough was found
 			if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
-				if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
+				if header := rawdb.ReadHeader(pm.chainDb,  req.BHash, *number); header != nil {
 					statedb, err := pm.blockchain.State()
 					if err != nil {
 						continue
@@ -757,16 +761,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + uint64(reqCnt)*costs.reqCost)
 		pm.server.fcCostStats.update(msg.Code, uint64(reqCnt), rcost)
-		return p.SendProofs(req.ReqID, bv, proofs)
+		return p.SendProofs(reqm.ReqID, bv, proofs)
 
 	case GetProofsV2Msg:
 		p.Log().Trace("Received les/2 proofs request")
 		// Decode the retrieval message
-		var req struct {
+		var reqm struct {
 			ReqID uint64
+			ShardId uint16
 			Reqs  []ProofReq
 		}
-		if err := msg.Decode(&req); err != nil {
+		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Gather state data until the fetch or network limits is reached
@@ -775,20 +780,20 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			statedb   *state.StateDB
 			root      common.Hash
 		)
-		reqCnt := len(req.Reqs)
+		reqCnt := len(reqm.Reqs)
 		if reject(uint64(reqCnt), MaxProofsFetch) {
 			return errResp(ErrRequestRejected, "")
 		}
 
 		nodes := light.NewNodeSet()
 
-		for _, req := range req.Reqs {
+		for _, req := range reqm.Reqs {
 			// Look up the state belonging to the request
 			if statedb == nil || req.BHash != lastBHash {
 				statedb, root, lastBHash = nil, common.Hash{}, req.BHash
 
 				if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
-					if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
+					if header := rawdb.ReadHeader(pm.chainDb,  req.BHash, *number); header != nil {
 						statedb, _ = pm.blockchain.State()
 						root = header.Root()
 					}
@@ -819,7 +824,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + uint64(reqCnt)*costs.reqCost)
 		pm.server.fcCostStats.update(msg.Code, uint64(reqCnt), rcost)
-		return p.SendProofsV2(req.ReqID, bv, nodes.NodeList())
+		return p.SendProofsV2(reqm.ReqID, bv, nodes.NodeList())
 
 	case ProofsV1Msg:
 		if pm.odr == nil {
@@ -866,11 +871,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case GetHeaderProofsMsg:
 		p.Log().Trace("Received headers proof request")
 		// Decode the retrieval message
-		var req struct {
+		var reqm struct {
 			ReqID uint64
+			ShardId uint16
 			Reqs  []ChtReq
 		}
-		if err := msg.Decode(&req); err != nil {
+		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Gather state data until the fetch or network limits is reached
@@ -878,14 +884,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			bytes  int
 			proofs []ChtResp
 		)
-		reqCnt := len(req.Reqs)
+		reqCnt := len(reqm.Reqs)
 		if reject(uint64(reqCnt), MaxHelperTrieProofsFetch) {
 			return errResp(ErrRequestRejected, "")
 		}
 		trieDb := trie.NewDatabase(ethdb.NewTable(pm.chainDb, light.ChtTablePrefix))
-		for _, req := range req.Reqs {
+		for _, req := range reqm.Reqs {
 			if header := pm.blockchain.GetHeaderByNumber(req.BlockNum); header != nil {
-				sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, req.ChtNum*pm.iConfig.ChtSize-1)
+				sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, reqm.ShardId, req.ChtNum*pm.iConfig.ChtSize-1)
 				if root := light.GetChtRoot(pm.chainDb, req.ChtNum-1, sectionHead); root != (common.Hash{}) {
 					trie, err := trie.New(root, trieDb)
 					if err != nil {
@@ -906,16 +912,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + uint64(reqCnt)*costs.reqCost)
 		pm.server.fcCostStats.update(msg.Code, uint64(reqCnt), rcost)
-		return p.SendHeaderProofs(req.ReqID, bv, proofs)
+		return p.SendHeaderProofs(reqm.ReqID, bv, proofs)
 
 	case GetHelperTrieProofsMsg:
 		p.Log().Trace("Received helper trie proof request")
 		// Decode the retrieval message
-		var req struct {
+		var reqm struct {
 			ReqID uint64
+			ShardId uint16
 			Reqs  []HelperTrieReq
 		}
-		if err := msg.Decode(&req); err != nil {
+		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Gather state data until the fetch or network limits is reached
@@ -923,7 +930,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			auxBytes int
 			auxData  [][]byte
 		)
-		reqCnt := len(req.Reqs)
+		reqCnt := len(reqm.Reqs)
 		if reject(uint64(reqCnt), MaxHelperTrieProofsFetch) {
 			return errResp(ErrRequestRejected, "")
 		}
@@ -935,12 +942,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			auxTrie  *trie.Trie
 		)
 		nodes := light.NewNodeSet()
-		for _, req := range req.Reqs {
+		for _, req := range reqm.Reqs {
 			if auxTrie == nil || req.Type != lastType || req.TrieIdx != lastIdx {
 				auxTrie, lastType, lastIdx = nil, req.Type, req.TrieIdx
 
 				var prefix string
-				if root, prefix = pm.getHelperTrie(req.Type, req.TrieIdx); root != (common.Hash{}) {
+				if root, prefix = pm.getHelperTrie(req.Type, req.TrieIdx,reqm.ShardId); root != (common.Hash{}) {
 					auxTrie, _ = trie.New(root, trie.NewDatabase(ethdb.NewTable(pm.chainDb, prefix)))
 				}
 			}
@@ -956,7 +963,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					auxTrie.Prove(req.Key, req.FromLevel, nodes)
 				}
 				if req.AuxReq != 0 {
-					data := pm.getHelperTrieAuxData(req)
+					data := pm.getHelperTrieAuxData(req,reqm.ShardId)
 					auxData = append(auxData, data)
 					auxBytes += len(data)
 				}
@@ -967,7 +974,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		bv, rcost := p.fcClient.RequestProcessed(costs.baseCost + uint64(reqCnt)*costs.reqCost)
 		pm.server.fcCostStats.update(msg.Code, uint64(reqCnt), rcost)
-		return p.SendHelperTrieProofs(req.ReqID, bv, HelperTrieResps{Proofs: nodes.NodeList(), AuxData: auxData})
+		return p.SendHelperTrieProofs(reqm.ReqID, bv, HelperTrieResps{Proofs: nodes.NodeList(), AuxData: auxData})
 
 	case HeaderProofsMsg:
 		if pm.odr == nil {
@@ -1137,25 +1144,25 @@ func (pm *ProtocolManager) getAccount(statedb *state.StateDB, root, hash common.
 }
 
 // getHelperTrie returns the post-processed trie root for the given trie ID and section index
-func (pm *ProtocolManager) getHelperTrie(id uint, idx uint64) (common.Hash, string) {
+func (pm *ProtocolManager) getHelperTrie(id uint, idx uint64, shardId uint16) (common.Hash, string) {
 	switch id {
 	case htCanonical:
 		idxV1 := (idx+1)*(pm.iConfig.PairChtSize/pm.iConfig.ChtSize) - 1
-		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, (idxV1+1)*pm.iConfig.ChtSize-1)
+		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, shardId, (idxV1+1)*pm.iConfig.ChtSize-1)
 		return light.GetChtRoot(pm.chainDb, idxV1, sectionHead), light.ChtTablePrefix
 	case htBloomBits:
-		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, (idx+1)*pm.iConfig.BloomTrieSize-1)
+		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, shardId,  (idx+1)*pm.iConfig.BloomTrieSize-1)
 		return light.GetBloomTrieRoot(pm.chainDb, idx, sectionHead), light.BloomTrieTablePrefix
 	}
 	return common.Hash{}, ""
 }
 
 // getHelperTrieAuxData returns requested auxiliary data for the given HelperTrie request
-func (pm *ProtocolManager) getHelperTrieAuxData(req HelperTrieReq) []byte {
+func (pm *ProtocolManager) getHelperTrieAuxData(req HelperTrieReq,shardId uint16) []byte {
 	if req.Type == htCanonical && req.AuxReq == auxHeader && len(req.Key) == 8 {
 		blockNum := binary.BigEndian.Uint64(req.Key)
-		hash := rawdb.ReadCanonicalHash(pm.chainDb, blockNum)
-		return rawdb.ReadHeaderRLP(pm.chainDb, hash, blockNum)
+		hash := rawdb.ReadCanonicalHash(pm.chainDb, shardId,  blockNum)
+		return rawdb.ReadHeaderRLP(pm.chainDb, hash,  blockNum)
 	}
 	return nil
 }

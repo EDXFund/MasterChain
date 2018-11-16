@@ -85,7 +85,7 @@ func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf) {
 			if err != nil {
 				log.Crit("Failed to encode transaction lookup entry", "err", err)
 			}
-			fmt.Println("write tx:",txLookupKey(tx.Hash())," block hash:",block.Header().Hash())
+
 			if err := db.Put(txLookupKey(tx.Hash()), data); err != nil {
 				log.Crit("Failed to store transaction lookup entry", "err", err)
 			}
@@ -103,11 +103,11 @@ func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
 
-	shardId, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
+	_, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
-	body := ReadBody(db,shardId, blockHash, blockNumber)
+	body := ReadBody(db, blockHash, blockNumber)
 	if body == nil || len(body.Transactions) <= int(txIndex) {
 		log.Error("Transaction referenced missing", "number", blockNumber, "hash", blockHash, "index", txIndex)
 		return nil, common.Hash{}, 0, 0
@@ -118,11 +118,11 @@ func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, c
 // ReadReceipt retrieves a specific transaction receipt from the database, along with
 // its added positional metadata.
 func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, common.Hash, uint64, uint64) {
-	shardId ,blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
+	_ ,blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
-	receipts := ReadReceipts(db, shardId, blockHash, blockNumber)
+	receipts := ReadReceipts(db, blockHash, blockNumber)
 	if len(receipts) <= int(receiptIndex) {
 		log.Error("Receipt refereced missing", "number", blockNumber, "hash", blockHash, "index", receiptIndex)
 		return nil, common.Hash{}, 0, 0

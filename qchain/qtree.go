@@ -19,8 +19,10 @@ package qchain
 import (
 	"container/list"
 	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/types"
 	"sync"
+
 )
 
 
@@ -415,7 +417,7 @@ func (t *HeaderTreeManager)ReduceTo(node types.HeaderIntf) error{
 		t.rootHash = node.Hash()
 		return nil
 	}else {
-		return ErrNoHeader
+		return core.ErrInvalidBlocks
 	}
 
 }

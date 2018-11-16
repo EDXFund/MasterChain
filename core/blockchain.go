@@ -652,7 +652,7 @@ func (bc *BlockChain) GetBody(hash common.Hash) *types.SuperBody {
 	if number == nil {
 		return nil
 	}
-	body := rawdb.ReadBody(bc.db, bc.ShardId(), hash, *number)
+	body := rawdb.ReadBody(bc.db, hash, *number)
 	if body == nil {
 		return nil
 	}
@@ -673,7 +673,7 @@ func (bc *BlockChain) GetBodyRLP(hash common.Hash) rlp.RawValue {
 	if number == nil {
 		return nil
 	}
-	body := rawdb.ReadBodyRLP(bc.db, bc.ShardId(), hash, *number)
+	body := rawdb.ReadBodyRLP(bc.db, hash, *number)
 	if len(body) == 0 {
 		return nil
 	}
@@ -687,7 +687,7 @@ func (bc *BlockChain) HasBlock(hash common.Hash, number uint64) bool {
 	if bc.blockCache.Contains(hash) {
 		return true
 	}
-	return rawdb.HasBody(bc.db, bc.ShardId(), hash, number)
+	return rawdb.HasBody(bc.db, hash, number)
 }
 
 // HasState checks if state trie is fully present in the database or not.
@@ -711,7 +711,7 @@ func (bc *BlockChain)GetShardBlock(shardId uint16, hash common.Hash, number uint
 	if block, ok := bc.blockCache.Get(hash); ok {
 		return block.(types.BlockIntf)
 	}
-	block := rawdb.ReadBlock(bc.db, shardId, hash, number)
+	block := rawdb.ReadBlock(bc.db,  hash, number)
 	if block == nil  || reflect.ValueOf(block).IsNil() {
 		return nil
 	}
@@ -726,7 +726,7 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf 
 	if block, ok := bc.blockCache.Get(hash); ok {
 		return block.(types.BlockIntf)
 	}
-	block := rawdb.ReadBlock(bc.db, bc.ShardId(), hash, number)
+	block := rawdb.ReadBlock(bc.db, hash, number)
 	if block == nil  || reflect.ValueOf(block).IsNil() {
 		return nil
 	}
@@ -761,12 +761,12 @@ func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 		return receipts.(types.Receipts)
 	}
 
-	number := rawdb.ReadHeaderNumber(bc.db, bc.ShardId(), hash)
+	number := rawdb.ReadHeaderNumber(bc.db, hash)
 	if number == nil {
 		return nil
 	}
 
-	receipts := rawdb.ReadReceipts(bc.db, bc.ShardId(), hash, *number)
+	receipts := rawdb.ReadReceipts(bc.db,  hash, *number)
 	bc.receiptsCache.Add(hash, receipts)
 	return receipts
 }
@@ -1550,7 +1550,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 			if number == nil {
 				return
 			}
-			receipts := rawdb.ReadReceipts(bc.db, bc.ShardId(), hash, *number)
+			receipts := rawdb.ReadReceipts(bc.db, hash, *number)
 			for _, receipt := range receipts {
 				for _, log := range receipt.Logs {
 					del := *log

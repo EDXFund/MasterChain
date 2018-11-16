@@ -18,15 +18,12 @@ package qchain
 
 import (
 	"github.com/EDXFund/MasterChain/ethdb"
-	"math"
-	"reflect"
 	"sync"
 
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/event"
-	"github.com/EDXFund/MasterChain/log"
 	"github.com/hashicorp/golang-lru"
 )
 
@@ -120,9 +117,9 @@ func (scp *ShardChainPool) insertMasterChain(blocks []*types.Block) error {
 	for shardId,shardInfo := range headers {
 		qchain,ok := scp.shards[shardId]
 		if !ok {
-			return ErrNoHeader
+			return core.ErrInvalidBlocks
 		} else {
-			head := rawdb.ReadHeader(scp.db,shardId,shardInfo.Hash(),shardInfo.NumberU64())
+			head := rawdb.ReadHeader(scp.db,shardInfo.Hash(),shardInfo.NumberU64())
 			result := qchain.SetConfirmed(head)
 			if len(result) > 0 {
 				results = append(results,result...)
@@ -163,12 +160,15 @@ func  (scp *ShardChainPool) Pending() (map[uint16]PendingShard,error){
 		if len(pendings)  > 0 {
 			results[shardId] = make(PendingShard)
 			for _,head := range pendings {
-				results[shardId][head.NumberU64()] = types.ShardBlockInfo{shardId,head.NumberU64(),head.Hash(),head.ParentHash(),head.Difficulty().Uint64()}
-			}
+				sb := types.ShardBlockInfo{}
+				sb.FillBy(&types.ShardBlockInfoStruct{shardId,head.NumberU64(),head.Hash(),head.ParentHash(),head.Difficulty().Uint64()})
+				results[shardId][head.NumberU64()] = sb
+				}
 		}
 	}
 	return results,nil
 }
+/*
 func (scp *ShardChainPool) reset(oldHead,newHead types.HeaderIntf){
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.ShardBlockInfos
@@ -253,3 +253,4 @@ func (scp *ShardChainPool) reset(oldHead,newHead types.HeaderIntf){
 	// or remove those that have become invalid
 	pool.promoteExecutables(nil)
 }
+*/

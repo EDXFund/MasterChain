@@ -53,8 +53,8 @@ func DeleteCanonicalHash(db DatabaseDeleter, shardId uint16,number uint64) {
 }
 
 // ReadHeaderNumber returns the header number assigned to a hash.
-func ReadHeaderNumber(db DatabaseReader, shardId uint16,hash common.Hash) *uint64 {
-	data, _ := db.Get(headerNumberKey(shardId, hash))
+func ReadHeaderNumber(db DatabaseReader, hash common.Hash) *uint64 {
+	data, _ := db.Get(headerNumberKey(types.ShardMaster, hash))
 	if len(data) != 8 {
 		return nil
 	}
@@ -129,8 +129,8 @@ func WriteFastTrieProgress(db DatabaseWriter, count uint64) {
 }
 
 // ReadHeaderRLP retrieves a block header in its raw RLP database encoding.
-func ReadHeaderRLP(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) rlp.RawValue {
-	key:=headerKey(number, shardId,hash)
+func ReadHeaderRLP(db DatabaseReader, hash common.Hash, number uint64) rlp.RawValue {
+	key:=headerKey(number, types.ShardMaster,hash)
 	data, _ := db.Get(key)
 	return data
 }
@@ -155,8 +155,8 @@ func ReadLastShardInfo(db DatabaseReader) []*types.ShardBlockInfo{
 	}
 }
 // ReadHeader retrieves the block header corresponding to the hash.
-func ReadHeader(db DatabaseReader, shardId uint16,hash common.Hash, number uint64) types.HeaderIntf {
-	data := ReadHeaderRLP(db, shardId, hash, number)
+func ReadHeader(db DatabaseReader, hash common.Hash, number uint64) types.HeaderIntf {
+	data := ReadHeaderRLP(db, hash, number)
 	if len(data) == 0 {
 		return nil
 	}
@@ -216,7 +216,7 @@ func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
-	key = headerKey(number, header.ShardId(),hash)
+	key = headerKey(number, types.ShardMaster,hash)
 
 	if err := db.Put(key, data); err != nil {
 		log.Crit("Failed to store header", "err", err)
@@ -234,29 +234,29 @@ func DeleteHeader(db DatabaseDeleter, shardId uint16, hash common.Hash, number u
 }
 
 // ReadBodyRLP retrieves the block body (transactions and uncles) in RLP encoding.
-func ReadBodyRLP(db DatabaseReader, shardId uint16,hash common.Hash, number uint64) rlp.RawValue {
-	data, _ := db.Get(blockBodyKey(shardId,number, hash))
+func ReadBodyRLP(db DatabaseReader,hash common.Hash, number uint64) rlp.RawValue {
+	data, _ := db.Get(blockBodyKey(types.ShardMaster,number, hash))
 	return data
 }
 
 // WriteBodyRLP stores an RLP encoded block body into the database.
-func WriteBodyRLP(db DatabaseWriter,shardId uint16, hash common.Hash, number uint64, rlp rlp.RawValue) {
-	if err := db.Put(blockBodyKey(shardId,number,  hash), rlp); err != nil {
+func WriteBodyRLP(db DatabaseWriter,hash common.Hash, number uint64, rlp rlp.RawValue) {
+	if err := db.Put(blockBodyKey(types.ShardMaster,number,  hash), rlp); err != nil {
 		log.Crit("Failed to store block body", "err", err)
 	}
 }
 
 // HasBody verifies the existence of a block body corresponding to the hash.
-func HasBody(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) bool {
-	if has, err := db.Has(blockBodyKey(shardId,number, hash)); !has || err != nil {
+func HasBody(db DatabaseReader,hash common.Hash, number uint64) bool {
+	if has, err := db.Has(blockBodyKey(types.ShardMaster,number, hash)); !has || err != nil {
 		return false
 	}
 	return true
 }
 
 // ReadBody retrieves the block body corresponding to the hash.
-func ReadBody(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) *types.SuperBody {
-	data := ReadBodyRLP(db,shardId, hash, number)
+func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.SuperBody {
+	data := ReadBodyRLP(db, hash, number)
 	if len(data) == 0 {
 		return nil
 	}
@@ -297,7 +297,7 @@ func WriteBody(db DatabaseWriter, hash common.Hash,shardId uint16, number uint64
 		if err2 != nil {
 			log.Crit("Failed to RLP encode body", "err", err2)
 		}else {
-			WriteBodyRLP(db, shardId,hash, number, data2)
+			WriteBodyRLP(db,hash, number, data2)
 		}
 
 	}
@@ -344,9 +344,9 @@ func DeleteTd(db DatabaseDeleter, shardId uint16,hash common.Hash, number uint64
 }
 
 // ReadReceipts retrieves all the transaction receipts belonging to a block.
-func ReadReceipts(db DatabaseReader, shardId uint16,hash common.Hash, number uint64) types.Receipts {
+func ReadReceipts(db DatabaseReader, hash common.Hash, number uint64) types.Receipts {
 	// Retrieve the flattened receipt slice
-	data, _ := db.Get(blockReceiptsKey(shardId, number, hash))
+	data, _ := db.Get(blockReceiptsKey(types.ShardMaster, number, hash))
 	if len(data) == 0 {
 		return nil
 	}
@@ -393,8 +393,8 @@ func DeleteReceipts(db DatabaseDeleter, shardId uint16,hash common.Hash, number 
 //
 // Note, due to concurrent download of header and block body the header and thus
 // canonical hash can be stored in the database but the body data not (yet).
-func ReadBlock(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) types.BlockIntf {
-	header := ReadHeader(db,shardId, hash, number)
+func ReadBlock(db DatabaseReader,hash common.Hash, number uint64) types.BlockIntf {
+	header := ReadHeader(db, hash, number)
 
 	if header == nil || reflect.ValueOf(header).IsNil() {
 		return nil
@@ -402,7 +402,7 @@ func ReadBlock(db DatabaseReader,shardId uint16, hash common.Hash, number uint64
 	if header.Hash() != hash {
 		fmt.Println("error hash:")
 	}
-	body := ReadBody(db,shardId, hash, number)
+	body := ReadBody(db, hash, number)
 	if body == nil {
 		return nil
 	}
@@ -436,23 +436,23 @@ func FindCommonAncestor(db DatabaseReader, a, b types.HeaderIntf) types.HeaderIn
 		return nil
 	}
 	for bn := b.NumberU64(); a.NumberU64() > bn; {
-		a = ReadHeader(db,a.ShardId(), a.ParentHash(), a.NumberU64()-1)
+		a = ReadHeader(db, a.ParentHash(), a.NumberU64()-1)
 		if a == nil  || reflect.ValueOf(a).IsNil() {
 			return nil
 		}
 	}
 	for an := a.NumberU64(); an < b.NumberU64(); {
-		b = ReadHeader(db, b.ShardId(),b.ParentHash(), b.NumberU64()-1)
+		b = ReadHeader(db, b.ParentHash(), b.NumberU64()-1)
 		if b == nil  || reflect.ValueOf(b).IsNil() {
 			return nil
 		}
 	}
 	for a.Hash() != b.Hash() {
-		a = ReadHeader(db, a.ShardId(), a.ParentHash(), a.NumberU64()-1)
+		a = ReadHeader(db,a.ParentHash(), a.NumberU64()-1)
 		if a == nil  || reflect.ValueOf(a).IsNil() {
 			return nil
 		}
-		b = ReadHeader(db,b.ShardId(), b.ParentHash(), b.NumberU64()-1)
+		b = ReadHeader(db,b.ParentHash(), b.NumberU64()-1)
 		if b == nil  || reflect.ValueOf(b).IsNil(){
 			return nil
 		}

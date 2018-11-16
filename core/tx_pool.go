@@ -551,6 +551,10 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
 		newHead = pool.chain.CurrentBlock().Header().ToSHeader() // Special case during testing
 	}
+	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
+		log.Error("Failed to reset txpool state as one")
+		return
+	}
 	statedb, err := pool.chain.StateAt(newHead.Root())
 	if err != nil {
 		log.Error("Failed to reset txpool state", "err", err)

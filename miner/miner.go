@@ -19,6 +19,8 @@ package miner
 
 import (
 	"fmt"
+	"github.com/EDXFund/MasterChain/ethdb"
+	"github.com/EDXFund/MasterChain/qchain"
 	"sync/atomic"
 	"time"
 
@@ -37,6 +39,8 @@ import (
 type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
+	ShardPool() *qchain.ShardChainPool
+	ChainDb()        ethdb.Database
 }
 
 // Miner creates blocks and searches for proof-of-work values.

@@ -36,7 +36,7 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, shardId uint16,numbe
 	hash := rawdb.ReadCanonicalHash(db, shardId,number)
 	if (hash != common.Hash{}) {
 		// if there is a canonical hash, there is a header too
-		header := rawdb.ReadHeader(db, shardId,hash, number)
+		header := rawdb.ReadHeader(db,hash, number)
 		if header  == nil || reflect.ValueOf(header).IsNil() {
 			panic("Canonical hash present but header not found")
 		}
@@ -84,7 +84,7 @@ func GetCanonicalHash(ctx context.Context, odr OdrBackend, shardId uint16, numbe
 
 // GetBodyRLP retrieves the block body (transactions and uncles) in RLP encoding.
 func GetBodyRLP(ctx context.Context, odr OdrBackend,shardId uint16, hash common.Hash, number uint64) (rlp.RawValue, error) {
-	if data := rawdb.ReadBodyRLP(odr.Database(), shardId,hash, number); data != nil {
+	if data := rawdb.ReadBodyRLP(odr.Database() ,hash, number); data != nil {
 		return data, nil
 	}
 	r := &BlockRequest{Hash: hash, Number: number,ShardId:shardId}
@@ -114,7 +114,7 @@ func GetBody(ctx context.Context, odr OdrBackend, shardId uint16,hash common.Has
 // back from the stored header and body.
 func GetBlock(ctx context.Context, odr OdrBackend, shardId uint16,hash common.Hash, number uint64) (types.BlockIntf, error) {
 	// Retrieve the block header and body contents
-	header := rawdb.ReadHeader(odr.Database(), shardId, hash, number)
+	header := rawdb.ReadHeader(odr.Database(), hash, number)
 	if header  == nil || reflect.ValueOf(header).IsNil() {
 		return nil, ErrNoHeader
 	}
@@ -136,7 +136,7 @@ func GetBlock(ctx context.Context, odr OdrBackend, shardId uint16,hash common.Ha
 func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) (types.Receipts, error) {
 	// Retrieve the potentially incomplete receipts from disk or network
 	//only master has receipts
-	receipts := rawdb.ReadReceipts(odr.Database(), types.ShardMaster, hash, number)
+	receipts := rawdb.ReadReceipts(odr.Database(), hash, number)
 	if receipts == nil {
 		r := &ReceiptsRequest{Hash: hash, Number: number}
 		if err := odr.Retrieve(ctx, r); err != nil {
@@ -166,7 +166,7 @@ func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, num
 func GetBlockLogs(ctx context.Context, odr OdrBackend, hash common.Hash, number uint64) ([][]*types.Log, error) {
 	// Retrieve the potentially incomplete receipts from disk or network
 	//only master has logs
-	receipts := rawdb.ReadReceipts(odr.Database(),types.ShardMaster, hash, number)
+	receipts := rawdb.ReadReceipts(odr.Database(), hash, number)
 	if receipts == nil {
 		r := &ReceiptsRequest{Hash: hash, Number: number}
 		if err := odr.Retrieve(ctx, r); err != nil {

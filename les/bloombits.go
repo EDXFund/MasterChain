@@ -54,7 +54,7 @@ func (eth *LightEthereum) startBloomHandlers(sectionSize uint64) {
 				case request := <-eth.bloomRequests:
 					task := <-request
 					task.Bitsets = make([][]byte, len(task.Sections))
-					compVectors, err := light.GetBloomBits(task.Context, eth.odr, task.Bit, task.Sections)
+					compVectors, err := light.GetBloomBits(task.Context, eth.odr, eth.blockchain.ShardId(),task.Bit, task.Sections)
 					if err == nil {
 						for i := range task.Sections {
 							if blob, err := bitutil.DecompressBytes(compVectors[i], int(sectionSize/8)); err == nil {

@@ -54,7 +54,7 @@ type LightChain struct {
 	chainDb       ethdb.Database
 	odr           OdrBackend
 	chainFeed     event.Feed
-	chainSideFeed event.Feed
+	chainShardFeed event.Feed
 	chainHeadFeed event.Feed
 	scope         event.SubscriptionScope
 	genesisBlock  types.BlockIntf
@@ -349,7 +349,7 @@ func (self *LightChain) postChainEvents(events []interface{}) {
 			}
 			self.chainFeed.Send(ev)
 		case core.ChainSideEvent:
-			self.chainSideFeed.Send(ev)
+			//self.chainSideFeed.Send(ev)
 		}
 	}
 }
@@ -399,12 +399,12 @@ func (self *LightChain) InsertHeaderChain(chain []types.HeaderIntf, checkFreq in
 
 
 		case core.SideStatTy:
-			log.Debug("Inserted forked header", "number", header.Number(), "hash", header.Hash())
+			/*log.Debug("Inserted forked header", "number", header.Number(), "hash", header.Hash())
 			if header.ShardId() == types.ShardMaster {
-				events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
+				events = append(events, core.ChainShardEvent{Block: types.NewBlockWithHeader(header)})
 			}else{
 				events = append(events, core.ChainSideEvent{Block: types.NewSBlockWithHeader(header)})
-			}
+			}*/
 		}
 		return err
 	}
@@ -537,9 +537,9 @@ func (self *LightChain) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) e
 	return self.scope.Track(self.chainHeadFeed.Subscribe(ch))
 }
 
-// SubscribeChainSideEvent registers a subscription of ChainSideEvent.
-func (self *LightChain) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
-	return self.scope.Track(self.chainSideFeed.Subscribe(ch))
+// SubscribeChainShardEvent registers a subscription of ChainShardEvent.
+func (self *LightChain) SubscribeChainShardsEvent(ch chan<- core.ChainsShardEvent) event.Subscription {
+	return self.scope.Track(self.chainShardFeed.Subscribe(ch))
 }
 
 // SubscribeLogsEvent implements the interface of filters.Backend

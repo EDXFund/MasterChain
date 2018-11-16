@@ -457,7 +457,7 @@ func calcDifficultyHomestead(time uint64, parent types.HeaderIntf) *big.Int {
 		y.Exp(big2, y, nil)
 		x.Add(x, y)
 	}
-	fmt.Println("new Difficulty:",x.Uint64()," prev:",parent.Difficulty())
+
 	return x
 }
 
@@ -491,7 +491,7 @@ func calcDifficultyFrontier(time uint64, parent types.HeaderIntf) *big.Int {
 		diff.Add(diff, expDiff)
 		diff = math.BigMax(diff, params.MinimumDifficulty)
 	}
-	fmt.Println("2 new Difficulty:",diff.Uint64()," prev:",parent.Difficulty())
+
 	return diff
 }
 

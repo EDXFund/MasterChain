@@ -20,6 +20,7 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/core"
 	"math"
 	"math/big"
 	mrand "math/rand"
@@ -103,11 +104,11 @@ func NewQHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine 
 
 	}
 
-	hc.headerManager = NewHeaderTreeManager(shardId,hc.blockCh)
+	hc.headerManager = NewHeaderTreeManager(shardId)
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
 	if  hc.genesisHeader == nil  || reflect.ValueOf(hc.genesisHeader).IsNil() {
-		return nil, ErrNoGenesis
+		return nil, core.ErrNoGenesis
 	}
 
 	hc.currentHeader.Store(hc.genesisHeader)
@@ -129,7 +130,7 @@ func (hc *QHeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 		number := cached.(uint64)
 		return &number
 	}
-	number := rawdb.ReadHeaderNumber(hc.chainDb,hc.shardId, hash)
+	number := rawdb.ReadHeaderNumber(hc.chainDb, hash)
 	if number != nil {
 		hc.numberCache.Add(hash, *number)
 	}
@@ -451,7 +452,7 @@ func (hc *QHeaderChain) GetHeader(hash common.Hash, number uint64) types.HeaderI
 	if header, ok := hc.headerCache.Get(hash); ok {
 		return header.(types.HeaderIntf)
 	}
-	header := rawdb.ReadHeader(hc.chainDb, hc.shardId,hash, number)
+	header := rawdb.ReadHeader(hc.chainDb,hash, number)
 	if header == nil {
 		return nil
 	}

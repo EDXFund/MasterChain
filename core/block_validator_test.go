@@ -17,16 +17,14 @@
 package core
 
 import (
-	"runtime"
-	"testing"
-	"time"
-	"fmt"
-
 	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/ethdb"
 	"github.com/EDXFund/MasterChain/params"
+	"runtime"
+	"testing"
+	"time"
 )
 
 // Tests that simple header verification works, for both good and bad blocks.
@@ -44,7 +42,6 @@ func TestHeaderVerification(t *testing.T) {
 	headers := make([]types.HeaderIntf, len(blocks))
 	for i, block := range blocks {
 		headers[i] = block.Header()
-		fmt.Println("cur blk：",headers[i].NumberU64(),"\t hash:",headers[i].Hash(),"\tparent Hash:",headers[i].ParentHash())
 	}
 	// Run the header checker for blocks one-by-one, checking for both valid and invalid nonces
 	chain, _ := NewBlockChain(testdb, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil,types.ShardMaster)
