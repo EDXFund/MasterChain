@@ -19,6 +19,7 @@ package rawdb
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"reflect"
 
@@ -285,15 +286,22 @@ func ReadBody(db DatabaseReader,shardId uint16, hash common.Hash, number uint64)
 // WriteBody storea a block body into the database.
 //add shardid into db, so we can judge which body should be used on reading
 func WriteBody(db DatabaseWriter, hash common.Hash,shardId uint16, number uint64, body *types.SuperBody) {
+
 	data, err := rlp.EncodeToBytes(body)
 
 	if err != nil {
 		log.Crit("Failed to RLP encode body", "err", err)
 	} else {
 		body2 := &types.BodyEncode{shardId,data}
-		data,err = rlp.EncodeToBytes(body2)
+		data2,err2 := rlp.EncodeToBytes(body2)
+		if err2 != nil {
+			log.Crit("Failed to RLP encode body", "err", err2)
+		}else {
+			WriteBodyRLP(db, shardId,hash, number, data2)
+		}
+
 	}
-	WriteBodyRLP(db, shardId,hash, number, data)
+
 }
 
 // DeleteBody removes all block body data associated with a hash.
@@ -387,8 +395,12 @@ func DeleteReceipts(db DatabaseDeleter, shardId uint16,hash common.Hash, number 
 // canonical hash can be stored in the database but the body data not (yet).
 func ReadBlock(db DatabaseReader,shardId uint16, hash common.Hash, number uint64) types.BlockIntf {
 	header := ReadHeader(db,shardId, hash, number)
+
 	if header == nil || reflect.ValueOf(header).IsNil() {
 		return nil
+	}
+	if header.Hash() != hash {
+		fmt.Println("error hash:")
 	}
 	body := ReadBody(db,shardId, hash, number)
 	if body == nil {
@@ -404,6 +416,7 @@ func ReadBlock(db DatabaseReader,shardId uint16, hash common.Hash, number uint64
 
 // WriteBlock serializes a block into the database, header and body separately.
 func WriteBlock(db DatabaseWriter, block types.BlockIntf) {
+
 	WriteBody(db, block.Hash(),block.ShardId(), block.NumberU64(), block.Body())
 	WriteHeader(db, block.Header())
 

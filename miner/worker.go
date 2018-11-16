@@ -146,8 +146,8 @@ type worker struct {
 	txsSub       event.Subscription
 	chainHeadCh  chan core.ChainHeadEvent
 	chainHeadSub event.Subscription
-	chainSideCh  chan core.ChainSideEvent
-	chainSideSub event.Subscription
+	chainShardCh  chan core.ChainsShardEvent
+	chainShardSub event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
@@ -204,7 +204,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		pendingTasks:       make(map[common.Hash]*task),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		chainShardCh:        make(chan core.ChainsShardEvent, chainSideChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
 		resultCh:           make(chan types.BlockIntf, resultQueueSize),
@@ -217,7 +217,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
-	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
+	worker.chainShardSub = eth.BlockChain().SubscribeChainShardsEvent(worker.chainShardCh)
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	if recommit < minRecommitInterval {
@@ -297,6 +297,8 @@ func (w *worker) close() {
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
+// 检查是否应该重新产生一个封包动作，一般是因为交易有变化了：有新的交易收到了，或者是因为新块收到了，需要删除其中的一些交易
+// EDX更新，对于主链节点，是否有新的masterBlock到达了，或者是有新的shardInfo到达了后也会产生
 func (w *worker) newWorkLoop(recommit time.Duration) {
 	var (
 		interrupt   *int32
@@ -351,17 +353,17 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 
 	for {
 		select {
-		case <-w.startCh:
+		case <-w.startCh: //启动
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-		case head := <-w.chainHeadCh:
+		case head := <-w.chainHeadCh: //区块头到达
 			clearPending(head.Block.NumberU64())
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-		case <-timer.C:
+		case <-timer.C: //定时器到达，检查是否有新的交易了，如果有，就重新进行打包任务，否则跳过
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
 			if w.isRunning() && (w.config.Clique == nil || w.config.Clique.Period > 0) {
@@ -412,14 +414,14 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
-	defer w.chainSideSub.Unsubscribe()
+	defer w.chainShardSub.Unsubscribe()
 
 	for {
 		select {
 		case req := <-w.newWorkCh:
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
-		case ev := <-w.chainSideCh:  //side chain can be erase in the future
+		case ev := <-w.chainShardCh:  //side chain can be erase in the future
 			// Short circuit for duplicate side blocks
 			if _, exist := w.localUncles[ev.Block.Hash()]; exist {
 				continue
@@ -671,29 +673,13 @@ func (w *worker) updateSnapshot() {
 	w.snapshotMu.Lock()
 	defer w.snapshotMu.Unlock()
 
-	var uncles []types.HeaderIntf
-	w.current.uncles.Each(func(item interface{}) bool {
-		hash, ok := item.(common.Hash)
-		if !ok {
-			return false
-		}
-		uncle, exist := w.localUncles[hash]
-		if !exist {
-			uncle, exist = w.remoteUncles[hash]
-		}
-		if !exist {
-			return false
-		}
-		uncles = append(uncles, uncle.Header())
-		return false
-	})
 
-	if(w.chain.ShardId() == types.ShardMaster) {
+	if w.chain.ShardId() == types.ShardMaster {
 		w.snapshotBlock = types.NewBlock(
 			w.current.header,
 			w.current.shards,
 
-			uncles,
+			nil,
 			w.current.receipts)
 
 	}else {
@@ -732,7 +718,6 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	var coalescedLogs []*types.Log
-
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
 		// (1) new head block event arrival, the interrupt signal is 1
@@ -913,30 +898,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if w.config.DAOForkSupport && w.config.DAOForkBlock != nil && w.config.DAOForkBlock.Cmp(header.Number()) == 0 {
 		misc.ApplyDAOHardFork(env.state)
 	}
-	// Accumulate the uncles for the current block
-	/*uncles := make([]types.HeaderIntf, 0, 2)
-	commitUncles := func(blocks map[common.Hash]*types.Block) {
-		// Clean up stale uncle blocks first
-		for hash, uncle := range blocks {
-			if uncle.NumberU64()+staleThreshold <= header.NumberU64() {
-				delete(blocks, hash)
-			}
-		}
-		for hash, uncle := range blocks {
-			if len(uncles) == 2 {
-				break
-			}
-			if err := w.commitUncle(env, uncle.Header()); err != nil {
-				log.Trace("Possible uncle rejected", "hash", hash, "reason", err)
-			} else {
-				log.Debug("Committing new uncle to block", "hash", hash)
-				uncles = append(uncles, uncle.Header())
-			}
-		}
-	}
-	// Prefer to locally generated uncle
-	commitUncles(w.localUncles)
-	commitUncles(w.remoteUncles)*/
+
 
 	//no uncles used
 	if !noempty {
@@ -954,7 +916,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 }
 func (w *worker) buildShardBlockInfos(err error, interrupt *int32, tstart time.Time) {
 	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
+	pending, err := w.eth.ShardPool().Pending()
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
 		return

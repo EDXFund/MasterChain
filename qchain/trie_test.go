@@ -25,7 +25,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/EDXFund/MasterChain/consensus/ethash"
-	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/ethdb"

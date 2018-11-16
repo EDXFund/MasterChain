@@ -44,6 +44,8 @@ type ChainEvent struct {
 type ChainSideEvent struct {
 	Block types.BlockIntf
 }
-
+type ChainsShardEvent struct {
+	Block types.BlockIntfs
+}
 type ChainHeadEvent struct{ Block types.BlockIntf }
 type ShardChainHeadEvent struct {Block *types.SBlock}

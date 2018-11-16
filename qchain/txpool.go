@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/types"
@@ -55,7 +54,7 @@ type TxPool struct {
 	quit         chan bool
 	txFeed       event.Feed
 	scope        event.SubscriptionScope
-	chainHeadCh  chan core.ChainHeadEvent
+	chainHeadCh  chan ChainHeadEvent
 	chainHeadSub event.Subscription
 	mu           sync.RWMutex
 	chain        *QChain
@@ -95,7 +94,7 @@ func NewTxPool(config *params.ChainConfig, chain *QChain, relay TxRelayBackend) 
 		pending:     make(map[common.Hash]*types.Transaction),
 		mined:       make(map[common.Hash][]*types.Transaction),
 		quit:        make(chan bool),
-		chainHeadCh: make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
 		chain:       chain,
 		relay:       relay,
 		odr:         chain.Odr(),
@@ -324,9 +323,9 @@ func (pool *TxPool) Stop() {
 	log.Info("Transaction pool stopped")
 }
 
-// SubscribeNewTxsEvent registers a subscription of core.NewTxsEvent and
+// SubscribeNewTxsEvent registers a subscription of NewTxsEvent and
 // starts sending event to the given channel.
-func (pool *TxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
+func (pool *TxPool) SubscribeNewTxsEvent(ch chan<- NewTxsEvent) event.Subscription {
 	return pool.scope.Track(pool.txFeed.Subscribe(ch))
 }
 
@@ -350,41 +349,41 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	// Validate the transaction sender and it's sig. Throw
 	// if the from fields is invalid.
 	if from, err = types.Sender(pool.signer, tx); err != nil {
-		return core.ErrInvalidSender
+		return ErrInvalidSender
 	}
 	// Last but not least check for nonce errors
 	currentState := pool.currentState(ctx)
 	if n := currentState.GetNonce(from); n > tx.Nonce() {
-		return core.ErrNonceTooLow
+		return ErrNonceTooLow
 	}
 
 	// Check the transaction doesn't exceed the current
 	// block limit gas.
 	header := pool.chain.GetHeaderByHash(pool.head)
 	if header.GasLimit() < tx.Gas() {
-		return core.ErrGasLimit
+		return ErrGasLimit
 	}
 
 	// Transactions can't be negative. This may never happen
 	// using RLP decoded transactions but may occur if you create
 	// a transaction using the RPC for example.
 	if tx.Value().Sign() < 0 {
-		return core.ErrNegativeValue
+		return ErrNegativeValue
 	}
 
 	// Transactor should have enough funds to cover the costs
 	// cost == V + GP * GL
 	if b := currentState.GetBalance(from); b.Cmp(tx.Cost()) < 0 {
-		return core.ErrInsufficientFunds
+		return ErrInsufficientFunds
 	}
 
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
+	gas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.homestead)
 	if err != nil {
 		return err
 	}
 	if tx.Gas() < gas {
-		return core.ErrIntrinsicGas
+		return ErrIntrinsicGas
 	}
 	return currentState.Error()
 }
@@ -415,7 +414,7 @@ func (self *TxPool) add(ctx context.Context, tx *types.Transaction) error {
 		// Notify the subscribers. This event is posted in a goroutine
 		// because it's possible that somewhere during the post "Remove transaction"
 		// gets called which will then wait for the global tx pool lock and deadlock.
-		go self.txFeed.Send(core.NewTxsEvent{Txs: types.Transactions{tx}})
+		go self.txFeed.Send(NewTxsEvent{Txs: types.Transactions{tx}})
 	}
 
 	// Print a log message if low enough level is set

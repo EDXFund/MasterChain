@@ -20,6 +20,7 @@ import (
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/consensus/misc"
+	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/core/vm"
@@ -45,7 +46,17 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 		engine: engine,
 	}
 }
-//状态处理有两种：当前是主链，处理某个分片信息或者当前是子链，同步其他节点生成的子链区块
+//状态处理有两种：
+// 			当前是主链，处理某个分片信息   或者
+//          当前是子链，同步其他节点生成的子链区块
+
+func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+	if p.bc.shardId == types.ShardMaster {
+		return p.ProcessMasterBlock(block,statedb,cfg)
+	}else {
+		return p.ProcessShardBlock(block,statedb,cfg)
+	}
+}
 // Process processes the state changes according to the Ethereum rules by running
 // the transaction messages using the statedb and applying any rewards to both
 // the processor (coinbase) and any included uncles.
@@ -53,7 +64,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) ProcessShardBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
 	var (
 		receipts types.Receipts
 		usedGas  = new(uint64)
@@ -61,6 +72,10 @@ func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, 
 		allLogs  []*types.Log
 		gp       = new(GasPool).AddGas(block.GasLimit())
 	)
+
+	if block.ShardId() == types.ShardMaster {
+		return nil,nil,0,ErrInvalidBlocks
+	}
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
@@ -77,6 +92,50 @@ func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, 
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb,block.ShardBlocks(),block.Results(), block.Transactions(),  receipts)
+
+	return receipts, allLogs, *usedGas, nil
+}
+
+
+// Process processes the state changes according to the Ethereum rules by running
+// the transaction messages using the statedb and applying any rewards to both
+// the processor (coinbase) and any included uncles.
+//
+// Process returns the receipts and logs accumulated during the process and
+// returns the amount of gas that was used in the process. If any of the
+// transactions failed to execute due to insufficient gas it will return an error.
+func (p *StateProcessor) ProcessMasterBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+	var (
+		receipts types.Receipts
+		usedGas  = new(uint64)
+		header   = block.Header()
+		allLogs  []*types.Log
+	)
+	if block.ShardId() != types.ShardMaster {
+		return nil,nil,0,ErrInvalidBlocks
+	}
+	// Mutate the block and state according to any hard-fork specs
+	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
+		misc.ApplyDAOHardFork(statedb)
+	}
+	// Iterate over and process the individual transactions
+	for _, blockInfo := range block.ShardBlocks() {
+		//从数据库中取出所有的分片信息
+		shardBlock := rawdb.ReadBlock(p.bc.db,blockInfo.ShardId(),blockInfo.Hash(),blockInfo.NumberU64())
+		if shardBlock != nil {
+
+			areceipts, aallLogs, ausedGas,aerr := p.ProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg)
+			if aerr == nil {
+				receipts = append(receipts, areceipts...)
+				allLogs = append(allLogs, aallLogs...)
+				*usedGas += ausedGas
+			}else {
+
+			}
+		}
+	}
+	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
+	p.engine.Finalize(p.bc, header, statedb,block.ShardBlocks(),block.Results(), block.Transactions(), receipts)
 
 	return receipts, allLogs, *usedGas, nil
 }
@@ -124,3 +183,14 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 
 	return receipt, gas, err
 }
+
+
+//In initial edition, master node will apply transaction, this simplifies the block struct, but wastes cpu of master node
+//In next edition, master node will execute the instructions created by shard node
+/*func ApplyShardBlock(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header types.HeaderIntf, usedGas *uint64, cfg vm.Config) (*types.Receipts, uint64, error) {
+	if header.ShardId() == types.ShardMaster {
+		rawdb.ReadBlock()
+	}else {
+
+	}
+}*/

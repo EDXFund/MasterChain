@@ -49,6 +49,7 @@ import (
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rlp"
 	"github.com/EDXFund/MasterChain/rpc"
+	"github.com/EDXFund/MasterChain/qchain"
 )
 
 type LesServer interface {
@@ -68,6 +69,7 @@ type Ethereum struct {
 
 	// Handlers
 	txPool          *core.TxPool
+	shardPool       *qchain.ShardChainPool
 	blockchain      *core.BlockChain
 	protocolManager *ProtocolManager
 	lesServer       LesServer

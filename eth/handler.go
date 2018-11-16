@@ -514,7 +514,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		//当主链收到区块信息时，需要同步确认区块中对应的分片区块是否已经读取，如果没有，需要读取完成
+		//// TODO 当主链收到区块信息时，需要同步确认区块中对应的分片区块是否已经读取，如果没有，需要读取完成
 		if request.ShardId == types.ShardMaster {
 			// Deliver them all to the downloader for queuing
 			bodyData := make ([]*blockMasterBody,1)
@@ -540,6 +540,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if err != nil {
 					log.Debug("Failed to deliver bodies", "err", err)
 				}
+				//TODO 如果本地是分片，那么需要检查主链区块中的信息，看看本地区块是否已经完整了，没有的话，需要发送读取请求
 			}
 		}else { //Shard Block Info
 			bodyData :=  []blockShardBody{}

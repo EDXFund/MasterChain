@@ -909,7 +909,7 @@ func testChainTxReorgs(t *testing.T,shardId uint16) {
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
-
+	fmt.Println("chain 0:",chain[0].Hash(),"haeder:",chain[0].Header().Hash())
 	// removed tx
 	for i, tx := range (types.Transactions{pastDrop, freshDrop}) {
 		if txn, _, _, _ := rawdb.ReadTransaction(db, tx.Hash()); txn != nil {
@@ -922,7 +922,7 @@ func testChainTxReorgs(t *testing.T,shardId uint16) {
 	// added tx
 	for i, tx := range (types.Transactions{pastAdd, freshAdd, futureAdd}) {
 		if txn, _, _, _ := rawdb.ReadTransaction(db, tx.Hash()); txn == nil {
-			t.Errorf("add %d: expected tx to be found", i)
+			t.Errorf("add %d: expected tx to be found",  tx.Hash())
 		}
 		if rcpt, _, _, _ := rawdb.ReadReceipt(db, tx.Hash()); rcpt == nil {
 			t.Errorf("add %d: expected receipt to be found", i)
@@ -1018,7 +1018,7 @@ func TestReorgSideEvent(t *testing.T) {
 		gen.AddTx(tx)
 	})
 	chainSideCh := make(chan ChainSideEvent, 64)
-	blockchain.SubscribeChainSideEvent(chainSideCh)
+	//blockchain.SubscribeChainSideEvent(chainSideCh)
 	if _, err := blockchain.InsertChain(replacementBlocks); err != nil {
 		t.Fatalf("failed to insert chain: %v", err)
 	}

@@ -275,6 +275,7 @@ func (s Transactions) GetRlp(i int) []byte {
 }
 
 // TxDifference returns a new set which is the difference between a and b.
+// add b to a, reduce duplicated
 func TxDifference(a, b Transactions) Transactions {
 	keep := make(Transactions, 0, len(a))
 

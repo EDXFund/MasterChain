@@ -306,16 +306,16 @@ type  HeaderTreeManager struct{
 	shardId uint16
 	trees map[common.Hash]*HeaderTree
 	rootHash common.Hash
-	blockCh  chan types.HeaderIntf
+	confirmed   map[uint64]types.HeaderIntf
 
 }
 
-func NewHeaderTreeManager(shardId uint16,blockCh chan types.HeaderIntf) *HeaderTreeManager {
+func NewHeaderTreeManager(shardId uint16) *HeaderTreeManager {
 	return &HeaderTreeManager{
 		shardId:shardId,
 		trees:make(map[common.Hash]*HeaderTree),
 		rootHash:common.Hash{},
-		blockCh:blockCh,
+		confirmed:make(map[uint64]types.HeaderIntf),
 	}
 
 }
@@ -341,13 +341,12 @@ func (t *HeaderTreeManager)AddNewHeads(nodes []types.HeaderIntf)  []types.Header
 				i++
 				if i > 5 {
 					toPopup = append(toPopup,node.self)
+					t.confirmed[node.self.NumberU64()] = node.self
 				}
-
 			}
-
 		}
-
 	}
+
 	return toPopup
 }
 func (t *HeaderTreeManager)AddNewHead(node types.HeaderIntf) {
@@ -395,7 +394,7 @@ func (t *HeaderTreeManager)GetPendingCount() int {
 	return count
 }
 //cut all node, only tree from node survived
-func (t *HeaderTreeManager)ReduceTo(node types.HeaderIntf) {
+func (t *HeaderTreeManager)ReduceTo(node types.HeaderIntf) error{
 	invalidHashes := make([]common.Hash,1)
 	var newTree *HeaderTree = nil
 	for hash,val := range  t.trees {
@@ -413,7 +412,48 @@ func (t *HeaderTreeManager)ReduceTo(node types.HeaderIntf) {
 	}
 	if newTree != nil {
 		t.trees[newTree.self.Hash()] = newTree
+		t.rootHash = node.Hash()
+		return nil
+	}else {
+		return ErrNoHeader
 	}
-	t.rootHash = node.Hash()
+
 }
 
+
+func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderIntf{
+	if t.rootHash  == head.Hash() {
+		return nil
+	}
+	val,ok := t.confirmed[head.NumberU64()]
+	if !ok { //不在confirmed队列中，应该在树中，删除所有不是该节点的子孙的旁支
+		 t.ReduceTo(head)
+	}else {
+		for key,item := range t.confirmed {
+			if item.Number().Cmp(val.Number()) < 0 {
+				delete(t.confirmed,key)
+			}
+		}
+
+	}
+
+
+	//发送事件
+	return t.Pending()
+
+}
+
+func (t *HeaderTreeManager) Pending() []types.HeaderIntf {
+	if len(t.confirmed) > 0 {
+		result := make([]types.HeaderIntf,1)
+		for _,val := range t.confirmed {
+			if  val.Hash() != t.rootHash  {
+				result = append(result,val)
+			}
+
+		}
+		return result
+	}else {
+		return nil
+	}
+}

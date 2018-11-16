@@ -134,6 +134,7 @@ type blockChain interface {
 	StateAt(root common.Hash) (*state.StateDB, error)
 
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
+	GetShardBlock(shardId uint16, hash common.Hash, number uint64) types.BlockIntf
 }
 
 type  shardChainManager interface {
@@ -196,7 +197,8 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 	}
 	return conf
 }
-
+// store shard infos in ascend order
+type  mShardInfo map[uint64]*types.ShardBlockInfo
 // TxPool contains all currently known transactions. Transactions
 // enter the pool when they are received from the network or submitted
 // locally. They exit the pool when they are included in the blockchain.
@@ -208,7 +210,7 @@ type TxPool struct {
 	config       TxPoolConfig
 	chainconfig  *params.ChainConfig
 	chain        blockChain
-	shardChain   shardChainManager
+
 	gasPrice     *big.Int
 	txFeed       event.Feed
 	scope        event.SubscriptionScope
@@ -230,6 +232,7 @@ type TxPool struct {
 	all     *txLookup                    // All transactions to allow lookups
 	priced  *txPricedList                // All transactions sorted by price
 
+	pendingShards map[uint16]mShardInfo
 	wg sync.WaitGroup // for shutdown sync
 
 	homestead bool
@@ -237,7 +240,7 @@ type TxPool struct {
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain,shardManager shardChainManager) *TxPool {
+func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain,shardId uint16) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -246,7 +249,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		config:      config,
 		chainconfig: chainconfig,
 		chain:       chain,
-		shardChain:  shardManager,
+
 		signer:      types.NewEIP155Signer(chainconfig.ChainID),
 		pending:     make(map[common.Address]*txList),
 		queue:       make(map[common.Address]*txList),
@@ -261,7 +264,13 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		pool.locals.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all)
-	pool.reset(nil, chain.CurrentBlock().Header().ToSHeader())
+
+	if shardId == types.ShardMaster {
+		pool.resetOfMaster(nil, chain.CurrentBlock().Header().ToHeader())
+	}else {
+		pool.resetOfSHeader(nil,chain.CurrentBlock().Header().ToSHeader())
+	}
+
 
 	// If local transactions and journaling is enabled, load from disk
 	if !config.NoLocals && config.Journal != "" {
@@ -315,7 +324,21 @@ func (pool *TxPool) loop() {
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
 					pool.homestead = true
 				}
-				pool.reset(head.Header(), ev.Block.Header())
+				if ev.Block.ShardId() == types.ShardMaster  {
+					if head.ShardId() == types.ShardMaster {
+						temp := ev.Block.Header().ToHeader()
+						pool.resetOfMaster(head.Header().ToHeader(), temp)
+					}
+					//tx pool ignores master block, because shard block would be updated before master block
+
+				}else { //this is shard Id, new shard block arrived
+					if head.ShardId() == ev.Block.ShardId() {
+						temp := ev.Block.Header().ToSHeader()
+						pool.resetOfSHeader(head.Header().ToSHeader(),temp)
+					}
+					//on master node,  when shard block arrives, it will be send to shardManager and popuped
+				}
+
 				head = ev.Block
 
 				pool.mu.Unlock()
@@ -368,7 +391,8 @@ func (pool *TxPool) loop() {
 //resetOfMaster compares newHead and oldHead, find the different shardblocks
 //and then recaculates txs of discarded and new added
 func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
-	var reinject types.ShardBlockInfos
+
+	var reinjectTxs    types.Transactions
 
 	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
@@ -411,13 +435,62 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
 					return
 				}
 			}
-			reinject = types.ShardInfoDifference(discarded, included)
+			//reinjectShards = types.ShardInfoDifference(discarded, included)
+			disTxs := make([]*types.Transaction,1)
+			addTxs := make([]*types.Transaction,1)
+			for _,blockInfo := range discarded {
+				block := pool.chain.GetShardBlock(blockInfo.ShardId(),blockInfo.Hash(),blockInfo.NumberU64())
+				disTxs = append(disTxs,block.Transactions()...)
+			}
+			for _,blockInfo := range included {
+				block := pool.chain.GetShardBlock(blockInfo.ShardId(),blockInfo.Hash(),blockInfo.NumberU64())
+				addTxs = append(addTxs,block.Transactions()...)
+			}
+
+			reinjectTxs = types.TxDifference(disTxs,addTxs)
+
 		}
 	}
+
+	// Initialize the internal state to the current head
+	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
+		newHead = pool.chain.CurrentBlock().Header().ToHeader() // Special case during testing
+	}
+	statedb, err := pool.chain.StateAt(newHead.Root())
+	if err != nil {
+		log.Error("Failed to reset txpool state", "err", err)
+		return
+	}
+	pool.currentState = statedb
+	pool.pendingState = state.ManageState(statedb)
+	pool.currentMaxGas = newHead.GasLimit()
+
+	// Inject any transactions discarded due to reorgs
+	log.Debug("Reinjecting stale transactions", "count", len(reinjectTxs))
+	senderCacher.recover(pool.signer, reinjectTxs)
+	pool.addTxsLocked(reinjectTxs, false)
+
+	// validate the pool of pending transactions, this will remove
+	// any transactions that have been included in the block or
+	// have been invalidated because of another transaction (e.g.
+	// higher gas price)
+	pool.demoteUnexecutables()
+
+	// Update all accounts to the latest known pending nonce
+	for addr, list := range pool.pending {
+		txs := list.Flatten() // Heavy but will be cached and is needed by the miner anyway
+		pool.pendingState.SetNonce(addr, txs[len(txs)-1].Nonce()+1)
+	}
+	// Check the queue and move transactions over to the pending if possible
+	// or remove those that have become invalid
+	pool.promoteExecutables(nil)
+
+
+
 }
 // lockedResetOfSHeader is a wrapper around resetOfSHeader to allow calling it in a thread safe
 // manner. This method is only ever used in the tester!
-func (pool *TxPool) lockedResetOfSHeader(oldHead, newHead *types.SHeader) {
+func (pool *TxPool) lockedReset(oldHead, newHead *types.SHeader) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
@@ -458,6 +531,7 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 					return
 				}
 			}
+			//向前寻找共同的祖先
 			for rem.Hash() != add.Hash() {
 				discarded = append(discarded, rem.Transactions()...)
 				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
@@ -893,7 +967,18 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
 
 	return pool.addTxsLocked(txs, local)
 }
-
+func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
+	for _,shard := range shards {
+		shardId := shard.ShardId()
+		shardInfos,ok := pool.pendingShards[shardId]
+		if !ok {
+			shardInfos = make(mShardInfo)
+			pool.pendingShards[shardId] = shardInfos
+		}
+		shardInfos[shard.NumberU64()] = shard
+	}
+	return nil
+}
 // addTxsLocked attempts to queue a batch of transactions if they are valid,
 // whilst assuming the transaction pool lock is already held.
 func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {

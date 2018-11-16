@@ -26,7 +26,6 @@ import (
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/bitutil"
-	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/ethdb"
@@ -142,7 +141,7 @@ func StoreChtRoot(db ethdb.Database, sectionIdx uint64, sectionHead, root common
 	db.Put(append(append(chtPrefix, encNumber[:]...), sectionHead.Bytes()...), root.Bytes())
 }
 
-// ChtIndexerBackend implements core.ChainIndexerBackend.
+// ChtIndexerBackend implements ChainIndexerBackend.
 type ChtIndexerBackend struct {
 	diskdb, trieTable    ethdb.Database
 	odr                  OdrBackend
@@ -154,7 +153,7 @@ type ChtIndexerBackend struct {
 }
 
 // NewChtIndexer creates a Cht chain indexer
-func NewChtIndexer(db ethdb.Database, odr OdrBackend, size, confirms uint64,shardId uint16) *core.ChainIndexer {
+func NewChtIndexer(db ethdb.Database, odr OdrBackend, size, confirms uint64,shardId uint16) *ChainIndexer {
 	trieTable := ethdb.NewTable(db, ChtTablePrefix)
 	backend := &ChtIndexerBackend{
 		diskdb:      db,
@@ -164,7 +163,7 @@ func NewChtIndexer(db ethdb.Database, odr OdrBackend, size, confirms uint64,shar
 		triedb:      trie.NewDatabase(trieTable),
 		sectionSize: size,
 	}
-	return core.NewChainIndexer(db, ethdb.NewTable(db, "chtIndex-"), backend, size, confirms, time.Millisecond*100, "cht",shardId)
+	return NewChainIndexer(db, ethdb.NewTable(db, "chtIndex-"), backend, size, confirms, time.Millisecond*100, "cht",shardId)
 }
 
 // fetchMissingNodes tries to retrieve the last entry of the latest trusted CHT from the
@@ -192,7 +191,7 @@ func (c *ChtIndexerBackend) fetchMissingNodes(ctx context.Context, section uint6
 	}
 }
 
-// Reset implements core.ChainIndexerBackend
+// Reset implements ChainIndexerBackend
 func (c *ChtIndexerBackend) Reset(ctx context.Context, section uint64, lastSectionHead common.Hash) error {
 	var root common.Hash
 	if section > 0 {
@@ -212,7 +211,7 @@ func (c *ChtIndexerBackend) Reset(ctx context.Context, section uint64, lastSecti
 	return err
 }
 
-// Process implements core.ChainIndexerBackend
+// Process implements ChainIndexerBackend
 func (c *ChtIndexerBackend) Process(ctx context.Context, header types.HeaderIntf) error {
 	hash, num := header.Hash(), header.NumberU64()
 	c.lastHash = hash
@@ -228,7 +227,7 @@ func (c *ChtIndexerBackend) Process(ctx context.Context, header types.HeaderIntf
 	return nil
 }
 
-// Commit implements core.ChainIndexerBackend
+// Commit implements ChainIndexerBackend
 func (c *ChtIndexerBackend) Commit() error {
 	root, err := c.trie.Commit(nil)
 	if err != nil {
@@ -263,7 +262,7 @@ func StoreBloomTrieRoot(db ethdb.Database, sectionIdx uint64, sectionHead, root 
 	db.Put(append(append(bloomTriePrefix, encNumber[:]...), sectionHead.Bytes()...), root.Bytes())
 }
 
-// BloomTrieIndexerBackend implements core.ChainIndexerBackend
+// BloomTrieIndexerBackend implements ChainIndexerBackend
 type BloomTrieIndexerBackend struct {
 	diskdb, trieTable ethdb.Database
 	triedb            *trie.Database
@@ -278,7 +277,7 @@ type BloomTrieIndexerBackend struct {
 }
 
 // NewBloomTrieIndexer creates a BloomTrie chain indexer
-func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uint64,shardId uint16) *core.ChainIndexer {
+func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uint64,shardId uint16) *ChainIndexer {
 	trieTable := ethdb.NewTable(db, BloomTrieTablePrefix)
 	backend := &BloomTrieIndexerBackend{
 		diskdb:     db,
@@ -291,7 +290,7 @@ func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uin
 	}
 	backend.bloomTrieRatio = size / parentSize
 	backend.sectionHeads = make([]common.Hash, backend.bloomTrieRatio)
-	return core.NewChainIndexer(db, ethdb.NewTable(db, "bltIndex-"), backend, size, 0, time.Millisecond*100, "bloomtrie",shardId)
+	return NewChainIndexer(db, ethdb.NewTable(db, "bltIndex-"), backend, size, 0, time.Millisecond*100, "bloomtrie",shardId)
 }
 
 // fetchMissingNodes tries to retrieve the last entries of the latest trusted bloom trie from the
@@ -341,7 +340,7 @@ func (b *BloomTrieIndexerBackend) fetchMissingNodes(ctx context.Context, section
 	return batch.Write()
 }
 
-// Reset implements core.ChainIndexerBackend
+// Reset implements ChainIndexerBackend
 func (b *BloomTrieIndexerBackend) Reset(ctx context.Context, section uint64, lastSectionHead common.Hash) error {
 	var root common.Hash
 	if section > 0 {
@@ -359,7 +358,7 @@ func (b *BloomTrieIndexerBackend) Reset(ctx context.Context, section uint64, las
 	return err
 }
 
-// Process implements core.ChainIndexerBackend
+// Process implements ChainIndexerBackend
 func (b *BloomTrieIndexerBackend) Process(ctx context.Context, header types.HeaderIntf) error {
 	num := header.NumberU64() - b.section*b.size
 	if (num+1)%b.parentSize == 0 {
@@ -368,7 +367,7 @@ func (b *BloomTrieIndexerBackend) Process(ctx context.Context, header types.Head
 	return nil
 }
 
-// Commit implements core.ChainIndexerBackend
+// Commit implements ChainIndexerBackend
 func (b *BloomTrieIndexerBackend) Commit() error {
 	var compSize, decompSize uint64
 

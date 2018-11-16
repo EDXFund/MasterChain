@@ -27,7 +27,6 @@ import (
 
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/consensus"
-	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/types"
@@ -107,7 +106,7 @@ func NewQChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engi
 	}
 
 	if bc.genesisBlock == nil {
-		return nil, core.ErrNoGenesis
+		return nil, ErrNoGenesis
 	}
 	if cp, ok := trustedCheckpoints[bc.genesisBlock.Hash()]; ok {
 		bc.addTrustedCheckpoint(cp)
@@ -116,7 +115,7 @@ func NewQChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engi
 		return nil, err
 	}
 	// Check the current state of the block hashes and make sure that we do not have any of the bad blocks in our chain
-	for hash := range core.BadHashes {
+	for hash := range BadHashes {
 		if header := bc.GetHeaderByHash(hash); header != nil {
 			log.Error("Found bad hash, rewinding chain", "number", header.Number(), "hash", header.ParentHash())
 			bc.SetHead(header.NumberU64() - 1)
@@ -343,12 +342,12 @@ func (self *QChain) Rollback(chain []common.Hash) {
 func (self *QChain) postChainEvents(events []interface{}) {
 	for _, event := range events {
 		switch ev := event.(type) {
-		case core.ChainEvent:
+		case ChainEvent:
 			if self.CurrentHeader().Hash() == ev.Hash {
-				self.chainHeadFeed.Send(core.ChainHeadEvent{Block: ev.Block})
+				self.chainHeadFeed.Send(ChainHeadEvent{Block: ev.Block})
 			}
 			self.chainFeed.Send(ev)
-		case core.ChainSideEvent:
+		case ChainSideEvent:
 			self.chainSideFeed.Send(ev)
 		}
 	}
@@ -502,17 +501,17 @@ func (self *QChain) UnlockChain() {
 }
 
 // SubscribeChainEvent registers a subscription of ChainEvent.
-func (self *QChain) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
+func (self *QChain) SubscribeChainEvent(ch chan<- ChainEvent) event.Subscription {
 	return self.scope.Track(self.chainFeed.Subscribe(ch))
 }
 
 // SubscribeChainHeadEvent registers a subscription of ChainHeadEvent.
-func (self *QChain) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
+func (self *QChain) SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription {
 	return self.scope.Track(self.chainHeadFeed.Subscribe(ch))
 }
 
 // SubscribeChainSideEvent registers a subscription of ChainSideEvent.
-func (self *QChain) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
+func (self *QChain) SubscribeChainSideEvent(ch chan<- ChainSideEvent) event.Subscription {
 	return self.scope.Track(self.chainSideFeed.Subscribe(ch))
 }
 
@@ -523,8 +522,8 @@ func (self *QChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscriptio
 }
 
 // SubscribeRemovedLogsEvent implements the interface of filters.Backend
-// QChain does not send core.RemovedLogsEvent, so return an empty subscription.
-func (self *QChain) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
+// QChain does not send RemovedLogsEvent, so return an empty subscription.
+func (self *QChain) SubscribeRemovedLogsEvent(ch chan<- RemovedLogsEvent) event.Subscription {
 	return self.scope.Track(new(event.Feed).Subscribe(ch))
 }
 

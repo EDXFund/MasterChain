@@ -171,7 +171,13 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 
 	// Check whether the genesis block is already written.
 	if genesis != nil {
-		hash := genesis.ToBlock(nil).Hash()
+		var hash common.Hash
+		if shardId == types.ShardMaster {
+			hash = genesis.ToBlock(nil).Hash()
+			} else {
+			hash = genesis.ToSBlock(nil,shardId).Hash()
+		}
+
 		if hash != stored {
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
 		}

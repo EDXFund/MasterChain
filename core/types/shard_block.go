@@ -477,7 +477,8 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 	if len(transactions) > 0 {
 		block.transactions = make([]*Transaction, len(transactions))
 		copy(block.transactions, transactions)
-		block.header.SetTxHash(rlpHash(transactions))
+		//block.header.SetTxHash(rlpHash(transactions))
+		block.header.SetTxHash(DeriveSha(Transactions(transactions)))
 	}else{
 		block.header.SetTxHash(EmptyRootHash)
 	}
@@ -485,14 +486,10 @@ func (b *SBlock) WithBodyOfTransactions(transactions []*Transaction, contractRec
 	if len(contractReceipts) > 0 {
 		block.results = make(ContractResults, len(contractReceipts))
 		copy(block.results, contractReceipts)
-		block.header.SetReceiptHash(rlpHash(contractReceipts))
+		block.header.SetReceiptHash(DeriveSha(ContractResults(contractReceipts)))
 	}else {
 		block.header.SetReceiptHash(EmptyRootHash)
 	}
-
-
-
-
 
 	return block
 }

@@ -20,7 +20,6 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/EDXFund/MasterChain/core"
 	"math"
 	"math/big"
 	mrand "math/rand"
@@ -108,7 +107,7 @@ func NewQHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine 
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
 	if  hc.genesisHeader == nil  || reflect.ValueOf(hc.genesisHeader).IsNil() {
-		return nil, core.ErrNoGenesis
+		return nil, ErrNoGenesis
 	}
 
 	hc.currentHeader.Store(hc.genesisHeader)

@@ -24,7 +24,6 @@ import (
 	"math/big"
 
 	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/ethdb"
@@ -40,9 +39,9 @@ var ErrNoPeers = errors.New("no suitable peers available")
 // OdrBackend is an interface to a backend service that handles ODR retrievals type
 type OdrBackend interface {
 	Database() ethdb.Database
-	ChtIndexer() *core.ChainIndexer
-	BloomTrieIndexer() *core.ChainIndexer
-	BloomIndexer() *core.ChainIndexer
+	ChtIndexer() *ChainIndexer
+	BloomTrieIndexer() *ChainIndexer
+	BloomIndexer() *ChainIndexer
 	Retrieve(ctx context.Context, req OdrRequest) error
 	IndexerConfig() *IndexerConfig
 }

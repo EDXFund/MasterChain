@@ -17,6 +17,7 @@
 package rawdb
 
 import (
+	"fmt"
 	"reflect"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
@@ -55,6 +56,7 @@ func DeleteShardBlockEntry(db DatabaseDeleter, hash common.Hash) {
 // ReadTxLookupEntry retrieves the positional metadata associated with a transaction
 // hash to allow retrieving the transaction or receipt by hash.
 func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash, uint64, uint64) {
+	fmt.Println("read tx:",txLookupKey(hash))
 	data, _ := db.Get(txLookupKey(hash))
 	if len(data) == 0 {
 		return 0, common.Hash{}, 0, 0
@@ -69,12 +71,13 @@ func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash
 
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.
-func WriteTxLookupEntries(db DatabaseWriter, block *types.SBlock) {
+func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf) {
+
 	if block != nil && !reflect.ValueOf(block).IsNil() {
 		for i, tx := range block.Transactions() {
 			entry := TxLookupEntry{
 				ShardId:    block.ShardId(),
-				BlockHash:  block.Hash(),
+				BlockHash:  block.Header().Hash(),
 				BlockIndex: block.NumberU64(),
 				Index:      uint64(i),
 			}
@@ -82,6 +85,7 @@ func WriteTxLookupEntries(db DatabaseWriter, block *types.SBlock) {
 			if err != nil {
 				log.Crit("Failed to encode transaction lookup entry", "err", err)
 			}
+			fmt.Println("write tx:",txLookupKey(tx.Hash())," block hash:",block.Header().Hash())
 			if err := db.Put(txLookupKey(tx.Hash()), data); err != nil {
 				log.Crit("Failed to store transaction lookup entry", "err", err)
 			}
@@ -98,6 +102,7 @@ func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
+
 	shardId, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0

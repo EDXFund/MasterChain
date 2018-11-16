@@ -350,6 +350,14 @@ func NewBlock(header HeaderIntf, blks []*ShardBlockInfo, uncles []HeaderIntf, re
 		copy(b.shardBlocks, blks)
 	}
 
+	// TODO: panic if len(txs) != len(receipts)
+	if len(blks) == 0 {
+		b.header.shardTxsHash = EmptyRootHash
+	} else {
+		b.header.shardTxsHash = DeriveSha(ShardBlockInfos(blks))
+		b.shardBlocks = make(ShardBlockInfos, len(blks))
+		copy(b.shardBlocks, blks)
+	}
 
 	if len(receipts) == 0 {
 		b.header.receiptHash = EmptyRootHash
@@ -525,10 +533,10 @@ func CalcUncleHash(uncles []HeaderIntf) common.Hash {
 // WithSeal returns a new block with the data from b but the header replaced with
 // the sealed one.
 func (b *Block) WithSeal(header HeaderIntf) BlockIntf {
-	cpy := *header.ToHeader()
+	cpy := header.ToHeader()
 
 	return &Block{
-		header:      &cpy,
+		header:      cpy,
 		shardBlocks: b.shardBlocks,
 		uncles:      b.uncles,
 	}
@@ -544,7 +552,7 @@ func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, receipts []*Receipt
 		block.shardBlocks = make([]*ShardBlockInfo, len(shardBlocksInfos))
 
 		copy(block.shardBlocks, shardBlocksInfos)
-		b.header.SetShardTxHash(rlpHash(shardBlocksInfos))
+		b.header.SetShardTxHash(DeriveSha(ShardBlockInfos(shardBlocksInfos)))
 
 	}else {
 
@@ -552,7 +560,7 @@ func (b *Block) WithBody(shardBlocksInfos []*ShardBlockInfo, receipts []*Receipt
 	}
 
 	if len(receipts)> 0 {
-		block.header.SetReceiptHash(rlpHash(receipts))
+		block.header.SetReceiptHash(DeriveSha(Receipts(receipts)))
 	}else {
 		block.header.SetReceiptHash(EmptyRootHash)
 	}

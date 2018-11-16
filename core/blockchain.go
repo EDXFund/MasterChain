@@ -15,15 +15,12 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 // Package core implements the Ethereum consensus protocol.
+// modified to fit EDX specifications by Tony Zhu
 package core
 
 import (
 	"errors"
 	"fmt"
-	"github.com/EDXFund/MasterChain/common/math"
-	"github.com/EDXFund/MasterChain/consensus/ethash"
-	"github.com/EDXFund/MasterChain/qchain"
-
 	"io"
 	"math/big"
 	mrand "math/rand"
@@ -74,7 +71,9 @@ const (
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	BlockChainVersion = 3
 )
-
+type qChain interface {
+	InsertChain()
+}
 // CacheConfig contains the configuration values for the trie caching/pruning
 // that's resident in a blockchain.
 type CacheConfig struct {
@@ -97,6 +96,11 @@ type CacheConfig struct {
 // important to note that GetBlock can return any block and does not need to be
 // included in the canonical one where as GetBlockByNumber always represents the
 // canonical chain.
+type MasterChainInfo struct {
+	td    	*big.Int
+	hash  	common.Hash
+	number 	uint64
+}
 type BlockChain struct {
 	chainConfig *params.ChainConfig // Chain & network configuration
 	cacheConfig *CacheConfig        // Cache configuration for pruning
@@ -108,7 +112,9 @@ type BlockChain struct {
 	hc            *HeaderChain
 	rmLogsFeed    event.Feed
 	chainFeed     event.Feed
-	chainSideFeed event.Feed
+
+	chainShardFeed event.Feed  //chainShardFeed用于处理
+
 	chainHeadFeed event.Feed
 	logsFeed      event.Feed
 	scope         event.SubscriptionScope
@@ -141,8 +147,9 @@ type BlockChain struct {
 	processor Processor // block processor interface
 	validator Validator // block and state validator interface
 	vmConfig  vm.Config
-
-	shards     map[uint16]*qchain.QChain
+	latestShards map[uint16]*types.ShardBlockInfo
+	//当这个是子链时，会有与主链同步的信息
+	master_head  *HeaderChain
 
 	badBlocks      *lru.Cache              // Bad block cache
 	shouldPreserve func(types.BlockIntf) bool // Function used to determine whether should preserve the given block.
@@ -193,6 +200,11 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	if err != nil {
 		return nil, err
 	}
+	if shardId == types.ShardMaster {
+
+	}else {
+		bc.master_head,err = NewHeaderChain(db,chainConfig,engine,bc.getProcInterrupt,shardId)
+	}
 	bc.genesisBlock = bc.GetBlockByNumber(0)
 	if bc.genesisBlock == nil  || reflect.ValueOf(bc.genesisBlock).IsNil()  {
 		return nil, ErrNoGenesis
@@ -227,6 +239,23 @@ func (bc *BlockChain) getShardExp() uint16 {
 func (bc *BlockChain) getShardEnabledState() [32]byte{
 	return bc.CurrentHeader().ToHeader().ShardEnabled()
 }
+func (bc *BlockChain) GetLatestShards(shardId uint16) *types.ShardBlockInfo{
+	shard,ok := bc.latestShards[shardId]
+	if !ok {
+		block := bc.Genesis().ToSBlock()
+
+		shardInfoS :=  new(types.ShardBlockInfo)
+		shardInfoS.FillBy(&types.ShardBlockInfoStruct{shardId,block.NumberU64(),block.Hash(),common.Hash{},block.Difficulty().Uint64()})
+
+		return shardInfoS
+		}else {
+		return shard
+	}
+}
+/*func (bc *BlockChain) GetLatestHash() common.Hash{
+	return types.rlpHash(bc.latestShards)
+}*/
+
 func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16{
 	hashBytes := txHash.Bytes()
 	targetShard := uint16(hashBytes[0]) + (uint16(hashBytes[1])<<8)
@@ -240,7 +269,7 @@ func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16{
 		return 0
 	}
 }
-
+/*
 // TestClientIndexerConfig wraps a set of configs as a test indexer config for client side.
 func (bc *BlockChain) SetupShardBlockInfos(shardInfos map[uint16]*types.ShardBlockInfo) {
 	if bc.shardId == types.ShardMaster {
@@ -269,7 +298,7 @@ func (bc *BlockChain) SetupShardBlockInfos(shardInfos map[uint16]*types.ShardBlo
 		}
 	}
 }
-
+*/
 func (bc *BlockChain) GenesisHashOf (shardId uint16) common.Hash {
 	if shardId == types.ShardMaster{
 		head_ := &types.HeaderStruct{
@@ -614,6 +643,7 @@ func (bc *BlockChain) Genesis() types.BlockIntf {
 // hash, caching it if found.
 func (bc *BlockChain) GetBody(hash common.Hash) *types.SuperBody {
 	// Short circuit if the body's already in the cache, retrieve otherwise
+
 	if cached, ok := bc.bodyCache.Get(hash); ok {
 		body := cached.(*types.SuperBody)
 		return body
@@ -627,6 +657,7 @@ func (bc *BlockChain) GetBody(hash common.Hash) *types.SuperBody {
 		return nil
 	}
 	// Cache the found body for next time and return
+
 	bc.bodyCache.Add(hash, body)
 	return body
 }
@@ -675,7 +706,19 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 	}
 	return bc.HasState(block.Root())
 }
-
+func (bc *BlockChain)GetShardBlock(shardId uint16, hash common.Hash, number uint64)  types.BlockIntf{
+	// Short circuit if the block's already in the cache, retrieve otherwise
+	if block, ok := bc.blockCache.Get(hash); ok {
+		return block.(types.BlockIntf)
+	}
+	block := rawdb.ReadBlock(bc.db, shardId, hash, number)
+	if block == nil  || reflect.ValueOf(block).IsNil() {
+		return nil
+	}
+	// Cache the found block for next time and return
+	bc.blockCache.Add(block.Hash(), block)
+	return block
+}
 // GetBlock retrieves a block from the database by hash and number,
 // caching it if found.
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf {
@@ -687,6 +730,7 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf 
 	if block == nil  || reflect.ValueOf(block).IsNil() {
 		return nil
 	}
+
 	// Cache the found block for next time and return
 	bc.blockCache.Add(block.Hash(), block)
 	return block
@@ -1091,6 +1135,7 @@ func (bc *BlockChain) WriteBlockWithState(block types.BlockIntf, receipts []*typ
 	batch := bc.db.NewBatch()
 	rawdb.WriteReceipts(batch, block.ShardId(), block.Hash(), block.NumberU64(), receipts)
 
+
 	// If the total difficulty is higher than our known, add it to the canonical chain
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
 	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
@@ -1117,9 +1162,14 @@ func (bc *BlockChain) WriteBlockWithState(block types.BlockIntf, receipts []*typ
 			}
 		}
 		// Write the positional metadata for transaction/receipt lookups and preimages
-		rawdb.WriteShardBlockEntries(batch, block)
-		////MUST TODO  write TX lookup entries for all shard blocks
-		//rawdb.WriteTxLookupEntries(batch, block)
+		if block.ShardId() == types.ShardMaster {
+
+			rawdb.WriteShardBlockEntries(batch, block)
+		}else {
+			////MUST TODO  write TX lookup entries for all shard blocks
+			rawdb.WriteTxLookupEntries(batch, block)
+		}
+
 		rawdb.WritePreimages(batch, block.ShardId(),block.NumberU64(), state.Preimages())
 
 		status = CanonStatTy
@@ -1137,10 +1187,11 @@ func (bc *BlockChain) WriteBlockWithState(block types.BlockIntf, receipts []*typ
 	bc.futureBlocks.Remove(block.Hash())
 	return status, nil
 }
-//// InsertChain有三种情况：
+//// InsertChain有四种情况：
 //// 1)当前是子链节点，需要插入对应的子链区块
 //// 2)当前是主链，需要插入对应的主链区块
 ///  3)当前是主链，需要将区块插入到对应的分片系统中
+///  4)当前是子链节点，收到了主链的区块，根据记录的主链区块信息，重置自身的链
 //// 在1和2的情况下，需要更新状态 3只需要把区块头插入到分片管理系统中
 // InsertChain attempts to insert the given batch of blocks in to the canonical
 // chain or, otherwise, create a fork. If an error is returned it will return
@@ -1152,13 +1203,21 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 	if len(chain) > 0 {
 		if  bc.shardId == chain[0].ShardId() {
 			n, events, logs, err := bc.insertChain(chain)
+
 			bc.PostChainEvents(events, logs)
-			return n, err
-		}else {
 			if bc.shardId == types.ShardMaster {
+				bc.updateShardInfos(chain)
+			}
+			return n, err
+		} else {
+			if bc.shardId == types.ShardMaster {  //主链收到了子链区块的信息，只需插入到shardManager中去
 				return bc.insertIntoShard(chain)
 			}else {
-				return 0,ErrInvalidBlocks
+				if chain[0].ShardId() == types.ShardMaster {
+					return bc.shardProcMasterBlock(chain)
+				}
+				// else 子链收到其它子链的区块，直接丢弃
+				return 0,nil
 			}
 		}
 	}else {
@@ -1166,9 +1225,49 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 	}
 
 }
+func (bc *BlockChain) updateShardInfos(chain types.BlockIntfs) {
+	latest := make(map[uint16]*types.ShardBlockInfo)
+	//find latest block infos
+	for _,body := range chain {
+		for _,item := range body.ShardBlocks() {
+			shardId := item.ShardId()
+			shard, ok := latest[shardId]
+			if !ok {
+				latest[shardId] = item
+			}else {
+				if item.Difficulty().Cmp(shard.Difficulty()) > 0 {
+					latest[shardId] = item
+				}
+			}
+		}
 
+	}
+
+	//update to bc
+
+	for index,val := range latest{
+		bc.latestShards[index] = val
+	}
+	//save to db
+	//rawdb.W    //write(hash-->value)
+	//           //write key-->Hash
+}
 func (bc *BlockChain) insertIntoShard(chain types.BlockIntfs) (int,error){
-	return 0,nil
+	bc.chainShardFeed.Send(&ChainsShardEvent{Block:chain})
+	return len(chain),nil
+}
+
+func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int,error){
+	whFunc := func(header types.HeaderIntf) error {
+		return nil
+	}
+	headers := make([]types.HeaderIntf,len(chain))
+	for _,item := range chain {
+		headers = append(headers,item.Header())
+	}
+	//更新跟踪的主链区块头,是否需要同步本子链的
+	return bc.master_head.InsertHeaderChain(headers,whFunc,time.Now());
+
 }
 // insertChain will execute the actual chain insertion and event aggregation. The
 // only reason this method exists as a separate one is to make locking cleaner
@@ -1178,6 +1277,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 	if len(chain) == 0 {
 		return 0, nil, nil, nil
 	}
+
 	// Do a sanity check that the provided chain is actually ordered and linked
 	for i := 1; i < len(chain); i++ {
 		if chain[i].NumberU64() != chain[i-1].NumberU64()+1 || chain[i].ParentHash() != chain[i-1].Hash() {
@@ -1188,7 +1288,9 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 			return 0, nil, nil, fmt.Errorf("non contiguous insert: item %d is #%d [%x…], item %d is #%d [%x…] (parent [%x…])", i-1, chain[i-1].NumberU64(),
 				chain[i-1].Hash().Bytes()[:4], i, chain[i].NumberU64(), chain[i].Hash().Bytes()[:4], chain[i].ParentHash().Bytes()[:4])
 		}
+
 	}
+
 	// Pre-checks passed, start the full block imports
 	bc.wg.Add(1)
 	defer bc.wg.Done()
@@ -1210,8 +1312,10 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 	seals := make([]bool, len(chain))
 
 	for i, block := range chain {
+
 		headers[i] = block.Header()
 		seals[i] = true
+
 	}
 	abort, results := bc.engine.VerifyHeaders(bc, headers, seals)
 
@@ -1317,6 +1421,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}
+
 		// Process block using the parent state as reference point.
 		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
 		if err != nil {
@@ -1428,6 +1533,7 @@ func countTransactions(chain []types.BlockIntf) (c int) {
 // to be part of the new canonical chain and accumulates potential missing transactions and post an
 // event about them
 func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
+	fmt.Println(" old:",oldBlock.Hash()," new:",newBlock.Hash())
 	var (
 		newChain    types.BlockIntfs
 		oldChain    types.BlockIntfs
@@ -1485,6 +1591,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 
 		oldChain = append(oldChain, oldBlock)
 		newChain = append(newChain, newBlock)
+
 		deletedTxs = append(deletedTxs, oldBlock.Transactions()...)
 		deletedShardInfos = append(deletedShardInfos,oldBlock.ShardBlocks()...)
 		collectLogs(oldBlock.Hash())
@@ -1508,7 +1615,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
-	if(bc.ShardId() == types.ShardMaster) {
+	if bc.ShardId() == types.ShardMaster {
 		bc.reorgShardInfos(newChain,deletedShardInfos)
 	}else {
 		bc.reorgTxs(newChain, deletedTxs)
@@ -1518,13 +1625,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 	if len(deletedLogs) > 0 {
 		go bc.rmLogsFeed.Send(RemovedLogsEvent{deletedLogs})
 	}
-	if len(oldChain) > 0 {
-		go func() {
-			for _, block := range oldChain {
-				bc.chainSideFeed.Send(ChainSideEvent{Block: block})
-			}
-		}()
-	}
+
 
 	return nil
 }
@@ -1533,9 +1634,11 @@ func (bc *BlockChain) reorgTxs(newChain types.BlockIntfs, deletedTxs types.Trans
 	// Insert the new chain, taking care of the proper incremental order
 	var addedTxs types.Transactions
 	for i := len(newChain) - 1; i >= 0; i-- {
+		fmt.Println(" Hash:",newChain[i].Hash(), " newHash:", newChain[i].ToSBlock().Hash())
 		// insert the block in the canonical way, re-writing history
 		bc.insert(newChain[i])
 		// write lookup entries for hash based transaction/receipt searches
+		fmt.Println(" Hash:",newChain[i].Hash(), " newHash:", newChain[i].ToSBlock().Hash())
 		rawdb.WriteTxLookupEntries(bc.db, newChain[i].ToSBlock())
 		addedTxs = append(addedTxs, newChain[i].Transactions()...)
 	}
@@ -1549,7 +1652,7 @@ func (bc *BlockChain) reorgTxs(newChain types.BlockIntfs, deletedTxs types.Trans
 	}
 	batch.Write()
 }
-func (bc *BlockChain) reorgShardInfos(newChain types.BlockIntfs, deletedTxs types.ShardBlockInfos) {
+func (bc *BlockChain) reorgShardInfos(newChain types.BlockIntfs, deletedShardBlocks types.ShardBlockInfos) {
 	// Insert the new chain, taking care of the proper incremental order
 	var addedSfs types.ShardBlockInfos
 	for i := len(newChain) - 1; i >= 0; i-- {
@@ -1560,7 +1663,7 @@ func (bc *BlockChain) reorgShardInfos(newChain types.BlockIntfs, deletedTxs type
 		addedSfs = append(addedSfs, newChain[i].ShardBlocks()...)
 	}
 	// calculate the difference between deleted and added transactions
-	diff := types.ShardInfoDifference(deletedTxs, addedSfs)
+	diff := types.ShardInfoDifference(deletedShardBlocks, addedSfs)
 	// When transactions get deleted from the database that means the
 	// receipts that were created in the fork must also be deleted
 	batch := bc.db.NewBatch()
@@ -1587,8 +1690,8 @@ func (bc *BlockChain) PostChainEvents(events []interface{}, logs []*types.Log) {
 		case ChainHeadEvent:
 			bc.chainHeadFeed.Send(ev)
 
-		case ChainSideEvent:
-			bc.chainSideFeed.Send(ev)
+		//case ChainSideEvent:
+		//	bc.chainSideFeed.Send(ev)
 		}
 	}
 }
@@ -1778,8 +1881,8 @@ func (bc *BlockChain) SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Su
 }
 
 // SubscribeChainSideEvent registers a subscription of ChainSideEvent.
-func (bc *BlockChain) SubscribeChainSideEvent(ch chan<- ChainSideEvent) event.Subscription {
-	return bc.scope.Track(bc.chainSideFeed.Subscribe(ch))
+func (bc *BlockChain) SubscribeChainShardsEvent(ch chan<- ChainsShardEvent) event.Subscription {
+	return bc.scope.Track(bc.chainShardFeed.Subscribe(ch))
 }
 
 // SubscribeLogsEvent registers a subscription of []*types.Log.
