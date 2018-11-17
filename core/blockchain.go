@@ -239,7 +239,10 @@ func (bc *BlockChain) getShardExp() uint16 {
 func (bc *BlockChain) getShardEnabledState() [32]byte{
 	return bc.CurrentHeader().ToHeader().ShardEnabled()
 }
-func (bc *BlockChain) GetLatestShards(shardId uint16) *types.ShardBlockInfo{
+func (bc *BlockChain)GetLatestShards() map[uint16]*types.ShardBlockInfo {
+	return bc.latestShards;
+}
+func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo{
 	shard,ok := bc.latestShards[shardId]
 	if !ok {
 		block := bc.Genesis().ToSBlock()

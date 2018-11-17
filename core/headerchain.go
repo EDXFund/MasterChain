@@ -430,7 +430,7 @@ func (hc *HeaderChain) HasHeader(hash common.Hash, number uint64) bool {
 	if hc.numberCache.Contains(hash) || hc.headerCache.Contains(hash) {
 		return true
 	}
-	return rawdb.HasHeader(hc.chainDb, hc.shardId, hash, number)
+	return rawdb.HasHeader(hc.chainDb,hash, number)
 }
 
 // GetHeaderByNumber retrieves a block header from the database by number,

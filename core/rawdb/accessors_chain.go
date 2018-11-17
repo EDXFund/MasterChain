@@ -136,8 +136,8 @@ func ReadHeaderRLP(db DatabaseReader, hash common.Hash, number uint64) rlp.RawVa
 }
 
 // HasHeader verifies the existence of a block header corresponding to the hash.
-func HasHeader(db DatabaseReader, shardId uint16, hash common.Hash, number uint64) bool {
-	if has, err := db.Has(headerKey(number, shardId, hash)); !has || err != nil {
+func HasHeader(db DatabaseReader,  hash common.Hash, number uint64) bool {
+	if has, err := db.Has(headerKey(number, types.ShardMaster, hash)); !has || err != nil {
 		return false
 	}
 	return true
@@ -196,7 +196,7 @@ func WriteHeader(db DatabaseWriter, header types.HeaderIntf) {
 		number  = header.NumberU64()
 		encoded = encodeBlockNumber(number)
 	)
-	key := headerNumberKey(header.ShardId(),hash)
+	key := headerNumberKey(types.ShardMaster,hash)
 	if err := db.Put(key, encoded); err != nil {
 		log.Crit("Failed to store hash to number mapping", "err", err)
 	}
