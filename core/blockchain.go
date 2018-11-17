@@ -240,7 +240,19 @@ func (bc *BlockChain) getShardEnabledState() [32]byte{
 	return bc.CurrentHeader().ToHeader().ShardEnabled()
 }
 func (bc *BlockChain)GetLatestShards() map[uint16]*types.ShardBlockInfo {
-	return bc.latestShards;
+	return bc.latestShards
+}
+
+func (bc *BlockChain)GetMasterChain() *types.ShardBlockInfo {
+	if bc.shardId  != types.ShardMaster {
+		header := bc.master_head.CurrentHeader()
+		blockInfo := types.ShardBlockInfo{}
+		blockInfo.FillBy(&types.ShardBlockInfoStruct{types.ShardMaster,header.NumberU64(),header.Hash(), header.ParentHash(), header.Difficulty().Uint64() })
+		return &blockInfo
+	}else {
+		return nil
+	}
+
 }
 func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo{
 	shard,ok := bc.latestShards[shardId]
