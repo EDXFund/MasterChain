@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/core/rawdb"
 	"math"
 	"math/big"
 	"reflect"
@@ -91,9 +92,8 @@ type ProtocolManager struct {
 	minedBlockSub *event.TypeMuxSubscription
 
 	// channels for fetcher, syncer, txsyncLoop
-	newPeerCh chan *peer
-	txsyncCh  chan *txsync
-
+	newPeerCh   chan *peer
+	txsyncCh    chan *txsync
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
 
@@ -275,8 +275,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
 	}
-	pm.newPeerCh <- p
-
 	// Register the peer locally
 	if err := pm.peers.Register(p); err != nil {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
@@ -292,25 +290,25 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	// after this will be sent via broadcasts.
 	pm.syncTransactions(p)
 
-	// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
-	if daoBlock := pm.chainconfig.DAOForkBlock; daoBlock != nil {
-		// Request the peer's DAO fork header for extra-data validation
-		if err := p.RequestHeadersByNumber(daoBlock.Uint64(), 1, 0, false, p.shardId); err != nil {
-			return err
-		}
-		// Start a timer to disconnect if the peer doesn't reply in time
-		p.forkDrop = time.AfterFunc(daoChallengeTimeout, func() {
-			p.Log().Debug("Timed out DAO fork-check, dropping")
-			pm.removePeer(p.id)
-		})
-		// Make sure it's cleaned up if the peer dies off
-		defer func() {
-			if p.forkDrop != nil {
-				p.forkDrop.Stop()
-				p.forkDrop = nil
-			}
-		}()
-	}
+	//// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
+	//if daoBlock := pm.chainconfig.DAOForkBlock; daoBlock != nil {
+	//	// Request the peer's DAO fork header for extra-data validation
+	//	if err := p.RequestHeadersByNumber(daoBlock.Uint64(), 1, 0, false, p.shardId); err != nil {
+	//		return err
+	//	}
+	//	// Start a timer to disconnect if the peer doesn't reply in time
+	//	p.forkDrop = time.AfterFunc(daoChallengeTimeout, func() {
+	//		p.Log().Debug("Timed out DAO fork-check, dropping")
+	//		pm.removePeer(p.id)
+	//	})
+	//	// Make sure it's cleaned up if the peer dies off
+	//	defer func() {
+	//		if p.forkDrop != nil {
+	//			p.forkDrop.Stop()
+	//			p.forkDrop = nil
+	//		}
+	//	}()
+	//}
 	// main loop. handle incoming messages.
 	for {
 		if err := pm.handleMsg(p); err != nil {
@@ -346,6 +344,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&query); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+
+		dataInChain, err := pm.validateShardId(query.ShardId)
+		if err != nil {
+			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+
 		hashMode := query.Origin.Hash != (common.Hash{})
 		first := true
 		maxNonCanonical := uint64(100)
@@ -363,15 +367,29 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if hashMode {
 				if first {
 					first = false
-					origin = pm.blockchain.GetHeaderByHash(query.Origin.Hash)
+					if dataInChain {
+						origin = pm.blockchain.GetHeaderByHash(query.Origin.Hash)
+					} else {
+						origin = rawdb.ReadHeader(pm.blockchain.DB(), query.Origin.Hash, query.Origin.Number)
+					}
+
 					if origin != nil {
 						query.Origin.Number = origin.NumberU64()
 					}
 				} else {
-					origin = pm.blockchain.GetHeader(query.Origin.Hash, query.Origin.Number)
+					if dataInChain {
+						origin = pm.blockchain.GetHeader(query.Origin.Hash, query.Origin.Number)
+					} else {
+						origin = rawdb.ReadHeader(pm.blockchain.DB(), query.Origin.Hash, query.Origin.Number)
+					}
 				}
 			} else {
-				origin = pm.blockchain.GetHeaderByNumber(query.Origin.Number)
+				if dataInChain {
+					origin = pm.blockchain.GetHeaderByNumber(query.Origin.Number)
+				} else {
+					origin = rawdb.ReadHeader(pm.blockchain.DB(), query.Origin.Hash, query.Origin.Number)
+				}
+
 			}
 			if origin == nil {
 				break
@@ -387,7 +405,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if ancestor == 0 {
 					unknown = true
 				} else {
-					query.Origin.Hash, query.Origin.Number = pm.blockchain.GetAncestor(query.Origin.Hash, query.Origin.Number, ancestor, &maxNonCanonical)
+					if dataInChain {
+						query.Origin.Hash, query.Origin.Number = pm.blockchain.GetAncestor(query.Origin.Hash, query.Origin.Number, ancestor, &maxNonCanonical)
+					} else {
+						//TODO 从rawdb中取该hash的前几个head
+
+						//query.Origin.Hash, query.Origin.Number  = rawdb.FindCommonAncestor(pm.blockchain.DB(),origin)
+					}
+
 					unknown = (query.Origin.Hash == common.Hash{})
 				}
 			case hashMode && !query.Reverse:
@@ -430,10 +455,36 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 	case msg.Code == BlockHeadersMsg:
 		// A batch of headers arrived to one of our previous requests
-		var headers []types.HeaderIntf
-		if err := msg.Decode(&headers); err != nil {
+		var bhmd blockHeaderMsgData
+
+		//headers := []*types.HeaderStruct{}
+
+		if err := msg.Decode(&bhmd); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		var headers = []types.HeaderIntf{}
+		if bhmd.ShardId == types.ShardMaster {
+			var headerst []*types.HeaderStruct
+			rlp.DecodeBytes(bhmd.data, &headerst)
+
+			for _, head_bak := range headerst {
+				head := types.Header{}
+				head.FillBy(head_bak)
+				headers = append(headers, &head)
+			}
+
+		} else {
+			var headerst []*types.SHeaderStruct
+			rlp.DecodeBytes(bhmd.data, &headerst)
+			for _, head_bak := range headerst {
+				head := types.SHeader{}
+				head.FillBy(head_bak)
+				headers = append(headers, &head)
+			}
+
+		}
+
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -686,6 +737,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err != nil {
 			return errResp(ErrDecode, "%v: %v", request, err)
 		}
+
 		block.SetReceivedAt(msg.ReceivedAt)
 		block.SetReceivedFrom(p)
 
@@ -735,6 +787,22 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	return nil
+}
+
+func (pm *ProtocolManager) validateShardId(shardId uint16) (bool, error) {
+
+	selfShardId := pm.blockchain.ShardId()
+	dataInChain := true
+	if selfShardId == types.ShardMaster {
+		if shardId != types.ShardMaster {
+			dataInChain = false
+		}
+	} else {
+		if shardId != selfShardId {
+			return dataInChain, fmt.Errorf("no shardId data")
+		}
+	}
+	return dataInChain, nil
 }
 
 func ExtractBlockIntf(request newBlockData) (types.BlockIntf, error) {

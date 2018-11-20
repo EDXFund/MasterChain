@@ -437,7 +437,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			} else {
 				origin = pm.blockchain.GetHeaderByNumber(query.Origin.Number)
 			}
-			if origin  == nil || reflect.ValueOf(origin).IsNil() {
+			if origin == nil || reflect.ValueOf(origin).IsNil() {
 				break
 			}
 			headers = append(headers, origin)
@@ -523,9 +523,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received block bodies request")
 		// Decode the retrieval message
 		var req struct {
-			ReqID  uint64
+			ReqID   uint64
 			ShardId uint16
-			Hashes []common.Hash
+			Hashes  []common.Hash
 		}
 		if err := msg.Decode(&req); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -580,9 +580,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received code request")
 		// Decode the retrieval message
 		var reqm struct {
-			ReqID uint64
+			ReqID   uint64
 			ShardId uint16
-			Reqs  []CodeReq
+			Reqs    []CodeReq
 		}
 		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -646,9 +646,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received receipts request")
 		// Decode the retrieval message
 		var req struct {
-			ReqID  uint64
+			ReqID   uint64
 			ShardId uint16
-			Hashes []common.Hash
+			Hashes  []common.Hash
 		}
 		if err := msg.Decode(&req); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -672,7 +672,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				results = rawdb.ReadReceipts(pm.chainDb, hash, *number)
 			}
 			if results == nil {
-				if header := pm.blockchain.GetHeaderByHash(hash); header  == nil || reflect.ValueOf(header).IsNil() || header.ReceiptHash() != types.EmptyRootHash {
+				if header := pm.blockchain.GetHeaderByHash(hash); header == nil || reflect.ValueOf(header).IsNil() || header.ReceiptHash() != types.EmptyRootHash {
 					continue
 				}
 			}
@@ -713,9 +713,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received proofs request")
 		// Decode the retrieval message
 		var reqm struct {
-			ReqID uint64
+			ReqID   uint64
 			ShardId uint16
-			Reqs  []ProofReq
+			Reqs    []ProofReq
 		}
 		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -732,7 +732,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for _, req := range reqm.Reqs {
 			// Retrieve the requested state entry, stopping if enough was found
 			if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
-				if header := rawdb.ReadHeader(pm.chainDb,  req.BHash, *number); header != nil {
+				if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
 					statedb, err := pm.blockchain.State()
 					if err != nil {
 						continue
@@ -767,9 +767,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received les/2 proofs request")
 		// Decode the retrieval message
 		var reqm struct {
-			ReqID uint64
+			ReqID   uint64
 			ShardId uint16
-			Reqs  []ProofReq
+			Reqs    []ProofReq
 		}
 		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -793,7 +793,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				statedb, root, lastBHash = nil, common.Hash{}, req.BHash
 
 				if number := rawdb.ReadHeaderNumber(pm.chainDb, req.BHash); number != nil {
-					if header := rawdb.ReadHeader(pm.chainDb,  req.BHash, *number); header != nil {
+					if header := rawdb.ReadHeader(pm.chainDb, req.BHash, *number); header != nil {
 						statedb, _ = pm.blockchain.State()
 						root = header.Root()
 					}
@@ -872,9 +872,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received headers proof request")
 		// Decode the retrieval message
 		var reqm struct {
-			ReqID uint64
+			ReqID   uint64
 			ShardId uint16
-			Reqs  []ChtReq
+			Reqs    []ChtReq
 		}
 		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -918,9 +918,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		p.Log().Trace("Received helper trie proof request")
 		// Decode the retrieval message
 		var reqm struct {
-			ReqID uint64
+			ReqID   uint64
 			ShardId uint16
-			Reqs  []HelperTrieReq
+			Reqs    []HelperTrieReq
 		}
 		if err := msg.Decode(&reqm); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
@@ -947,7 +947,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				auxTrie, lastType, lastIdx = nil, req.Type, req.TrieIdx
 
 				var prefix string
-				if root, prefix = pm.getHelperTrie(req.Type, req.TrieIdx,reqm.ShardId); root != (common.Hash{}) {
+				if root, prefix = pm.getHelperTrie(req.Type, req.TrieIdx, reqm.ShardId); root != (common.Hash{}) {
 					auxTrie, _ = trie.New(root, trie.NewDatabase(ethdb.NewTable(pm.chainDb, prefix)))
 				}
 			}
@@ -963,7 +963,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					auxTrie.Prove(req.Key, req.FromLevel, nodes)
 				}
 				if req.AuxReq != 0 {
-					data := pm.getHelperTrieAuxData(req,reqm.ShardId)
+					data := pm.getHelperTrieAuxData(req, reqm.ShardId)
 					auxData = append(auxData, data)
 					auxBytes += len(data)
 				}
@@ -1151,18 +1151,18 @@ func (pm *ProtocolManager) getHelperTrie(id uint, idx uint64, shardId uint16) (c
 		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, shardId, (idxV1+1)*pm.iConfig.ChtSize-1)
 		return light.GetChtRoot(pm.chainDb, idxV1, sectionHead), light.ChtTablePrefix
 	case htBloomBits:
-		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, shardId,  (idx+1)*pm.iConfig.BloomTrieSize-1)
+		sectionHead := rawdb.ReadCanonicalHash(pm.chainDb, shardId, (idx+1)*pm.iConfig.BloomTrieSize-1)
 		return light.GetBloomTrieRoot(pm.chainDb, idx, sectionHead), light.BloomTrieTablePrefix
 	}
 	return common.Hash{}, ""
 }
 
 // getHelperTrieAuxData returns requested auxiliary data for the given HelperTrie request
-func (pm *ProtocolManager) getHelperTrieAuxData(req HelperTrieReq,shardId uint16) []byte {
+func (pm *ProtocolManager) getHelperTrieAuxData(req HelperTrieReq, shardId uint16) []byte {
 	if req.Type == htCanonical && req.AuxReq == auxHeader && len(req.Key) == 8 {
 		blockNum := binary.BigEndian.Uint64(req.Key)
-		hash := rawdb.ReadCanonicalHash(pm.chainDb, shardId,  blockNum)
-		return rawdb.ReadHeaderRLP(pm.chainDb, hash,  blockNum)
+		hash := rawdb.ReadCanonicalHash(pm.chainDb, shardId, blockNum)
+		return rawdb.ReadHeaderRLP(pm.chainDb, hash, blockNum)
 	}
 	return nil
 }
@@ -1175,9 +1175,9 @@ func (pm *ProtocolManager) txStatus(hashes []common.Hash) []txStatus {
 
 		// If the transaction is unknown to the pool, try looking it up locally
 		if stat == core.TxStatusUnknown {
-			if shardId,block, number, index := rawdb.ReadTxLookupEntry(pm.chainDb, hashes[i]); block != (common.Hash{}) {
+			if shardId, block, number, index := rawdb.ReadTxLookupEntry(pm.chainDb, hashes[i]); block != (common.Hash{}) {
 				stats[i].Status = core.TxStatusIncluded
-				stats[i].Lookup = &rawdb.TxLookupEntry{ShardId:shardId, BlockHash: block, BlockIndex: number, Index: index}
+				stats[i].Lookup = &rawdb.TxLookupEntry{ShardId: shardId, BlockHash: block, BlockIndex: number, Index: index}
 			}
 		}
 	}
@@ -1193,6 +1193,10 @@ type peerConnection struct {
 }
 
 func (pc *peerConnection) Head() (common.Hash, *big.Int) {
+	return pc.peer.HeadAndTd()
+}
+
+func (pc *peerConnection) SHead(shardId uint16) (common.Hash, *big.Int) {
 	return pc.peer.HeadAndTd()
 }
 
@@ -1220,7 +1224,7 @@ func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, s
 	return nil
 }
 
-func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool,shardId uint16) error {
+func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool, shardId uint16) error {
 	reqID := genReqID()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
@@ -1234,7 +1238,7 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 			peer := dp.(*peer)
 			cost := peer.GetRequestCost(GetBlockHeadersMsg, amount)
 			peer.fcServer.QueueRequest(reqID, cost)
-			return func() { peer.RequestHeadersByNumber(reqID, cost, origin, amount, skip, reverse,shardId) }
+			return func() { peer.RequestHeadersByNumber(reqID, cost, origin, amount, skip, reverse, shardId) }
 		},
 	}
 	_, ok := <-pc.manager.reqDist.queue(rq)

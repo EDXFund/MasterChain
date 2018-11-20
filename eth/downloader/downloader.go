@@ -94,12 +94,13 @@ var (
 	errCancelContentProcessing = errors.New("content processing canceled (requested)")
 	errNoSyncActive            = errors.New("no sync active")
 	errTooOld                  = errors.New("peer doesn't speak recent enough protocol version (need version >= 62)")
-	errInvalidSkeleton                  = errors.New("Skeleton is invalid")
+	errInvalidSkeleton         = errors.New("Skeleton is invalid")
 )
 
 type Downloader struct {
-	mode SyncMode       // Synchronisation mode defining the strategy used (per sync cycle)
-	mux  *event.TypeMux // Event multiplexer to announce sync operation events
+	mode        SyncMode       // Synchronisation mode defining the strategy used (per sync cycle)
+	mux         *event.TypeMux // Event multiplexer to announce sync operation events
+	selfShardId uint16
 
 	queue   *queue   // Scheduler for selecting the hashes to download
 	peers   *peerSet // Set of active peers from which download can proceed
@@ -127,11 +128,11 @@ type Downloader struct {
 	committed       int32
 
 	// Channels
-	headerCh      chan dataPack        // [eth/62] Channel receiving inbound block headers
-	bodyCh        chan dataPack        // [eth/62] Channel receiving inbound block bodies
-	receiptCh     chan dataPack        // [eth/63] Channel receiving inbound receipts
-	bodyWakeCh    chan bool            // [eth/62] Channel to signal the block body fetcher of new tasks
-	receiptWakeCh chan bool            // [eth/63] Channel to signal the receipt fetcher of new tasks
+	headerCh      chan dataPack           // [eth/62] Channel receiving inbound block headers
+	bodyCh        chan dataPack           // [eth/62] Channel receiving inbound block bodies
+	receiptCh     chan dataPack           // [eth/63] Channel receiving inbound receipts
+	bodyWakeCh    chan bool               // [eth/62] Channel to signal the block body fetcher of new tasks
+	receiptWakeCh chan bool               // [eth/63] Channel to signal the receipt fetcher of new tasks
 	headerProcCh  chan []types.HeaderIntf // [eth/62] Channel to feed the header processor new tasks
 
 	// for stateFetcher
@@ -149,10 +150,10 @@ type Downloader struct {
 	quitLock sync.RWMutex  // Lock to prevent double closes
 
 	// Testing hooks
-	syncInitHook     func(uint64, uint64)  // Method to call upon initiating a new sync run
+	syncInitHook     func(uint64, uint64)     // Method to call upon initiating a new sync run
 	bodyFetchHook    func([]types.HeaderIntf) // Method to call upon starting a block body fetch
 	receiptFetchHook func([]types.HeaderIntf) // Method to call upon starting a receipt fetch
-	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
+	chainInsertHook  func([]*fetchResult)     // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
 }
 
 // LightChain encapsulates functions required to synchronise a light chain.
@@ -318,33 +319,39 @@ func (d *Downloader) UnregisterPeer(id string) error {
 
 // Synchronise tries to sync up our local block chain with a remote peer, both
 // adding various sanity checks as well as wrapping it with various log entries.
-func (d *Downloader) Synchronise(id string, head common.Hash, td *big.Int, mode SyncMode) error {
-	err := d.synchronise(id, head, td, mode)
-	switch err {
-	case nil:
-	case errBusy:
+func (d *Downloader) Synchronise(id string, shards []*types.SInfo, mode SyncMode) error {
+	for _, sh := range shards {
+		err := d.synchronise(id, sh.HeadHash, sh.Td, mode, sh.ShardId)
+		switch err {
+		case nil:
+		case errBusy:
 
-	case errTimeout, errBadPeer, errStallingPeer,
-		errEmptyHeaderSet, errPeersUnavailable, errTooOld,
-		errInvalidAncestor, errInvalidChain:
-		log.Warn("Synchronisation failed, dropping peer", "peer", id, "err", err)
-		if d.dropPeer == nil {
-			// The dropPeer method is nil when `--copydb` is used for a local copy.
-			// Timeouts can occur if e.g. compaction hits at the wrong time, and can be ignored
-			log.Warn("Downloader wants to drop peer, but peerdrop-function is not set", "peer", id)
-		} else {
-			d.dropPeer(id)
+		case errTimeout, errBadPeer, errStallingPeer,
+			errEmptyHeaderSet, errPeersUnavailable, errTooOld,
+			errInvalidAncestor, errInvalidChain:
+			log.Warn("Synchronisation failed, dropping peer", "peer", id, "err", err)
+			if d.dropPeer == nil {
+				// The dropPeer method is nil when `--copydb` is used for a local copy.
+				// Timeouts can occur if e.g. compaction hits at the wrong time, and can be ignored
+				log.Warn("Downloader wants to drop peer, but peerdrop-function is not set", "peer", id)
+			} else {
+				d.dropPeer(id)
+			}
+		default:
+			log.Warn("Synchronisation failed, retrying", "err", err)
 		}
-	default:
-		log.Warn("Synchronisation failed, retrying", "err", err)
+		if err != nil {
+			return err
+		}
+
 	}
-	return err
+	return nil
 }
 
 // synchronise will select the peer and use it for synchronising. If an empty string is given
 // it will use the best peer possible and synchronize if its TD is higher than our own. If any of the
 // checks fail an error will be returned. This method is synchronous
-func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode SyncMode) error {
+func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode SyncMode, shardId uint16) error {
 	// Mock out the synchronisation if testing
 	if d.synchroniseMock != nil {
 		return d.synchroniseMock(id, hash)
@@ -401,12 +408,12 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 	if p == nil {
 		return errUnknownPeer
 	}
-	return d.syncWithPeer(p, hash, td)
+	return d.syncWithPeer(p, hash, td, shardId)
 }
 
 // syncWithPeer starts a block synchronization based on the hash chain from the
 // specified peer and head hash.
-func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.Int) (err error) {
+func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.Int, shardId uint16) (err error) {
 	d.mux.Post(StartEvent{})
 	defer func() {
 		// reset on error
@@ -426,13 +433,13 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	}(time.Now())
 
 	// Look up the sync boundaries: the common ancestor and the target block
-	latest, err := d.fetchHeight(p)
+	latest, err := d.fetchHeight(p, shardId)
 	if err != nil {
 		return err
 	}
 	height := latest.NumberU64()
 
-	origin, err := d.findAncestor(p, height,latest.ShardId())
+	origin, err := d.findAncestor(p, height, latest.ShardId())
 	if err != nil {
 		return err
 	}
@@ -466,9 +473,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	}
 
 	fetchers := []func() error{
-		func() error { return d.fetchHeaders(p, origin+1, pivot,latest.ShardId()) }, // Headers are always retrieved
-		func() error { return d.fetchBodies(origin + 1) },          // Bodies are retrieved during normal and fast sync
-		func() error { return d.fetchReceipts(origin + 1) },        // Receipts are retrieved during fast sync
+		func() error { return d.fetchHeaders(p, origin+1, pivot, latest.ShardId()) }, // Headers are always retrieved
+		func() error { return d.fetchBodies(origin + 1) },                            // Bodies are retrieved during normal and fast sync
+		func() error { return d.fetchReceipts(origin + 1) },                          // Receipts are retrieved during fast sync
 		func() error { return d.processHeaders(origin+1, pivot, td) },
 	}
 	if d.mode == FastSync {
@@ -548,11 +555,17 @@ func (d *Downloader) Terminate() {
 
 // fetchHeight retrieves the head header of the remote peer to aid in estimating
 // the total time a pending synchronisation would take.
-func (d *Downloader) fetchHeight(p *peerConnection) (types.HeaderIntf, error) {
+func (d *Downloader) fetchHeight(p *peerConnection, shardId uint16) (types.HeaderIntf, error) {
 	log.Debug("Retrieving remote chain height")
 
 	// Request the advertised remote head block and wait for the response
-	head, _ := p.peer.Head()
+	var head common.Hash
+	if shardId == types.ShardMaster {
+		head, _ = p.peer.Head()
+	} else {
+		head, _ = p.peer.SHead(shardId)
+	}
+
 	go p.peer.RequestHeadersByHash(head, 1, 0, false)
 
 	ttl := d.requestTTL()
@@ -594,7 +607,7 @@ func (d *Downloader) fetchHeight(p *peerConnection) (types.HeaderIntf, error) {
 // on the correct chain, checking the top N links should already get us a match.
 // In the rare scenario when we ended up on a long reorganisation (i.e. none of
 // the head links match), we do a binary search to find the common ancestor.
-func (d *Downloader) findAncestor(p *peerConnection, height uint64,shardId uint16) (uint64, error) {
+func (d *Downloader) findAncestor(p *peerConnection, height uint64, shardId uint16) (uint64, error) {
 	// Figure out the valid ancestor range to prevent rewrite attacks
 	floor, ceil := int64(-1), d.lightchain.CurrentHeader().NumberU64()
 
@@ -623,7 +636,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64,shardId uint1
 	if count > limit {
 		count = limit
 	}
-	go p.peer.RequestHeadersByNumber(uint64(from), count, 15, false,shardId)
+	go p.peer.RequestHeadersByNumber(uint64(from), count, 15, false, shardId)
 
 	// Wait for the remote response to the head fetch
 	number, hash := uint64(0), common.Hash{}
@@ -707,7 +720,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64,shardId uint1
 		ttl := d.requestTTL()
 		timeout := time.After(ttl)
 
-		go p.peer.RequestHeadersByNumber(check, 1, 0, false,shardId)
+		go p.peer.RequestHeadersByNumber(check, 1, 0, false, shardId)
 
 		// Wait until a reply arrives to this request
 		for arrived := false; !arrived; {
@@ -770,8 +783,8 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64,shardId uint1
 // other peers are only accepted if they map cleanly to the skeleton. If no one
 // can fill in the skeleton - not even the origin peer - it's assumed invalid and
 // the origin is dropped.
-func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64,shardId uint16) error {
-	log.Debug("Directing header downloads", "origin", from, "pivot:",pivot)
+func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, shardId uint16) error {
+	log.Debug("Directing header downloads", "origin", from, "pivot:", pivot)
 	defer log.Debug("Header download terminated")
 
 	// Create a timeout timer, and the associated header fetcher
@@ -790,10 +803,10 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64,s
 
 		if skeleton {
 			log.Debug("Fetching skeleton headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false,shardId)
+			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false, shardId)
 		} else {
 			log.Debug("Fetching full headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false,shardId)
+			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false, shardId)
 		}
 	}
 	// Start pulling the header chain skeleton until all is done
@@ -941,7 +954,7 @@ func (d *Downloader) fillHeaderSkeleton(from uint64, skeleton []types.HeaderIntf
 	d.queue.ScheduleSkeleton(from, skeleton)
 
 	if skeleton == nil || reflect.ValueOf(skeleton).IsNil() || len(skeleton) == 0 {
-		return nil,0,errInvalidSkeleton
+		return nil, 0, errInvalidSkeleton
 	}
 	var (
 		deliver = func(packet dataPack) (int, error) {
@@ -953,7 +966,9 @@ func (d *Downloader) fillHeaderSkeleton(from uint64, skeleton []types.HeaderIntf
 		reserve  = func(p *peerConnection, count int) (*fetchRequest, bool, error) {
 			return d.queue.ReserveHeaders(p, count), false, nil
 		}
-		fetch    = func(p *peerConnection, req *fetchRequest) error { return p.FetchHeaders(req.From, MaxHeaderFetch,skeleton[0].ShardId()) }
+		fetch = func(p *peerConnection, req *fetchRequest) error {
+			return p.FetchHeaders(req.From, MaxHeaderFetch, skeleton[0].ShardId())
+		}
 		capacity = func(p *peerConnection) int { return p.HeaderCapacity(d.requestRTT()) }
 		setIdle  = func(p *peerConnection, accepted int) { p.SetHeadersIdle(accepted) }
 	)
@@ -976,7 +991,7 @@ func (d *Downloader) fetchBodies(from uint64) error {
 	var (
 		deliver = func(packet dataPack) (int, error) {
 			pack := packet.(*bodyPack)
-			return d.queue.DeliverBodies(pack.peerID,pack.shardBlocks, pack.transactions, pack.results)
+			return d.queue.DeliverBodies(pack.peerID, pack.shardBlocks, pack.transactions, pack.results)
 		}
 		expire   = func() map[string]int { return d.queue.ExpireBodies(d.requestTTL()) }
 		fetch    = func(p *peerConnection, req *fetchRequest) error { return p.FetchBodies(req) }
@@ -1403,11 +1418,11 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	blocks := make([]types.BlockIntf, len(results))
 
 	for i, result := range results {
-		if  results[0].Header.ShardId() == types.ShardMaster {
-			blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.ShardInfos, result.Receipts,nil,nil)
+		if results[0].Header.ShardId() == types.ShardMaster {
+			blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.ShardInfos, result.Receipts, nil, nil)
 
-		}else {
-			blocks[i] = types.NewSBlockWithHeader(result.Header).WithBody(nil, nil,result.Transactions,result.Results)
+		} else {
+			blocks[i] = types.NewSBlockWithHeader(result.Header).WithBody(nil, nil, result.Transactions, result.Results)
 
 		}
 
@@ -1553,11 +1568,10 @@ func (d *Downloader) commitFastSyncData(results []*fetchResult, stateSync *state
 	receipts := make([]types.Receipts, len(results))
 	for i, result := range results {
 		if result.Header.ShardId() == types.ShardMaster {
-			blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.ShardInfos,nil,nil,nil )
+			blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.ShardInfos, nil, nil, nil)
 
 		} else {
-			blocks[i] = types.NewSBlockWithHeader(result.Header).WithBody(nil,nil,result.Transactions,result.Results )
-
+			blocks[i] = types.NewSBlockWithHeader(result.Header).WithBody(nil, nil, result.Transactions, result.Results)
 
 		}
 		receipts[i] = result.Receipts
@@ -1572,10 +1586,10 @@ func (d *Downloader) commitFastSyncData(results []*fetchResult, stateSync *state
 func (d *Downloader) commitPivotBlock(result *fetchResult) error {
 	var block types.BlockIntf
 	if result.Header.ShardId() == types.ShardMaster {
-		block = types.NewBlockWithHeader(result.Header).WithBody(result.ShardInfos,result.Receipts,nil, nil)
+		block = types.NewBlockWithHeader(result.Header).WithBody(result.ShardInfos, result.Receipts, nil, nil)
 
-		}else {
-		block = types.NewSBlockWithHeader(result.Header).WithBody(nil,nil,result.Transactions, result.Results)
+	} else {
+		block = types.NewSBlockWithHeader(result.Header).WithBody(nil, nil, result.Transactions, result.Results)
 
 	}
 	log.Debug("Committing fast sync pivot as new head", "number", block.Number(), "hash", block.Hash())
@@ -1594,24 +1608,27 @@ func (d *Downloader) commitPivotBlock(result *fetchResult) error {
 func (d *Downloader) DeliverHeaders(id string, headers []types.HeaderIntf) (err error) {
 	return d.deliver(id, d.headerCh, &headerPack{id, headers}, headerInMeter, headerDropMeter)
 }
+
 //DeliverBodies injects a new batch of block bodies received from a remote node.
-func (d *Downloader) DeliverBodies(id string, blks [][]*types.ShardBlockInfo,receipts [][]*types.Receipt,txs [][]*types.Transaction, results [][]*types.ContractResult,shardId uint16) (err error) {
+func (d *Downloader) DeliverBodies(id string, blks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt, txs [][]*types.Transaction, results [][]*types.ContractResult, shardId uint16) (err error) {
 
 	if shardId == types.ShardMaster {
-		return d.DeliverMasterBodies(id,blks,receipts)
+		return d.DeliverMasterBodies(id, blks, receipts)
 
-	}else {
-		return d.DeliverShardBodies(id, txs,results)
+	} else {
+		return d.DeliverShardBodies(id, txs, results)
 
 	}
 }
+
 // DeliverBodies injects a new batch of block bodies received from a remote node.
-func (d *Downloader) DeliverMasterBodies(id string, blks [][]*types.ShardBlockInfo,receipts [][]*types.Receipt) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, nil,blks,receipts,nil}, bodyInMeter, bodyDropMeter)
+func (d *Downloader) DeliverMasterBodies(id string, blks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt) (err error) {
+	return d.deliver(id, d.bodyCh, &bodyPack{id, nil, blks, receipts, nil}, bodyInMeter, bodyDropMeter)
 }
+
 // DeliverBodies injects a new batch of block bodies received from a remote node.
 func (d *Downloader) DeliverShardBodies(id string, transactions [][]*types.Transaction, results [][]*types.ContractResult) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, nil,nil,results}, bodyInMeter, bodyDropMeter)
+	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, nil, nil, results}, bodyInMeter, bodyDropMeter)
 }
 
 // DeliverReceipts injects a new batch of receipts received from a remote node.

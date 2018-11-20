@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/EDXFund/MasterChain/log"
-	"github.com/EDXFund/MasterChain/core/types"
 )
 
 const (
@@ -79,8 +79,9 @@ type peerConnection struct {
 // LightPeer encapsulates the methods required to synchronise with a remote light peer.
 type LightPeer interface {
 	Head() (common.Hash, *big.Int)
+	SHead(shardId uint16) (common.Hash, *big.Int)
 	RequestHeadersByHash(common.Hash, int, int, bool) error
-	RequestHeadersByNumber(uint64, int, int, bool,uint16) error
+	RequestHeadersByNumber(uint64, int, int, bool, uint16) error
 }
 
 // Peer encapsulates the methods required to synchronise with a remote full peer.
@@ -96,12 +97,13 @@ type lightPeerWrapper struct {
 	peer LightPeer
 }
 
-func (w *lightPeerWrapper) Head() (common.Hash, *big.Int) { return w.peer.Head() }
+func (w *lightPeerWrapper) Head() (common.Hash, *big.Int)                { return w.peer.Head() }
+func (w *lightPeerWrapper) SHead(shardId uint16) (common.Hash, *big.Int) { return w.peer.SHead(shardId) }
 func (w *lightPeerWrapper) RequestHeadersByHash(h common.Hash, amount int, skip int, reverse bool) error {
 	return w.peer.RequestHeadersByHash(h, amount, skip, reverse)
 }
-func (w *lightPeerWrapper) RequestHeadersByNumber(i uint64, amount int, skip int, reverse bool,shardId uint16) error {
-	return w.peer.RequestHeadersByNumber(i, amount, skip, reverse,shardId)
+func (w *lightPeerWrapper) RequestHeadersByNumber(i uint64, amount int, skip int, reverse bool, shardId uint16) error {
+	return w.peer.RequestHeadersByNumber(i, amount, skip, reverse, shardId)
 }
 func (w *lightPeerWrapper) RequestBodies([]common.Hash) error {
 	panic("RequestBodies not supported in light client mode sync")
@@ -145,7 +147,7 @@ func (p *peerConnection) Reset() {
 }
 
 // FetchHeaders sends a header retrieval request to the remote peer.
-func (p *peerConnection) FetchHeaders(from uint64, count int,shardId uint16) error {
+func (p *peerConnection) FetchHeaders(from uint64, count int, shardId uint16) error {
 	// Sanity check the protocol version
 	if p.version < 62 {
 		panic(fmt.Sprintf("header fetch [eth/62+] requested on eth/%d", p.version))
@@ -157,7 +159,7 @@ func (p *peerConnection) FetchHeaders(from uint64, count int,shardId uint16) err
 	p.headerStarted = time.Now()
 
 	// Issue the header retrieval request (absolut upwards without gaps)
-	go p.peer.RequestHeadersByNumber(from, count, 0, false,shardId)
+	go p.peer.RequestHeadersByNumber(from, count, 0, false, shardId)
 
 	return nil
 }
@@ -176,13 +178,13 @@ func (p *peerConnection) FetchBodies(request *fetchRequest) error {
 
 	// Convert the header set to a retrievable slice
 	hashes := make([]common.Hash, 0, len(request.Headers))
-	 shardId := uint16(types.ShardMaster)
+	shardId := uint16(types.ShardMaster)
 	for index, header := range request.Headers {
 		if index == 0 {
 			shardId = header.ShardId()
-		}else {
-			if shardId != header.ShardId()  {
-				panic(fmt.Sprintf("diffrent shardid in one request %d and %d",shardId, header.ShardId()))
+		} else {
+			if shardId != header.ShardId() {
+				panic(fmt.Sprintf("diffrent shardid in one request %d and %d", shardId, header.ShardId()))
 			}
 		}
 		hashes = append(hashes, header.Hash())

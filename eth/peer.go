@@ -57,7 +57,7 @@ const (
 	// above some healthy uncle limit, so use that.
 	maxQueuedAnns = 4
 
-	handshakeTimeout = 50 * time.Second
+	handshakeTimeout = 5 * time.Second
 )
 
 // PeerInfo represents a short summary of the Ethereum sub-protocol metadata known
@@ -87,6 +87,9 @@ type peer struct {
 	head common.Hash
 	td   *big.Int
 	lock sync.RWMutex
+
+	shardTd   []*big.Int
+	shardHead []common.Hash
 
 	knownTxs    mapset.Set                // Set of transaction hashes known to be known by this peer
 	knownBlocks mapset.Set                // Set of block hashes known to be known by this peer
@@ -169,6 +172,15 @@ func (p *peer) Head() (hash common.Hash, td *big.Int) {
 
 	copy(hash[:], p.head[:])
 	return hash, new(big.Int).Set(p.td)
+}
+
+// Head retrieves a copy of the current head hash and total difficulty of the
+// peer.
+func (p *peer) SHead(shardId uint16) (hash common.Hash, td *big.Int) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	return p.shardHead[shardId], new(big.Int).Set(p.shardTd[shardId])
 }
 
 // SetHead updates the head hash and total difficulty of the peer.
@@ -272,30 +284,29 @@ func (p *peer) AsyncSendNewBlock(block types.BlockIntf, td *big.Int) {
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []types.HeaderIntf, shardId uint16) error {
-	if shardId == types.ShardMaster {
-		msg := blockHeaderMsgData{ShardId: shardId}
-		if len(headers) > 0 {
-			msg.Headers = make([]*types.HeaderStruct, len(headers))
-			for key, val := range headers {
-				msg.Headers[key] = val.ToHeader().ToHeaderStruct()
-			}
-		} else {
-			msg.Headers = nil
-		}
 
-		return p2p.Send(p.rw, BlockHeadersMsg, msg)
-	} else {
-		msg := blockSHeaderMsgData{ShardId: shardId}
+	var data []byte
+
+	if shardId == types.ShardMaster {
+		hs := make([]*types.HeaderStruct, len(headers))
 		if len(headers) > 0 {
-			msg.Headers = make([]*types.SHeaderStruct, len(headers))
 			for key, val := range headers {
-				msg.Headers[key] = val.ToSHeader().ToStruct()
+				hs[key] = val.ToHeader().ToHeaderStruct()
 			}
-		} else {
-			msg.Headers = nil
 		}
-		return p2p.Send(p.rw, BlockHeadersMsg, msg)
+		data, _ = rlp.EncodeToBytes(hs)
+	} else {
+		hs := make([]*types.SHeaderStruct, len(headers))
+		if len(headers) > 0 {
+			for key, val := range headers {
+				hs[key] = val.ToSHeader().ToStruct()
+			}
+		}
+		data, _ = rlp.EncodeToBytes(hs)
 	}
+
+	msg := blockHeaderMsgData{ShardId: shardId, data: data}
+	return p2p.Send(p.rw, BlockHeadersMsg, msg)
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
@@ -409,6 +420,8 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 			TD:              td,
 			CurrentBlock:    head,
 			GenesisBlock:    genesisBlock,
+			ShardTd:         []*big.Int{},
+			ShardHead:       []common.Hash{},
 		})
 	}()
 	go func() {
@@ -426,45 +439,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 			return p2p.DiscReadTimeout
 		}
 	}
-	p.td, p.head = status.TD, status.CurrentBlock
-	return nil
-}
-
-// Handshake executes the eth protocol handshake, negotiating version number,
-// network IDs, difficulties, head and genesis blocks.
-func (p *peer) THandshake(network uint64, td *big.Int, head common.Hash, blockChain *core.BlockChain) error {
-	// Send out own handshake in a new thread
-	errc := make(chan error, 2)
-	var status statusData // safe to read after two values have been received from errc
-	genesis := blockChain.Genesis()
-	shardId := genesis.ShardId()
-	genesisBlock := blockChain.GenesisHashOf(0xffff)
-	go func() {
-		errc <- p2p.Send(p.rw, StatusMsg, &statusData{
-			ProtocolVersion: uint32(p.version),
-			NetworkId:       network,
-			ShardId:         shardId,
-			TD:              td,
-			CurrentBlock:    head,
-			GenesisBlock:    genesisBlock,
-		})
-	}()
-	go func() {
-		errc <- p.readStatus(network, &status, blockChain)
-	}()
-	timeout := time.NewTimer(handshakeTimeout)
-	defer timeout.Stop()
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errc:
-			if err != nil {
-				return err
-			}
-		case <-timeout.C:
-			return p2p.DiscReadTimeout
-		}
-	}
-	p.td, p.head = status.TD, status.CurrentBlock
+	p.td, p.head, p.shardHead, p.shardTd = status.TD, status.CurrentBlock, status.ShardHead, status.ShardTd
 	return nil
 }
 

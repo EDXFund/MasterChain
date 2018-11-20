@@ -57,7 +57,7 @@ const (
 	BlockBodiesMsg     = 0x06
 	NewBlockMsg        = 0x07
 
-	ShardBlockMsg      = 0x08
+	ShardBlockMsg = 0x08
 	// Protocol messages belonging to eth/63
 	GetNodeDataMsg = 0x0d
 	NodeDataMsg    = 0x0e
@@ -77,6 +77,8 @@ const (
 	ErrNoStatusMsg
 	ErrExtraStatusMsg
 	ErrSuspendedPeer
+
+	ErrNoShardIdData
 )
 
 func (e errCode) String() string {
@@ -113,15 +115,17 @@ type txPool interface {
 type statusData struct {
 	ProtocolVersion uint32
 	NetworkId       uint64
-	ShardId		    uint16
+	ShardId         uint16
 	TD              *big.Int
 	CurrentBlock    common.Hash
 	GenesisBlock    common.Hash
+	ShardTd         []*big.Int
+	ShardHead       []common.Hash
 }
 
 // newBlockHashesData is the network packet for the block announcements.
 type newBlockHashesData struct {
-	ShardId uint16
+	ShardId  uint16
 	HashData []hashesData
 }
 type hashesData struct {
@@ -129,8 +133,6 @@ type hashesData struct {
 	Number uint64      // Number of one particular block being announced
 
 }
-
-
 
 // getBlockHeadersData represents a block header query.
 type getBlockHeadersData struct {
@@ -180,36 +182,34 @@ func (hn *hashOrNumber) DecodeRLP(s *rlp.Stream) error {
 // newBlockData is the network packet for the block propagation message.
 type newBlockData struct {
 	ShardId uint16
-	TD    *big.Int
-	Data []byte
+	TD      *big.Int
+	Data    []byte
 }
+
 /*type newBlockData struct {
 	Block *types.Block
 	TD    *big.Int
 }*/
 // blockBody represents the data content of a single block.
 type blockBody struct {
-	ShardId      uint16
-	Data      []byte
+	ShardId uint16
+	Data    []byte
 }
 type masterBodiesData []*blockMasterBody
 type blockMasterBody struct {
 	BlockInfos []*types.ShardBlockInfo // Transactions contained within a block
-	Receipts       []*types.Receipt      // Uncles contained within a block
+	Receipts   []*types.Receipt        // Uncles contained within a block
 }
 type shardBodiesData []*blockShardBody
 type blockShardBody struct {
-	Transactions []*types.Transaction // Transactions contained within a block
+	Transactions    []*types.Transaction // Transactions contained within a block
 	ContractResults []*types.ContractResult
 }
+
 // blockBodiesData is the network packet for block content distribution.
 type blockBodiesData blockBody
 
 type blockHeaderMsgData struct {
 	ShardId uint16
-	Headers []*types.HeaderStruct
-}
-type blockSHeaderMsgData struct {
-	ShardId uint16
-	Headers []*types.SHeaderStruct
+	data    []byte
 }

@@ -21,13 +21,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/eth/downloader"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/p2p/enode"
-	"github.com/EDXFund/MasterChain/core/types"
 )
-func TestFastSyncDisablingM(t *testing.T) { testFastSyncDisabling(t,types.ShardMaster)}
-func TestFastSyncDisablingS(t *testing.T) { testFastSyncDisabling(t,0)}
+
+func TestFastSyncDisablingM(t *testing.T) { testFastSyncDisabling(t, types.ShardMaster) }
+func TestFastSyncDisablingS(t *testing.T) { testFastSyncDisabling(t, 0) }
 
 // Tests that fast sync gets disabled as soon as a real block is successfully
 
@@ -46,8 +47,8 @@ func testFastSyncDisabling(t *testing.T, shardId uint16) {
 	// Sync up the two peers
 	io1, io2 := p2p.MsgPipe()
 
-	go pmFull.handle(pmFull.newPeer(63, p2p.NewPeer(enode.ID{}, "empty", nil), io2, shardId))
-	go pmEmpty.handle(pmEmpty.newPeer(63, p2p.NewPeer(enode.ID{}, "full", nil), io1, shardId))
+	go pmFull.handle(pmFull.newPeer(63, p2p.NewPeer(enode.ID{}, "empty", nil), io2))
+	go pmEmpty.handle(pmEmpty.newPeer(63, p2p.NewPeer(enode.ID{}, "full", nil), io1))
 
 	time.Sleep(250 * time.Millisecond)
 	pmEmpty.synchronise(pmEmpty.peers.BestPeer())
@@ -57,4 +58,3 @@ func testFastSyncDisabling(t *testing.T, shardId uint16) {
 		t.Fatalf("fast sync not disabled after successful synchronisation")
 	}
 }
-
