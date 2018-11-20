@@ -48,8 +48,8 @@ func TestProtocolCompatibility(t *testing.T) {
 		compatible bool
 		shardId    uint16
 	}{
-		{61, downloader.FullSync, true,types.ShardMaster}, {62, downloader.FullSync, true,types.ShardMaster}, {63, downloader.FullSync, true,types.ShardMaster},
-		{61, downloader.FastSync, false,types.ShardMaster}, {62, downloader.FastSync, false,types.ShardMaster}, {63, downloader.FastSync, true,types.ShardMaster},
+		{61, downloader.FullSync, true, types.ShardMaster}, {62, downloader.FullSync, true, types.ShardMaster}, {63, downloader.FullSync, true, types.ShardMaster},
+		{61, downloader.FastSync, false, types.ShardMaster}, {62, downloader.FastSync, false, types.ShardMaster}, {63, downloader.FastSync, true, types.ShardMaster},
 		{61, downloader.FullSync, true, 0}, {62, downloader.FullSync, true, 0}, {63, downloader.FullSync, true, 0},
 		{61, downloader.FastSync, false, 0}, {62, downloader.FastSync, false, 0}, {63, downloader.FastSync, true, 0},
 	}
@@ -61,7 +61,7 @@ func TestProtocolCompatibility(t *testing.T) {
 	for i, tt := range tests {
 		ProtocolVersions = []uint{tt.version}
 
-		pm, _, err := newTestProtocolManager(tt.mode, 0, nil, nil,tt.shardId)
+		pm, _, err := newTestProtocolManager(tt.mode, 1, nil, nil, tt.shardId)
 		if pm != nil {
 			defer pm.Stop()
 		}
@@ -71,14 +71,15 @@ func TestProtocolCompatibility(t *testing.T) {
 	}
 }
 
-// Tests that block headers can be retrieved from a remote chain based on user queries.
-func TestGetBlockHeaders62(t *testing.T) { testGetBlockHeaders(t, 62,types.ShardMaster) }
-func TestGetBlockHeaders63(t *testing.T) { testGetBlockHeaders(t, 63, types.ShardMaster) }
-
 func TestGetBlockHeaders62S(t *testing.T) { testGetBlockHeaders(t, 62, 0) }
 func TestGetBlockHeaders63S(t *testing.T) { testGetBlockHeaders(t, 63, 0) }
-func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxHashFetch+15, nil, nil,shardId)
+
+// Tests that block headers can be retrieved from a remote chain based on user queries.
+func TestGetBlockHeaders62(t *testing.T) { testGetBlockHeaders(t, 62, types.ShardMaster) }
+func TestGetBlockHeaders63(t *testing.T) { testGetBlockHeaders(t, 63, types.ShardMaster) }
+
+func testGetBlockHeaders(t *testing.T, protocol int, shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxHashFetch+15, nil, nil, shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true, shardId)
 	defer peer.close()
 
@@ -95,22 +96,22 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 	}{
 		// A single random block should be retrievable by hash and number too
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Hash: pm.blockchain.GetBlockByNumber(limit / 2).Hash()}, Amount: 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Hash: pm.blockchain.GetBlockByNumber(limit / 2).Hash()}, Amount: 1},
 			[]common.Hash{pm.blockchain.GetBlockByNumber(limit / 2).Hash()},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: limit / 2}, Amount: 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: limit / 2}, Amount: 1},
 			[]common.Hash{pm.blockchain.GetBlockByNumber(limit / 2).Hash()},
 		},
 		// Multiple headers should be retrievable in both directions
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: limit / 2}, Amount: 3},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: limit / 2}, Amount: 3},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(limit / 2).Hash(),
 				pm.blockchain.GetBlockByNumber(limit/2 + 1).Hash(),
 				pm.blockchain.GetBlockByNumber(limit/2 + 2).Hash(),
 			},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: limit / 2}, Amount: 3, Reverse: true},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: limit / 2}, Amount: 3, Reverse: true},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(limit / 2).Hash(),
 				pm.blockchain.GetBlockByNumber(limit/2 - 1).Hash(),
@@ -119,14 +120,14 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 		},
 		// Multiple headers with skip lists should be retrievable
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: limit / 2}, Skip: 3, Amount: 3},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: limit / 2}, Skip: 3, Amount: 3},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(limit / 2).Hash(),
 				pm.blockchain.GetBlockByNumber(limit/2 + 4).Hash(),
 				pm.blockchain.GetBlockByNumber(limit/2 + 8).Hash(),
 			},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: limit / 2}, Skip: 3, Amount: 3, Reverse: true},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: limit / 2}, Skip: 3, Amount: 3, Reverse: true},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(limit / 2).Hash(),
 				pm.blockchain.GetBlockByNumber(limit/2 - 4).Hash(),
@@ -135,26 +136,26 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 		},
 		// The chain endpoints should be retrievable
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: 0}, Amount: 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: 0}, Amount: 1},
 			[]common.Hash{pm.blockchain.GetBlockByNumber(0).Hash()},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64()}, Amount: 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64()}, Amount: 1},
 			[]common.Hash{pm.blockchain.CurrentBlock().Hash()},
 		},
 		// Ensure protocol limits are honored
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 1}, Amount: limit + 10, Reverse: true},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 1}, Amount: limit + 10, Reverse: true},
 			pm.blockchain.GetBlockHashesFromHash(pm.blockchain.CurrentBlock().Hash(), limit),
 		},
 		// Check that requesting more than available is handled gracefully
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 4}, Skip: 3, Amount: 3},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 4}, Skip: 3, Amount: 3},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(pm.blockchain.CurrentBlock().NumberU64() - 4).Hash(),
 				pm.blockchain.GetBlockByNumber(pm.blockchain.CurrentBlock().NumberU64()).Hash(),
 			},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: 4}, Skip: 3, Amount: 3, Reverse: true},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: 4}, Skip: 3, Amount: 3, Reverse: true},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(4).Hash(),
 				pm.blockchain.GetBlockByNumber(0).Hash(),
@@ -162,13 +163,13 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 		},
 		// Check that requesting more than available is handled gracefully, even if mid skip
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 4}, Skip: 2, Amount: 3},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() - 4}, Skip: 2, Amount: 3},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(pm.blockchain.CurrentBlock().NumberU64() - 4).Hash(),
 				pm.blockchain.GetBlockByNumber(pm.blockchain.CurrentBlock().NumberU64() - 1).Hash(),
 			},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: 4}, Skip: 2, Amount: 3, Reverse: true},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: 4}, Skip: 2, Amount: 3, Reverse: true},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(4).Hash(),
 				pm.blockchain.GetBlockByNumber(1).Hash(),
@@ -176,7 +177,7 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 		},
 		// Check a corner case where requesting more can iterate past the endpoints
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: 2}, Amount: 5, Reverse: true},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: 2}, Amount: 5, Reverse: true},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(2).Hash(),
 				pm.blockchain.GetBlockByNumber(1).Hash(),
@@ -185,30 +186,30 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 		},
 		// Check a corner case where skipping overflow loops back into the chain start
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Hash: pm.blockchain.GetBlockByNumber(3).Hash()}, Amount: 2, Reverse: false, Skip: math.MaxUint64 - 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Hash: pm.blockchain.GetBlockByNumber(3).Hash()}, Amount: 2, Reverse: false, Skip: math.MaxUint64 - 1},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(3).Hash(),
 			},
 		},
 		// Check a corner case where skipping overflow loops back to the same header
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Hash: pm.blockchain.GetBlockByNumber(1).Hash()}, Amount: 2, Reverse: false, Skip: math.MaxUint64},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Hash: pm.blockchain.GetBlockByNumber(1).Hash()}, Amount: 2, Reverse: false, Skip: math.MaxUint64},
 			[]common.Hash{
 				pm.blockchain.GetBlockByNumber(1).Hash(),
 			},
 		},
 		// Check that non existing headers aren't returned
 		{
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Hash: unknown}, Amount: 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Hash: unknown}, Amount: 1},
 			[]common.Hash{},
 		}, {
-			&getBlockHeadersData{ShardId:shardId,Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() + 1}, Amount: 1},
+			&getBlockHeadersData{ShardId: shardId, Origin: hashOrNumber{Number: pm.blockchain.CurrentBlock().NumberU64() + 1}, Amount: 1},
 			[]common.Hash{},
 		},
 	}
 	// Run each of the tests and verify the results against the chain
 	for i, tt := range tests {
-		fmt.Println("testing:",i)
+		fmt.Println("testing:", i)
 		// Collect the headers to expect in the response
 		if shardId == types.ShardMaster {
 			headers := []*types.HeaderStruct{}
@@ -217,35 +218,35 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 			}
 			// Send the hash request and verify the response
 			p2p.Send(peer.app, 0x03, tt.query)
-			msg := blockHeaderMsgData{ShardId:shardId,Headers:headers}
+			data, _ := rlp.EncodeToBytes(headers)
+			msg := blockHeaderMsgData{ShardId: shardId, data: data}
 			if err := p2p.ExpectMsg(peer.app, 0x04, msg); err != nil {
 				t.Errorf("test %d: headers mismatch: %v", i, err)
 			}
 
+			// If the test used number origins, repeat with hashes as the too
+			if tt.query.Origin.Hash == (common.Hash{}) {
+				if origin := pm.blockchain.GetBlockByNumber(tt.query.Origin.Number); origin != nil {
+					tt.query.Origin.Hash, tt.query.Origin.Number = origin.Hash(), 0
 
-		// If the test used number origins, repeat with hashes as the too
-		if tt.query.Origin.Hash == (common.Hash{}) {
-			if origin := pm.blockchain.GetBlockByNumber(tt.query.Origin.Number); origin != nil {
-				tt.query.Origin.Hash, tt.query.Origin.Number = origin.Hash(), 0
-
-				p2p.Send(peer.app, 0x03, tt.query)
-				if err := p2p.ExpectMsg(peer.app, 0x04, msg); err != nil {
-					t.Errorf("test %d: headers mismatch: %v", i, err)
+					p2p.Send(peer.app, 0x03, tt.query)
+					if err := p2p.ExpectMsg(peer.app, 0x04, msg); err != nil {
+						t.Errorf("test %d: headers mismatch: %v", i, err)
+					}
 				}
 			}
-		}
-		}else {
+		} else {
 			headers := []*types.SHeaderStruct{}
 			for _, hash := range tt.expect {
 				headers = append(headers, pm.blockchain.GetBlockByHash(hash).Header().ToSHeader().ToStruct())
 			}
 			// Send the hash request and verify the response
 			p2p.Send(peer.app, 0x03, tt.query)
-			msg := blockSHeaderMsgData{ShardId:shardId,Headers:headers}
+			data, _ := rlp.EncodeToBytes(headers)
+			msg := blockHeaderMsgData{ShardId: shardId, data: data}
 			if err := p2p.ExpectMsg(peer.app, 0x04, msg); err != nil {
 				t.Errorf("test %d: headers mismatch: %v", i, err)
 			}
-
 
 			// If the test used number origins, repeat with hashes as the too
 			if tt.query.Origin.Hash == (common.Hash{}) {
@@ -264,24 +265,24 @@ func testGetBlockHeaders(t *testing.T, protocol int,shardId uint16) {
 }
 
 // Tests that block contents can be retrieved from a remote chain based on their hashes.
-func TestGetBlockBodies62(t *testing.T) { testGetBlockBodies(t, 62, types.ShardMaster) }
-func TestGetBlockBodies63(t *testing.T) { testGetBlockBodies(t, 63, types.ShardMaster) }
+func TestGetBlockBodies62(t *testing.T)  { testGetBlockBodies(t, 62, types.ShardMaster) }
+func TestGetBlockBodies63(t *testing.T)  { testGetBlockBodies(t, 63, types.ShardMaster) }
 func TestGetBlockBodies62S(t *testing.T) { testGetBlockBodies(t, 62, 0) }
 func TestGetBlockBodies63S(t *testing.T) { testGetBlockBodies(t, 63, 0) }
-func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxBlockFetch+15, nil, nil,shardId)
+func testGetBlockBodies(t *testing.T, protocol int, shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxBlockFetch+15, nil, nil, shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true, shardId)
 	defer peer.close()
 
 	// Create a batch of tests for various scenarios
-//	limit := downloader.MaxBlockFetch
+	//	limit := downloader.MaxBlockFetch
 	tests := []struct {
 		random    int           // Number of blocks to fetch randomly from the chain
 		explicit  []common.Hash // Explicitly requested blocks
 		available []bool        // Availability of explicitly requested blocks
 		expected  int           // Total number of existing blocks to expect
 	}{
-		{1, nil, nil, 1},             // A single random block should be retrievable
+		{1, nil, nil, 1}, // A single random block should be retrievable
 		/*{10, nil, nil, 10},           // Multiple random blocks should be retrievable
 		{limit, nil, nil, limit},     // The maximum possible blocks should be retrievable
 		{limit + 1, nil, nil, limit}, // No more than the possible block count should be returned
@@ -317,7 +318,7 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 					block := pm.blockchain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
-						bodies = append( bodies,block)
+						bodies = append(bodies, block)
 					}
 					break
 				}
@@ -327,34 +328,33 @@ func testGetBlockBodies(t *testing.T, protocol int,shardId uint16) {
 			hashes = append(hashes, hash)
 			if tt.available[j] && len(bodies) < tt.expected {
 				block := pm.blockchain.GetBlockByHash(hash)
-				bodies = append(bodies,block)
+				bodies = append(bodies, block)
 
 			}
 		}
 		// Send the hash request and verify the response
 		p2p.Send(peer.app, 0x05, hashes)
 
-		result := make([]rlp.RawValue,len(bodies))
+		result := make([]rlp.RawValue, len(bodies))
 
-		for _,val := range bodies {
+		for _, val := range bodies {
 			var item *types.SuperBody
 			if val.ShardId() == types.ShardMaster {
-				blk :=val.ToBlock().Body()
-				item = &types.SuperBody{ShardBlocks:blk.ShardBlocks,Uncles:nil,Receipts:nil,Transactions:nil,Results:nil}
+				blk := val.ToBlock().Body()
+				item = &types.SuperBody{ShardBlocks: blk.ShardBlocks, Uncles: nil, Receipts: nil, Transactions: nil, Results: nil}
 
-			}else {
-				blk :=val.ToSBlock().Body()
-				item = &types.SuperBody{ShardBlocks:blk.ShardBlocks,Uncles:nil,Receipts:nil,Transactions:nil,Results:nil}
+			} else {
+				blk := val.ToSBlock().Body()
+				item = &types.SuperBody{ShardBlocks: blk.ShardBlocks, Uncles: nil, Receipts: nil, Transactions: nil, Results: nil}
 
 			}
-			data,err := rlp.EncodeToBytes(item)
+			data, err := rlp.EncodeToBytes(item)
 			if err == nil {
-				rawVal,_ := rlp.EncodeToBytes(&types.BodyEncode{ShardId:val.ShardId(),Body:data})
-				result = append(result,rlp.RawValue(rawVal))
+				rawVal, _ := rlp.EncodeToBytes(&types.BodyEncode{ShardId: val.ShardId(), Body: data})
+				result = append(result, rlp.RawValue(rawVal))
 			}
 
 		}
-
 
 		if err := p2p.ExpectMsg(peer.app, 0x06, result); err != nil {
 			t.Errorf("test %d: bodies mismatch: %v", i, err)
@@ -374,9 +374,9 @@ func BodyEncodeFromBlock(block types.BlockIntf, bodies []*types.BodyEncode) []*t
 }
 
 // Tests that the node state database can be retrieved based on hashes.
-func TestGetNodeData63(t *testing.T) { testGetNodeData(t, 63, types.ShardMaster) }
+func TestGetNodeData63(t *testing.T)  { testGetNodeData(t, 63, types.ShardMaster) }
 func TestGetNodeData63S(t *testing.T) { testGetNodeData(t, 63, 0) }
-func testGetNodeData(t *testing.T, protocol int,shardId uint16) {
+func testGetNodeData(t *testing.T, protocol int, shardId uint16) {
 	// Define three accounts to simulate transactions with
 	acc1Key, _ := crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 	acc2Key, _ := crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
@@ -413,7 +413,7 @@ func testGetNodeData(t *testing.T, protocol int,shardId uint16) {
 		}
 	}
 	// Assemble the test environment
-	pm, db := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil,shardId)
+	pm, db := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil, shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true, shardId)
 	defer peer.close()
 
@@ -466,9 +466,9 @@ func testGetNodeData(t *testing.T, protocol int,shardId uint16) {
 }
 
 // Tests that the transaction receipts can be retrieved based on hashes.
-func TestGetReceipt63(t *testing.T) { testGetReceipt(t, 63, types.ShardMaster) }
+func TestGetReceipt63(t *testing.T)  { testGetReceipt(t, 63, types.ShardMaster) }
 func TestGetReceipt63S(t *testing.T) { testGetReceipt(t, 63, 0) }
-func testGetReceipt(t *testing.T, protocol int,shardId uint16) {
+func testGetReceipt(t *testing.T, protocol int, shardId uint16) {
 	// Define three accounts to simulate transactions with
 	acc1Key, _ := crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 	acc2Key, _ := crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
@@ -481,13 +481,13 @@ func testGetReceipt(t *testing.T, protocol int,shardId uint16) {
 		switch i {
 		case 0:
 			// In block 1, the test bank sends account #1 some ether.
-			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), signer, testBankKey)
+			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, 0), signer, testBankKey)
 			block.AddTx(tx)
 		case 1:
 			// In block 2, the test bank sends some more ether to account #1.
 			// acc1Addr passes it on to account #2.
-			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
-			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, acc1Key)
+			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, testBankKey)
+			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, acc1Key)
 			block.AddTx(tx1)
 			block.AddTx(tx2)
 		case 2:
@@ -500,12 +500,12 @@ func testGetReceipt(t *testing.T, protocol int,shardId uint16) {
 			b2.SetExtra([]byte("foo"))
 			block.AddUncle(b2)
 			b3 := block.PrevBlock(2).Header()
-			b3.SetExtra ([]byte("foo"))
+			b3.SetExtra([]byte("foo"))
 			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil,shardId)
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 4, generator, nil, shardId)
 	peer, _ := newTestPeer("peer", protocol, pm, true, shardId)
 	defer peer.close()
 
@@ -527,12 +527,16 @@ func testGetReceipt(t *testing.T, protocol int,shardId uint16) {
 // Tests that post eth protocol handshake, DAO fork-enabled clients also execute
 // a DAO "challenge" verifying each others' DAO fork headers to ensure they're on
 // compatible chains.
-func TestDAOChallengeNoVsNo(t *testing.T)       { testDAOChallenge(t, false, false, false, types.ShardMaster) }
-func TestDAOChallengeNoVsPro(t *testing.T)      { testDAOChallenge(t, false, true, false, types.ShardMaster) }
-func TestDAOChallengeProVsNo(t *testing.T)      { testDAOChallenge(t, true, false, false, types.ShardMaster) }
-func TestDAOChallengeProVsPro(t *testing.T)     { testDAOChallenge(t, true, true, false, types.ShardMaster) }
-func TestDAOChallengeNoVsTimeout(t *testing.T)  { testDAOChallenge(t, false, false, true, types.ShardMaster) }
-func TestDAOChallengeProVsTimeout(t *testing.T) { testDAOChallenge(t, true, true, true, types.ShardMaster) }
+func TestDAOChallengeNoVsNo(t *testing.T)   { testDAOChallenge(t, false, false, false, types.ShardMaster) }
+func TestDAOChallengeNoVsPro(t *testing.T)  { testDAOChallenge(t, false, true, false, types.ShardMaster) }
+func TestDAOChallengeProVsNo(t *testing.T)  { testDAOChallenge(t, true, false, false, types.ShardMaster) }
+func TestDAOChallengeProVsPro(t *testing.T) { testDAOChallenge(t, true, true, false, types.ShardMaster) }
+func TestDAOChallengeNoVsTimeout(t *testing.T) {
+	testDAOChallenge(t, false, false, true, types.ShardMaster)
+}
+func TestDAOChallengeProVsTimeout(t *testing.T) {
+	testDAOChallenge(t, true, true, true, types.ShardMaster)
+}
 func TestDAOChallengeNoVsNoS(t *testing.T)       { testDAOChallenge(t, false, false, false, 0) }
 func TestDAOChallengeNoVsProS(t *testing.T)      { testDAOChallenge(t, false, true, false, 0) }
 func TestDAOChallengeProVsNoS(t *testing.T)      { testDAOChallenge(t, true, false, false, 0) }
@@ -540,7 +544,7 @@ func TestDAOChallengeProVsProS(t *testing.T)     { testDAOChallenge(t, true, tru
 func TestDAOChallengeNoVsTimeoutS(t *testing.T)  { testDAOChallenge(t, false, false, true, 0) }
 func TestDAOChallengeProVsTimeoutS(t *testing.T) { testDAOChallenge(t, true, true, true, 0) }
 
-func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool,shardId uint16) {
+func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool, shardId uint16) {
 	// Reduce the DAO handshake challenge timeout
 	if timeout {
 		defer func(old time.Duration) { daoChallengeTimeout = old }(daoChallengeTimeout)
@@ -553,9 +557,9 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 		db      = ethdb.NewMemDatabase()
 		config  = &params.ChainConfig{DAOForkBlock: big.NewInt(1), DAOForkSupport: localForked}
 		gspec   = &core.Genesis{Config: config}
-		genesis = gspec.MustCommit(db,shardId)
+		genesis = gspec.MustCommit(db, shardId)
 	)
-	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil,shardId)
+	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil, shardId)
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
@@ -612,42 +616,42 @@ func TestBroadcastBlock(t *testing.T) {
 		broadcastExpected int
 		shardId           uint16
 	}{
-		{1, 1,types.ShardMaster},
-		{2, 2,types.ShardMaster},
-		{3, 3,types.ShardMaster},
-		{4, 4,types.ShardMaster},
-		{5, 4,types.ShardMaster},
-		{9, 4,types.ShardMaster},
-		{12, 4,types.ShardMaster},
-		{16, 4,types.ShardMaster},
-		{26, 5,types.ShardMaster},
-		{100, 10,types.ShardMaster},
-		{1, 1,0},
-		{2, 2,0},
-		{3, 3,0},
-		{4, 4,0},
-		{5, 4,0},
-		{9, 4,0},
-		{12, 4,0},
-		{16, 4,0},
-		{26, 5,0},
-		{100, 10,0},
+		{1, 1, types.ShardMaster},
+		{2, 2, types.ShardMaster},
+		{3, 3, types.ShardMaster},
+		{4, 4, types.ShardMaster},
+		{5, 4, types.ShardMaster},
+		{9, 4, types.ShardMaster},
+		{12, 4, types.ShardMaster},
+		{16, 4, types.ShardMaster},
+		{26, 5, types.ShardMaster},
+		{100, 10, types.ShardMaster},
+		{1, 1, 0},
+		{2, 2, 0},
+		{3, 3, 0},
+		{4, 4, 0},
+		{5, 4, 0},
+		{9, 4, 0},
+		{12, 4, 0},
+		{16, 4, 0},
+		{26, 5, 0},
+		{100, 10, 0},
 	}
 	for _, test := range tests {
-		testBroadcastBlock(t, test.totalPeers, test.broadcastExpected,test.shardId)
+		testBroadcastBlock(t, test.totalPeers, test.broadcastExpected, test.shardId)
 	}
 }
 
-func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int,shardId uint16) {
+func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int, shardId uint16) {
 	var (
 		evmux   = new(event.TypeMux)
 		pow     = ethash.NewFaker()
 		db      = ethdb.NewMemDatabase()
 		config  = &params.ChainConfig{}
 		gspec   = &core.Genesis{Config: config}
-		genesis = gspec.MustCommit(db,shardId)
+		genesis = gspec.MustCommit(db, shardId)
 	)
-	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil,shardId)
+	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil, shardId)
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
@@ -670,11 +674,11 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int,shardId 
 	doneCh := make(chan struct{}, totalPeers)
 	for _, peer := range peers {
 		go func(p *testPeer) {
-			data,err1 := rlp.EncodeToBytes(chain[0])
+			data, err1 := rlp.EncodeToBytes(chain[0])
 			if err1 != nil {
 				errCh <- err1
-			}else {
-				if err := p2p.ExpectMsg(p.app, NewBlockMsg, &newBlockData{ShardId:shardId,Data:data, TD: big.NewInt(131136)}); err != nil {
+			} else {
+				if err := p2p.ExpectMsg(p.app, NewBlockMsg, &newBlockData{ShardId: shardId, Data: data, TD: big.NewInt(131136)}); err != nil {
 					errCh <- err
 				} else {
 					doneCh <- struct{}{}

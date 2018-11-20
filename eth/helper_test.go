@@ -49,7 +49,7 @@ var (
 // newTestProtocolManager creates a new protocol manager for testing purposes,
 // with the given number of blocks already known, and potential notification
 // channels for different events.
-func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction,shardId uint16) (*ProtocolManager, *ethdb.MemDatabase, error) {
+func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction, shardId uint16) (*ProtocolManager, *ethdb.MemDatabase, error) {
 	var (
 		evmux  = new(event.TypeMux)
 		engine = ethash.NewFaker()
@@ -58,8 +58,8 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 			Config: params.TestChainConfig,
 			Alloc:  core.GenesisAlloc{testBank: {Balance: big.NewInt(1000000)}},
 		}
-		genesis       = gspec.MustCommit(db,shardId)
-		blockchain, _ = core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,shardId)
+		genesis       = gspec.MustCommit(db, shardId)
+		blockchain, _ = core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil, shardId)
 	)
 	chain, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, blocks, generator)
 	if _, err := blockchain.InsertChain(chain); err != nil {
@@ -78,8 +78,8 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 // with the given number of blocks already known, and potential notification
 // channels for different events. In case of an error, the constructor force-
 // fails the test.
-func newTestProtocolManagerMust(t *testing.T, mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction,shardId uint16) (*ProtocolManager, *ethdb.MemDatabase) {
-	pm, db, err := newTestProtocolManager(mode, blocks, generator, newtx,shardId)
+func newTestProtocolManagerMust(t *testing.T, mode downloader.SyncMode, blocks int, generator func(int, *core.BlockGen), newtx chan<- []*types.Transaction, shardId uint16) (*ProtocolManager, *ethdb.MemDatabase) {
+	pm, db, err := newTestProtocolManager(mode, blocks, generator, newtx, shardId)
 	if err != nil {
 		t.Fatalf("Failed to create protocol manager: %v", err)
 	}
@@ -130,15 +130,16 @@ func (p *testTxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subs
 
 // newTestTransaction create a new dummy transaction.
 func newTestTransaction(from *ecdsa.PrivateKey, nonce uint64, datasize int) *types.Transaction {
-	tx := types.NewTransaction(nonce, common.Address{}, big.NewInt(0), 100000, big.NewInt(0), make([]byte, datasize))
+	tx := types.NewTransaction(nonce, common.Address{}, big.NewInt(0), 100000, big.NewInt(0), make([]byte, datasize), 0)
 	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, from)
 	return tx
 }
 
 // testPeer is a simulated peer to allow testing direct network calls.
 type testPeer struct {
-	net p2p.MsgReadWriter // Network layer reader/writer to simulate remote messaging
-	app *p2p.MsgPipeRW    // Application layer reader/writer to simulate the local side
+	net     p2p.MsgReadWriter // Network layer reader/writer to simulate remote messaging
+	app     *p2p.MsgPipeRW    // Application layer reader/writer to simulate the local side
+	shardId uint16
 	*peer
 }
 
@@ -151,7 +152,7 @@ func newTestPeer(name string, version int, pm *ProtocolManager, shake bool, shar
 	var id enode.ID
 	rand.Read(id[:])
 
-	peer := pm.newPeer(version, p2p.NewPeer(id, name, nil), net, shardId)
+	peer := pm.newPeer(version, p2p.NewPeer(id, name, nil), net)
 
 	// Start the peer on a new thread
 	errc := make(chan error, 1)
@@ -167,11 +168,11 @@ func newTestPeer(name string, version int, pm *ProtocolManager, shake bool, shar
 	// Execute any implicitly requested handshakes and return
 	if shake {
 		var (
-			genesis = pm.blockchain.Genesis()
+			genesis = pm.blockchain.GenesisHashOf(shardId)
 			head    = pm.blockchain.CurrentHeader()
 			td      = pm.blockchain.GetTd(head.Hash(), head.NumberU64())
 		)
-		tp.handshake(nil, td, head.Hash(), genesis.Hash(),shardId)
+		tp.handshake(nil, td, head.Hash(), genesis, shardId)
 	}
 	return tp, errc
 }
@@ -186,6 +187,8 @@ func (p *testPeer) handshake(t *testing.T, td *big.Int, head common.Hash, genesi
 		TD:              td,
 		CurrentBlock:    head,
 		GenesisBlock:    genesis,
+		ShardTd:         []*big.Int{},
+		ShardHead:       []common.Hash{},
 	}
 	if err := p2p.ExpectMsg(p.app, StatusMsg, msg); err != nil {
 		t.Fatalf("status recv: %v", err)

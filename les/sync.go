@@ -18,6 +18,7 @@ package les
 
 import (
 	"context"
+	"github.com/EDXFund/MasterChain/core/types"
 	"time"
 
 	"github.com/EDXFund/MasterChain/core/rawdb"
@@ -75,5 +76,5 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pm.blockchain.(*light.LightChain).SyncCht(ctx)
-	pm.downloader.Synchronise(peer.id, peer.Head(), peer.Td(), downloader.LightSync)
+	pm.downloader.Synchronise(peer.id, []*types.SInfo{}, downloader.LightSync)
 }

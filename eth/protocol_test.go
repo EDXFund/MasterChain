@@ -18,6 +18,7 @@ package eth
 
 import (
 	"fmt"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -37,13 +38,13 @@ func init() {
 var testAccount, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 // Tests that handshake failures are detected and reported correctly.
-func TestStatusMsgErrors62(t *testing.T) { testStatusMsgErrors(t, 62, types.ShardMaster) }
-func TestStatusMsgErrors63(t *testing.T) { testStatusMsgErrors(t, 63, types.ShardMaster) }
+func TestStatusMsgErrors62(t *testing.T)  { testStatusMsgErrors(t, 62, types.ShardMaster) }
+func TestStatusMsgErrors63(t *testing.T)  { testStatusMsgErrors(t, 63, types.ShardMaster) }
 func TestStatusMsgErrors62S(t *testing.T) { testStatusMsgErrors(t, 62, 0) }
 func TestStatusMsgErrors63S(t *testing.T) { testStatusMsgErrors(t, 63, 0) }
 
 func testStatusMsgErrors(t *testing.T, protocol int, shardId uint16) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil,shardId)
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil, shardId)
 	var (
 		genesis = pm.blockchain.Genesis()
 		head    = pm.blockchain.CurrentHeader()
@@ -61,21 +62,21 @@ func testStatusMsgErrors(t *testing.T, protocol int, shardId uint16) {
 			wantError: errResp(ErrNoStatusMsg, "first msg has code 2 (!= 0)"),
 		},
 		{
-			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, shardId,td, head.Hash(), genesis.Hash()},
+			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, shardId, td, head.Hash(), genesis.Hash(), []*big.Int{}, []common.Hash{}},
 			wantError: errResp(ErrProtocolVersionMismatch, "10 (!= %d)", protocol),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), 999, shardId,td, head.Hash(), genesis.Hash()},
+			code: StatusMsg, data: statusData{uint32(protocol), 999, shardId, td, head.Hash(), genesis.Hash(), []*big.Int{}, []common.Hash{}},
 			wantError: errResp(ErrNetworkIdMismatch, "999 (!= 1)"),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, shardId,td, head.Hash(), common.Hash{3}},
+			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, shardId, td, head.Hash(), common.Hash{3}, []*big.Int{}, []common.Hash{}},
 			wantError: errResp(ErrGenesisBlockMismatch, "0300000000000000 (!= %x)", genesis.Hash().Bytes()[:8]),
 		},
 	}
 
 	for i, test := range tests {
-		p, errc := newTestPeer("peer", protocol, pm, false,shardId)
+		p, errc := newTestPeer("peer", protocol, pm, false, shardId)
 		// The send call might hang until reset because
 		// the protocol might not read the payload.
 		go p2p.Send(p.app, test.code, test.data)
@@ -95,15 +96,15 @@ func testStatusMsgErrors(t *testing.T, protocol int, shardId uint16) {
 }
 
 // This test checks that received transactions are added to the local pool.
-func TestRecvTransactions62(t *testing.T) { testRecvTransactions(t, 62,types.ShardMaster) }
-func TestRecvTransactions63(t *testing.T) { testRecvTransactions(t, 63,types.ShardMaster) }
-func TestRecvTransactions62S(t *testing.T) { testRecvTransactions(t, 62,0) }
-func TestRecvTransactions63S(t *testing.T) { testRecvTransactions(t, 63,0) }
-func testRecvTransactions(t *testing.T, protocol int,shardId uint16) {
+func TestRecvTransactions62(t *testing.T)  { testRecvTransactions(t, 62, types.ShardMaster) }
+func TestRecvTransactions63(t *testing.T)  { testRecvTransactions(t, 63, types.ShardMaster) }
+func TestRecvTransactions62S(t *testing.T) { testRecvTransactions(t, 62, 0) }
+func TestRecvTransactions63S(t *testing.T) { testRecvTransactions(t, 63, 0) }
+func testRecvTransactions(t *testing.T, protocol int, shardId uint16) {
 	txAdded := make(chan []*types.Transaction)
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded,shardId )
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded, shardId)
 	pm.acceptTxs = 1 // mark synced to accept transactions
-	p, _ := newTestPeer("peer", protocol, pm, true,shardId)
+	p, _ := newTestPeer("peer", protocol, pm, true, shardId)
 	defer pm.Stop()
 	defer p.close()
 
@@ -124,12 +125,12 @@ func testRecvTransactions(t *testing.T, protocol int,shardId uint16) {
 }
 
 // This test checks that pending transactions are sent.
-func TestSendTransactions62(t *testing.T) { testSendTransactions(t, 62, types.ShardMaster) }
-func TestSendTransactions63(t *testing.T) { testSendTransactions(t, 63, types.ShardMaster) }
-func TestSendTransactions62S(t *testing.T) { testSendTransactions(t, 62,0) }
-func TestSendTransactions63S(t *testing.T) { testSendTransactions(t, 63,0) }
-func testSendTransactions(t *testing.T, protocol int,shardId uint16) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil,shardId)
+func TestSendTransactions62(t *testing.T)  { testSendTransactions(t, 62, types.ShardMaster) }
+func TestSendTransactions63(t *testing.T)  { testSendTransactions(t, 63, types.ShardMaster) }
+func TestSendTransactions62S(t *testing.T) { testSendTransactions(t, 62, 0) }
+func TestSendTransactions63S(t *testing.T) { testSendTransactions(t, 63, 0) }
+func testSendTransactions(t *testing.T, protocol int, shardId uint16) {
+	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil, shardId)
 	defer pm.Stop()
 
 	// Fill the pool with big transactions.
@@ -175,7 +176,7 @@ func testSendTransactions(t *testing.T, protocol int,shardId uint16) {
 		}
 	}
 	for i := 0; i < 3; i++ {
-		p, _ := newTestPeer(fmt.Sprintf("peer #%d", i), protocol, pm, true,shardId)
+		p, _ := newTestPeer(fmt.Sprintf("peer #%d", i), protocol, pm, true, shardId)
 		wg.Add(1)
 		go checktxs(p)
 	}
