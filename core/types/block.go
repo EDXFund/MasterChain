@@ -350,14 +350,7 @@ func NewBlock(header HeaderIntf, blks []*ShardBlockInfo, uncles []HeaderIntf, re
 		copy(b.shardBlocks, blks)
 	}
 
-	// TODO: panic if len(txs) != len(receipts)
-	if len(blks) == 0 {
-		b.header.shardTxsHash = EmptyRootHash
-	} else {
-		b.header.shardTxsHash = DeriveSha(ShardBlockInfos(blks))
-		b.shardBlocks = make(ShardBlockInfos, len(blks))
-		copy(b.shardBlocks, blks)
-	}
+
 
 	if len(receipts) == 0 {
 		b.header.receiptHash = EmptyRootHash

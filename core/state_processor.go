@@ -26,6 +26,7 @@ import (
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/params"
+
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -38,6 +39,51 @@ type StateProcessor struct {
 	engine consensus.Engine    // Consensus engine used for block rewards
 }
 
+const  (
+	TT_COMMON    = byte(1)
+	TT_TOKEN_C
+	TT_CONTRACT_TEMP
+	TT_CONTRACT_INST
+	TT_CONTRACT_CALL
+)
+type Instruction struct {
+	TxType byte
+	TxHash common.Hash
+	Data   []byte
+}
+type InstructCommon struct {
+
+	SrcAccount common.Address
+	DstAccount common.Address
+	TokenId	   uint64
+	Amount	   uint64
+}
+type InstructTokenCreate struct {
+
+	SrcAccount common.Address
+	TokenId	   uint64
+	VerifyCode	   []byte
+}
+type InstructContractCreate struct {
+
+	SrcAccount common.Address
+	TemplateId	   uint64
+	ContractData	   []byte
+}
+type InstructContractInstance struct {
+
+	SrcAccount common.Address
+	TemplateId	   uint64
+	ContractInst   uint64
+}
+type InstructContractCall struct {
+	TxHash common.Hash
+	SrcAccount common.Address
+	TemplateId	   uint64
+	ContractInst   uint64
+	GasUsed        uint64
+	DataResult	   []byte
+}
 // NewStateProcessor initialises a new StateProcessor.
 func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consensus.Engine) *StateProcessor {
 	return &StateProcessor{
@@ -184,8 +230,30 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	return receipt, gas, err
 }
 
+// ApplyTransaction attempts to apply a transaction to the given state database
+// and uses the input parameters for its environment. It returns the receipt
+// for the transaction, gas used and an error if the transaction failed,
+// indicating the block was invalid.
+func ApplyToInstruction(config *params.ChainConfig, header types.HeaderIntf, tx *types.Transaction) (*types.ContractResult,uint64, error) {
+	//check signiture
+	_, err := tx.AsMessage(types.MakeSigner(config, header.Number()))
+	if err != nil {
+		return nil,0,  err
+	}
 
-//In initial edition, master node will apply transaction, this simplifies the block struct, but wastes cpu of master node
+	/*result := InstructCommon{msg.From(),*msg.To(),msg.TokenId(),msg.Value().Uint64()}
+	data,err := rlp.EncodeToBytes(result)
+	if err != nil {
+		return nil,  err
+	}*/
+
+	//it only normal call now, contract data
+	return &types.ContractResult{TT_COMMON,tx.Hash(),tx.GasPrice().Uint64(),nil,nil},0,nil
+
+}
+
+
+	//In initial edition, master node will apply transaction, this simplifies the block struct, but wastes cpu of master node
 //In next edition, master node will execute the instructions created by shard node
 /*func ApplyShardBlock(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header types.HeaderIntf, usedGas *uint64, cfg vm.Config) (*types.Receipts, uint64, error) {
 	if header.ShardId() == types.ShardMaster {

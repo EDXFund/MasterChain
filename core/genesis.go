@@ -319,7 +319,7 @@ func (g *Genesis) ToSBlock(db ethdb.Database, shardId uint16) types.BlockIntf {
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
 
-	return types.NewSBlock(head, nil, nil)
+	return types.NewSBlock(head,  nil)
 }
 
 // Commit writes the block and state of a genesis specification to the database.

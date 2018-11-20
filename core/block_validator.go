@@ -74,7 +74,7 @@ func (v *BlockValidator) validateSBody(block *types.SBlock) error {
 	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash() {
 		return fmt.Errorf("uncle root hash mismatch: have %x, want %x", hash, header.UncleHash)
 	}*/
-	if hash := types.DeriveSha(types.Transactions(block.Transactions())); hash != header.TxHash() {
+	if hash := types.DeriveSha(types.ContractResults(block.Results())); hash != header.ReceiptHash() {
 		return fmt.Errorf("1transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
 	}
 	return nil
@@ -112,26 +112,21 @@ func (v *BlockValidator) ValidateState(block, parent types.BlockIntf, statedb *s
 		return v.validateState(block.ToBlock(),parent.ToBlock(),statedb,receipts,usedGas)
 	}else {
 		//no receipts in shard
-		return v.validateShardState(block.ToSBlock(),parent.ToSBlock(),statedb,nil,usedGas)
+		return v.validateShardState(block.ToSBlock(),parent.ToSBlock(),statedb,usedGas)
 	}
 }
 // ValidateState validates the various changes that happen after a state
 // transition, such as amount of used gas, the receipt roots and the state root
 // itself. ValidateState returns a database batch if the validation was a success
 // otherwise nil and an error is returned.
-func (v *BlockValidator) validateShardState(block, parent *types.SBlock, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+func (v *BlockValidator) validateShardState(block, parent *types.SBlock, statedb *state.StateDB, usedGas uint64) error {
 	header := block.Header()
 	if block.GasUsed() != usedGas {
 		return fmt.Errorf("invalid gas used (remote: %d local: %d)", block.GasUsed(), usedGas)
 	}
-	// Validate the received block's bloom with the one derived from the generated receipts.
-	// For valid blocks this should always validate to true.
-	rbloom := types.CreateBloom(receipts)
-	if rbloom != header.Bloom() {
-		return fmt.Errorf("invalid bloom (remote: %x  local: %x)", header.Bloom(), rbloom)
-	}
+
 	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, R1]]))
-	receiptSha := types.DeriveSha(receipts)
+	receiptSha := types.DeriveSha(types.ContractResults(block.Results()))
 	if receiptSha != header.ReceiptHash() {
 		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash(), receiptSha)
 	}

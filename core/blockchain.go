@@ -1896,7 +1896,7 @@ func (bc *BlockChain) SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Su
 }
 
 // SubscribeChainSideEvent registers a subscription of ChainSideEvent.
-func (bc *BlockChain) SubscribeChainShardsEvent(ch chan<- ChainsShardEvent) event.Subscription {
+func (bc *BlockChain) SubscribeChainShardsEvent(ch chan<- *ChainsShardEvent) event.Subscription {
 	return bc.scope.Track(bc.chainShardFeed.Subscribe(ch))
 }
 

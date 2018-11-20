@@ -712,7 +712,7 @@ func testFastVsFullChains(t *testing.T,shardId uint16) {
 		} else if types.CalcUncleHash(fblock.Uncles()) != types.CalcUncleHash(ablock.Uncles()) {
 			t.Errorf("block #%d [%x]: uncles mismatch: have %v, want %v", num, hash, fblock.Uncles(), ablock.Uncles())
 		}
-		if freceipts, areceipts := rawdb.ReadReceipts(fastDb, shardId, hash, *rawdb.ReadHeaderNumber(fastDb, shardId, hash)), rawdb.ReadReceipts(archiveDb,shardId,  hash, *rawdb.ReadHeaderNumber(archiveDb, shardId, hash)); types.DeriveSha(freceipts) != types.DeriveSha(areceipts) {
+		if freceipts, areceipts := rawdb.ReadReceipts(fastDb, hash, *rawdb.ReadHeaderNumber(fastDb, hash)), rawdb.ReadReceipts(archiveDb,  hash, *rawdb.ReadHeaderNumber(archiveDb, hash)); types.DeriveSha(freceipts) != types.DeriveSha(areceipts) {
 			t.Errorf("block #%d [%x]: receipts mismatch: have %v, want %v", num, hash, freceipts, areceipts)
 		}
 	}
@@ -909,7 +909,7 @@ func testChainTxReorgs(t *testing.T,shardId uint16) {
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
-	fmt.Println("chain 0:",chain[0].Hash(),"haeder:",chain[0].Header().Hash())
+
 	// removed tx
 	for i, tx := range (types.Transactions{pastDrop, freshDrop}) {
 		if txn, _, _, _ := rawdb.ReadTransaction(db, tx.Hash()); txn != nil {
@@ -1100,7 +1100,7 @@ func testCanonicalBlockRetrieval(t *testing.T,shardId uint16) {
 				if ch != block.Hash() {
 					t.Fatalf("unknown canonical hash, want %s, got %s", block.Hash().Hex(), ch.Hex())
 				}
-				fb := rawdb.ReadBlock(blockchain.db, shardId, ch, block.NumberU64())
+				fb := rawdb.ReadBlock(blockchain.db, ch, block.NumberU64())
 				if fb == nil {
 					t.Fatalf("unable to retrieve block %d for canonical hash: %s", block.NumberU64(), ch.Hex())
 				}

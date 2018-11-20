@@ -137,12 +137,7 @@ type blockChain interface {
 	GetShardBlock(shardId uint16, hash common.Hash, number uint64) types.BlockIntf
 }
 
-type shardChainManager interface {
-	CurrentBlock(uint16) types.BlockIntf
-	GetBlock(hash common.Hash, number uint64) types.BlockIntf
-	//StateAt(root common.Hash) (*state.StateDB, error)
-	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
-}
+
 
 // TxPoolConfig are the configuration parameters of the transaction pool.
 type TxPoolConfig struct {
@@ -211,6 +206,7 @@ type TxPool struct {
 	chainconfig  *params.ChainConfig
 	chain        blockChain
 
+	shardId      uint16
 	gasPrice     *big.Int
 	txFeed       event.Feed
 	scope        event.SubscriptionScope
@@ -249,7 +245,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		config:      config,
 		chainconfig: chainconfig,
 		chain:       chain,
-
+		shardId:     shardId,
 		signer:      types.NewEIP155Signer(chainconfig.ChainID),
 		pending:     make(map[common.Address]*txList),
 		queue:       make(map[common.Address]*txList),
@@ -319,6 +315,7 @@ func (pool *TxPool) loop() {
 		select {
 		// Handle ChainHeadEvent
 		case ev := <-pool.chainHeadCh:
+			fmt.Println("new Header")
 			if ev.Block != nil {
 				pool.mu.Lock()
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
@@ -390,11 +387,14 @@ func (pool *TxPool) loop() {
 }
 //resetOfMaster compares newHead and oldHead, find the different shardblocks
 //and then recaculates txs of discarded and new added
-func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
+func (pool *TxPool)resetOfMaster(oldHead,newHead types.HeaderIntf){
 
 	var reinjectTxs    types.Transactions
 
-	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
+	if newHead == nil ||  reflect.ValueOf(newHead).IsNil() {
+		newHead = pool.chain.CurrentBlock().Header()
+	}
+	if oldHead != nil && !reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.ParentHash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
 		oldNum := oldHead.NumberU64()
 		newNum := newHead.NumberU64()
@@ -436,8 +436,8 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
 				}
 			}
 			//reinjectShards = types.ShardInfoDifference(discarded, included)
-			disTxs := make([]*types.Transaction,1)
-			addTxs := make([]*types.Transaction,1)
+			disTxs := []*types.Transaction{}
+			addTxs := []*types.Transaction{}
 			for _,blockInfo := range discarded {
 				block := pool.chain.GetShardBlock(blockInfo.ShardId(),blockInfo.Hash(),blockInfo.NumberU64())
 				disTxs = append(disTxs,block.Transactions()...)
@@ -490,19 +490,28 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead *types.Header){
 }
 // lockedResetOfSHeader is a wrapper around resetOfSHeader to allow calling it in a thread safe
 // manner. This method is only ever used in the tester!
-func (pool *TxPool) lockedReset(oldHead, newHead *types.SHeader) {
+func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	pool.resetOfSHeader(oldHead, newHead)
-}
+	if pool.shardId == types.ShardMaster {
+		pool.resetOfMaster(oldHead, newHead)
+	}else {
+		pool.resetOfSHeader(oldHead, newHead)
+	}
 
+}
+func (pool *TxPool) resetOfHeader(oldHead, newHead types.HeaderIntf) {
+
+}
 // resetOfSHeader is used by shard Chain to deal with txs, it should promote those txs to
-func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
+func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
-
-	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
+	if newHead == nil ||  reflect.ValueOf(newHead).IsNil() {
+		newHead = pool.chain.CurrentBlock().Header()
+	}
+	if oldHead != nil &&  reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.ParentHash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
 		oldNum := oldHead.NumberU64()
 		newNum := newHead.NumberU64()
@@ -518,13 +527,20 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 				add = pool.chain.GetBlock(newHead.Hash(), newHead.NumberU64())
 			)
 			for rem.NumberU64() > add.NumberU64() {
-				discarded = append(discarded, rem.Transactions()...)
+
+				for _,item := range rem.Results() {
+					discarded = append(discarded, pool.all.Get(item.TxHash))
+				}
+
 				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 			}
 			for add.NumberU64() > rem.NumberU64() {
+				for _,item := range add.Results() {
+					included = append(included, pool.all.Get(item.TxHash))
+				}
 				included = append(included, add.Transactions()...)
 				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
@@ -533,12 +549,17 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead *types.SHeader) {
 			}
 			//向前寻找共同的祖先
 			for rem.Hash() != add.Hash() {
-				discarded = append(discarded, rem.Transactions()...)
+
+				for _,item := range rem.Results() {
+					discarded = append(discarded, pool.all.Get(item.TxHash))
+				}
 				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
-				included = append(included, add.Transactions()...)
+				for _,item := range add.Results() {
+					included = append(included, pool.all.Get(item.TxHash))
+				}
 				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
@@ -686,6 +707,7 @@ func (pool *TxPool) Pending() (map[common.Address]types.Transactions, error) {
 	for addr, list := range pool.pending {
 		pending[addr] = list.Flatten()
 	}
+
 	return pending, nil
 }
 
@@ -936,6 +958,7 @@ func (pool *TxPool) AddRemote(tx *types.Transaction) error {
 // marking the senders as a local ones in the mean time, ensuring they go around
 // the local pricing constraints.
 func (pool *TxPool) AddLocals(txs []*types.Transaction) []error {
+
 	return pool.addTxs(txs, !pool.config.NoLocals)
 }
 

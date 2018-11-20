@@ -360,6 +360,9 @@ func (t *HeaderTreeManager)AddNewHead(node types.HeaderIntf) {
 			break;
 		}
 	}
+	if(t.rootHash == common.Hash{}) {
+		t.rootHash = node.Hash()
+	}
 	if found == nil{
 		found = NewHeaderTree(node)
 		t.trees[node.Hash()] = found

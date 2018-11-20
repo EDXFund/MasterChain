@@ -17,11 +17,15 @@
 package qchain
 
 import (
+	"github.com/EDXFund/MasterChain/common"
+	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/ethdb"
+	"github.com/EDXFund/MasterChain/log"
+	"math"
+	"reflect"
 	"sync"
 
 	"github.com/EDXFund/MasterChain/core"
-	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/hashicorp/golang-lru"
@@ -32,147 +36,165 @@ const (
 	stdCacheLimit     = 10240
 	snumberCacheLimit = 20480
 )
-type  PendingShard map[uint64]types.ShardBlockInfo
-type ShardChainPool  struct {
-	bc                  *core.BlockChain
-	db					ethdb.Database
-	shards 				map[uint16]*HeaderTreeManager
-	ShardFeed      		event.Feed 			//new valid shardblock has emerged
-	scope          		event.SubscriptionScope
-	headCh              chan  core.ChainsShardEvent
-	headSub				 event.Subscription
-	mu           		sync.RWMutex
-	shardHeaderInfos  *lru.Cache
-	shardHeaders      *lru.Cache
-	shardBlocks       *lru.Cache
-	pending             map[uint16]PendingShard
+
+type PendingShard map[uint64]types.ShardBlockInfo
+type ShardChainPool struct {
+	bc     *core.BlockChain
+	db     ethdb.Database
+	shards map[uint16]*HeaderTreeManager
+
+
+	shardFeed event.Feed //new valid shardblock has arrived
+	shardCh   chan *core.ChainsShardEvent
+	shardSub  event.Subscription
+
+	masterBlockFeed  event.Feed //new masterblock has arrived
+	masterBlockCh    chan core.ChainHeadEvent
+	masterBlockSub   event.Subscription
+
+	quitCh           chan struct{}
+	mu               sync.RWMutex
+	shardHeaderInfos *lru.Cache
+	shardHeaders     *lru.Cache
+	shardBlocks      *lru.Cache
+	pending          map[uint16]PendingShard
+
+	currenMasterBlock types.BlockIntf
+
+	newShardFeed  event.Feed
+	scope  event.SubscriptionScope
 }
 
-func NewShardChainPool(bc *core.BlockChain,database ethdb.Database) *ShardChainPool{
+func NewShardChainPool(bc *core.BlockChain, database ethdb.Database) *ShardChainPool {
 
 	pool := &ShardChainPool{
-		bc:bc,
-		db:database,
-		shards:make(map[uint16]*HeaderTreeManager),
+		bc:     bc,
+		db:     database,
+		shards: make(map[uint16]*HeaderTreeManager),
 		//shardFeed :=
-		headCh:make(chan   core.ChainsShardEvent),
-		pending:make(map[uint16]PendingShard),
+		shardCh: make(chan *core.ChainsShardEvent),
+		masterBlockCh:make(chan core.ChainHeadEvent),
+		pending: make(map[uint16]PendingShard),
+		quitCh:make(chan struct{}),
 	}
 	pool.shardHeaderInfos, _ = lru.New(sheaderCacheLimit)
 	pool.shardHeaders, _ = lru.New(stdCacheLimit)
 	pool.shardBlocks, _ = lru.New(snumberCacheLimit)
-	pool.headSub = bc.SubscribeChainShardsEvent(pool.headCh)
+	pool.shardSub = bc.SubscribeChainShardsEvent(pool.shardCh)
+	pool.masterBlockSub = bc.SubscribeChainHeadEvent(pool.masterBlockCh)
 
-	defer pool.headSub.Unsubscribe()
+	//defer pool.headSub.Unsubscribe()
 
+	go pool.loop()
 	return pool
 }
+func (scp *ShardChainPool) Stop() {
+	 scp.shardSub.Unsubscribe()
+	 scp.masterBlockSub.Unsubscribe()
+	close(scp.quitCh)
+	scp.scope.Close()
 
+}
 func (scp *ShardChainPool) loop() {
 	//waiting for shard blocks
-	select {
-	case headers := <- scp.headCh:
-		scp.InsertChain(headers.Block)
-		break;
+	for {
+		select {
+		case headers := <-scp.shardCh:  //this event only occurs on shard block
+			scp.InsertChain(headers.Block)
+		case masterBlock := <-scp.masterBlockCh: //block use chainHeadEvent feed to notify chain head info
+			scp.reset(scp.currenMasterBlock,masterBlock.Block)
+		case <-scp.quitCh:
+			return
+		}
 	}
+
 }
 func (scp *ShardChainPool) InsertChain(blocks types.BlockIntfs) error {
 	scp.mu.Lock()
 	defer scp.mu.Unlock()
 	if blocks[0].ShardId() == types.ShardMaster {
-		toblocks := make([]*types.Block,len(blocks))
 
-		for _,block := range blocks {
-			toblocks = append(toblocks,block.ToBlock())
-		}
-		return scp.insertMasterChain(toblocks)
-	}else {
-		toblocks := make([]*types.SBlock,len(blocks))
+		log.Crit(" master block should not arrive here!")
+		return core.ErrInvalidBlocks
+	} else {
+		toblocks := []*types.SBlock{}
 
-		for _,block := range blocks {
-			toblocks = append(toblocks,block.ToSBlock())
+		for _, block := range blocks {
+			toblocks = append(toblocks, block.ToSBlock())
 		}
 		return scp.insertShardChain(toblocks)
 	}
 
 }
-
-/**
-   insert master chain, the corresponding shard blocks should have been synchronised already
- */
-func (scp *ShardChainPool) insertMasterChain(blocks []*types.Block) error {
-	//从blocks中找到每个shard的最新区块
-	headers := make(map[uint16]*types.ShardBlockInfo,1)
-	for _,body := range blocks {
-		for _, shardInfo :=range body.ToBlock().ShardBlocks() {
-			shardId := shardInfo.ShardId()
-			info, ok := headers[shardId]
-			if !ok || info.Number().Cmp(shardInfo.Number()) < 0 {
-				headers[shardId] = shardInfo
-			}
-		}
-	}
-
-	results := make([]types.HeaderIntf,1)
-	for shardId,shardInfo := range headers {
-		qchain,ok := scp.shards[shardId]
-		if !ok {
-			return core.ErrInvalidBlocks
-		} else {
-			head := rawdb.ReadHeader(scp.db,shardInfo.Hash(),shardInfo.NumberU64())
-			result := qchain.SetConfirmed(head)
-			if len(result) > 0 {
-				results = append(results,result...)
-			}
-		}
-	}
-	if len(results) > 0 {
-		scp.ShardFeed.Send(results)
-	}
-	return nil
+func (scp *ShardChainPool) SubscribeChainShardsEvent(newShardCh chan *core.ChainsShardEvent) event.Subscription {
+	return scp.newShardFeed.Subscribe(newShardCh)
 }
+func (scp *ShardChainPool) GetBlock(hash common.Hash, number uint64) *types.SBlock {
+	if block,ok := scp.shardBlocks.Get(hash); ok {
+		result := (block).(*types.SBlock)
+		return result
+	}
+	return rawdb.ReadBlock(scp.db,hash,number).ToSBlock()
+}
+
 /**
 	insert shardchain update each shard chain tree
  */
 func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 	shardId := blocks[0].ShardId()
-	 qchain,ok := scp.shards[shardId]
-	 if !ok {
-	 	qchain = NewHeaderTreeManager(shardId)
+	qchain, ok := scp.shards[shardId]
+	if !ok {
+		qchain = NewHeaderTreeManager(shardId)
 		scp.shards[shardId] = qchain
-	 }
-	 header := make([]types.HeaderIntf,len(blocks))
-	 for _,item := range blocks {
-	 	header = append(header,item.Header())
-	 }
-	 newBlocks := qchain.AddNewHeads(header)
-	 if len(newBlocks) > 0 {
-		scp.ShardFeed.Send(newBlocks)
+	}
+	header := []types.HeaderIntf{}
+	for _, item := range blocks {
+		scp.shardBlocks.Add(item.Hash(),item)
+		header = append(header, item.Header())
+	}
+	newHeaders := qchain.AddNewHeads(header)
+	if len(newHeaders) > 0 {
+		newBlocks := types.BlockIntfs{}
+		for _,val := range newHeaders {
+			block := scp.GetBlock(val.Hash(),val.NumberU64())
+			if block != nil && !reflect.ValueOf(block).IsNil() {
+				newBlocks = append(newBlocks,block)
+			}
+		}
+		scp.newShardFeed.Send(&core.ChainsShardEvent{Block:newBlocks})
 
-	 }
+	}
 	return nil;
 }
+
 //miner's worker uses Pending to retrieve shardblockInfos which could be packed into master block
-func  (scp *ShardChainPool) Pending() (map[uint16]PendingShard,error){
-	results:=make(map[uint16]PendingShard)
-	for shardId,shards := range scp.shards {
+func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
+	scp.mu.Lock()
+	defer scp.mu.Unlock()
+	results := make(map[uint16]PendingShard)
+	for shardId, shards := range scp.shards {
 		pendings := shards.Pending()
-		if len(pendings)  > 0 {
+		if len(pendings) > 0 {
 			results[shardId] = make(PendingShard)
-			for _,head := range pendings {
+			for _, head := range pendings {
 				sb := types.ShardBlockInfo{}
-				sb.FillBy(&types.ShardBlockInfoStruct{shardId,head.NumberU64(),head.Hash(),head.ParentHash(),head.Difficulty().Uint64()})
+				sb.FillBy(&types.ShardBlockInfoStruct{shardId, head.NumberU64(), head.Hash(), head.ParentHash(), head.Difficulty().Uint64()})
 				results[shardId][head.NumberU64()] = sb
-				}
+			}
 		}
 	}
-	return results,nil
+	return results, nil
 }
-/*
-func (scp *ShardChainPool) reset(oldHead,newHead types.HeaderIntf){
-	// If we're reorging an old state, reinject all dropped transactions
-	var reinject types.ShardBlockInfos
 
+/**
+reset would be called on master block's incoming
+ */
+func (scp *ShardChainPool) reset(oldHead, newHead types.BlockIntf) {
+
+	scp.mu.Lock()
+	defer scp.mu.Unlock()
+	shards := make(map[uint16]types.ShardBlockInfos)
+	//find common anscentor
 	if oldHead != nil && oldHead.Hash() != newHead.ParentHash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
 		oldNum := oldHead.NumberU64()
@@ -181,76 +203,86 @@ func (scp *ShardChainPool) reset(oldHead,newHead types.HeaderIntf){
 		if depth := uint64(math.Abs(float64(oldNum) - float64(newNum))); depth > 64 {
 			log.Debug("Skipping deep transaction reorg", "depth", depth)
 		} else {
-			// Reorg seems shallow enough to pull in all transactions into memory
-			var discarded, included types.ShardBlockInfos
+
 
 			var (
-				rem = scp.chain.GetBlock(oldHead.Hash(), oldHead.NumberU64())
-				add = scp.chain.GetBlock(newHead.Hash(), newHead.NumberU64())
+				rem = scp.bc.GetBlock(oldHead.Hash(), oldHead.NumberU64())
+				add = scp.bc.GetBlock(newHead.Hash(), newHead.NumberU64())
 			)
 			for rem.NumberU64() > add.NumberU64() {
-				discarded = append(discarded, rem.ShardBlocks()...)
-				if rem = scp.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
+
+				if rem = scp.bc.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 			}
 			for add.NumberU64() > rem.NumberU64() {
-				included = append(included, add.ShardBlocks()...)
-				if add = scp.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
+				for _,shard := range add.ShardBlocks(){
+					shardId := shard.ShardId()
+					shardToStore,ok := shards[shardId]
+					if !ok {
+						shardToStore = types.ShardBlockInfos{}
+						shards[shardId] = shardToStore
+					}
+					//insert into the front
+					shardToStore = append(types.ShardBlockInfos{shard},shardToStore...)
+				}
+				if add = scp.bc.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
 			}
 			for rem.Hash() != add.Hash() {
-				discarded = append(discarded, rem.ShardBlocks()...)
-				if rem = scp.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
+
+				if rem = scp.bc.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
-				included = append(included, add.ShardBlocks()...)
-				if add = scp.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
+				for _,shard := range add.ShardBlocks(){
+					shardId := shard.ShardId()
+					shardToStore,ok := shards[shardId]
+					if !ok {
+						shardToStore = types.ShardBlockInfos{}
+						shards[shardId] = shardToStore
+					}
+					//insert into the front
+					shardToStore = append(types.ShardBlockInfos{shard},shardToStore...)
+				}
+				if add = scp.bc.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
 			}
-			reinject = types.ShardInfoDifference(discarded, included)
-			for _,val := range discarded {
 
+
+		}
+
+	}
+	//those shard block infos from ancestor to new should be reinject to Headertreemanager
+
+	mostRecentBlock := make(map[uint16]types.BlockIntf)
+	for shardId, shardInfos := range shards{
+		blocks := []*types.SBlock{}
+		for _,shardInfo := range shardInfos {
+			block := scp.bc.GetBlock(shardInfo.Hash(),shardInfo.NumberU64())
+			if block != nil && !reflect.ValueOf(block).IsNil() {
+				blocks = append(blocks,block.ToSBlock())
+				recent,ok := mostRecentBlock[shardId]
+				if !ok || recent.NumberU64() < block.NumberU64() {
+					mostRecentBlock[shardId] = block
+				}
 			}
 		}
+		scp.insertShardChain(blocks)
 	}
-	// Initialize the internal state to the current head
-	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
-		newHead = scp.chain.CurrentBlock().Header() // Special case during testing
-	}
-	statedb, err := pool.chain.StateAt(newHead.Root())
-	if err != nil {
-		log.Error("Failed to reset txpool state", "err", err)
-		return
-	}
-	pool.currentState = statedb
-	pool.pendingState = state.ManageState(statedb)
-	pool.currentMaxGas = newHead.GasLimit()
 
-	// Inject any transactions discarded due to reorgs
-	log.Debug("Reinjecting stale transactions", "count", len(reinject))
-	senderCacher.recover(pool.signer, reinject)
-	pool.addTxsLocked(reinject, false)
-
-	// validate the pool of pending transactions, this will remove
-	// any transactions that have been included in the block or
-	// have been invalidated because of another transaction (e.g.
-	// higher gas price)
-	pool.demoteUnexecutables()
-
-	// Update all accounts to the latest known pending nonce
-	for addr, list := range pool.pending {
-		txs := list.Flatten() // Heavy but will be cached and is needed by the miner anyway
-		pool.pendingState.SetNonce(addr, txs[len(txs)-1].Nonce()+1)
+	for shardId,mostRecent := range mostRecentBlock {
+		qchain, ok := scp.shards[shardId]
+		if !ok {
+			log.Crit("qchain does not exist of:",shardId)
+		} else {
+			 qchain.SetConfirmed(mostRecent.Header())
+		}
 	}
-	// Check the queue and move transactions over to the pending if possible
-	// or remove those that have become invalid
-	pool.promoteExecutables(nil)
+	scp.currenMasterBlock = newHead
 }
-*/

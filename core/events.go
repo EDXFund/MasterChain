@@ -28,6 +28,9 @@ type NewShardBlockEvent struct{ Block []types.BlockIntf }
 type PendingLogsEvent struct {
 	Logs []*types.Log
 }
+type PendingContractsEvent struct {
+	Logs []*types.ContractResult
+}
 
 // NewMinedBlockEvent is posted when a block has been imported.
 type NewMinedBlockEvent struct{ Block types.BlockIntf }

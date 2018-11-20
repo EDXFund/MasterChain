@@ -299,8 +299,8 @@ func benchReadChain(b *testing.B, full bool, count uint64, shardId uint16) {
 			header := chain.GetHeaderByNumber(n)
 			if full {
 				hash := header.Hash()
-				rawdb.ReadBody(db, shardId, hash, n)
-				rawdb.ReadReceipts(db, shardId, hash, n)
+				rawdb.ReadBody(db, hash, n)
+				rawdb.ReadReceipts(db, hash, n)
 			}
 		}
 		chain.Stop()
