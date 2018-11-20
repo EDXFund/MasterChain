@@ -71,6 +71,9 @@ func (f *Feed) init() {
 // The channel should have ample buffer space to avoid blocking other subscribers.
 // Slow subscribers are not dropped.
 func (f *Feed) Subscribe(channel interface{}) Subscription {
+	if channel == nil || reflect.ValueOf(channel).IsNil() {
+		panic("A nil channel to subscribe!")
+	}
 	f.once.Do(f.init)
 
 	chanval := reflect.ValueOf(channel)

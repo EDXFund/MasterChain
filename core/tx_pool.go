@@ -508,10 +508,11 @@ func (pool *TxPool) resetOfHeader(oldHead, newHead types.HeaderIntf) {
 func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
+	var discarded, included types.Transactions
 	if newHead == nil ||  reflect.ValueOf(newHead).IsNil() {
 		newHead = pool.chain.CurrentBlock().Header()
 	}
-	if oldHead != nil &&  reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.ParentHash() {
+	if oldHead != nil &&  !reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.Hash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
 		oldNum := oldHead.NumberU64()
 		newNum := newHead.NumberU64()
@@ -520,7 +521,7 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 			log.Debug("Skipping deep transaction reorg", "depth", depth)
 		} else {
 			// Reorg seems shallow enough to pull in all transactions into memory
-			var discarded, included types.Transactions
+
 
 			var (
 				rem = pool.chain.GetBlock(oldHead.Hash(), oldHead.NumberU64())
@@ -594,7 +595,18 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// any transactions that have been included in the block or
 	// have been invalidated because of another transaction (e.g.
 	// higher gas price)
-	pool.demoteUnexecutables()
+	nonces := make(map[common.Address]uint64)
+	for _,tx := range included {
+		msg ,err := tx.AsMessage(types.HomesteadSigner{})
+		if err == nil {
+			accountNonce,ok := nonces[msg.From()]
+			if(!ok || accountNonce < msg.Nonce()) {
+				nonces[msg.From()] = msg.Nonce()
+			}
+		}
+
+	}
+	pool.removeTxs(nonces)
 
 	// Update all accounts to the latest known pending nonce
 	for addr, list := range pool.pending {
@@ -604,6 +616,23 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// Check the queue and move transactions over to the pending if possible
 	// or remove those that have become invalid
 	pool.promoteExecutables(nil)
+}
+func (pool *TxPool) removeTxs(nonces map[common.Address]uint64) {
+	for addr, list := range pool.pending {
+		if nonce,ok := nonces[addr]; ok {
+			// Drop all transactions that are deemed too old (low nonce)
+			for _, tx := range list.Forward(nonce+1) {
+				hash := tx.Hash()
+				log.Trace("Removed old pending transaction", "hash", hash)
+				pool.all.Remove(hash)
+				pool.priced.Removed()
+			}
+		}
+		if list.Empty() {
+			delete(pool.pending, addr)
+			delete(pool.beats, addr)
+		}
+	}
 }
 
 // Stop terminates the transaction pool.

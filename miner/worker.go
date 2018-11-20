@@ -391,18 +391,17 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 		return  nil
 	}
 	// Short circuit if there is no available pending transactions
-	if len(pending) == 0 {
-		w.updateSnapshot()
-		return  nil
-	}
-	// Split the pending transactions into locals and remotes
-	fmt.Print("5A")
-	txs := types.NewTransactionsByPriceAndNonce(w.current.signer, pending)
-	interrupt := int32(0)
-	w.newTxs = 0
-	if w.shardCommitTransactions(txs, w.coinbase,&interrupt) {
-		fmt.Print("5B")
-		return  nil
+	if len(pending) != 0 {
+
+		// Split the pending transactions into locals and remotes
+		fmt.Print("5A")
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, pending)
+		interrupt := int32(0)
+		w.newTxs = 0
+		if w.shardCommitTransactions(txs, w.coinbase, &interrupt) {
+			fmt.Print("5B")
+			return nil
+		}
 	}
 	fmt.Print("6")
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
@@ -495,7 +494,10 @@ func (w *worker) enterShard() {
 	fmt.Println("build env")
 	block := w.shardBuildEnvironment()
 	w.timer.Reset(1*time.Second)
-	w.startEngineSeal(block)
+	if block != nil {
+		w.startEngineSeal(block)
+	}
+
 }
 func (w *worker) enterResume() {
 	w.timer.Reset(10*time.Millisecond)

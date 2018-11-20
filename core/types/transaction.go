@@ -24,7 +24,6 @@ import (
 	"sync/atomic"
 
 	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/rlp"
 )
@@ -61,17 +60,6 @@ type txdata struct {
 	Hash *common.Hash `json:"hash" rlp:"-"`
 }
 
-type txdataMarshaling struct {
-	AccountNonce hexutil.Uint64
-	Price        *hexutil.Big
-	GasLimit     hexutil.Uint64
-	TokenId      uint64
-	Amount       *hexutil.Big
-	Payload      hexutil.Bytes
-	V            *hexutil.Big
-	R            *hexutil.Big
-	S            *hexutil.Big
-}
 
 func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, tokenId uint64) *Transaction {
 	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data, tokenId)
