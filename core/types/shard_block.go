@@ -229,8 +229,6 @@ func (b *SHeader) setHashDirty(v bool)        { b.dirty = v }
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type SBody struct {
-	Transactions []*Transaction
-
 	//receipts
 	Receipts ContractResults
 }
@@ -239,7 +237,7 @@ type SBody struct {
 type SBlock struct {
 	header *SHeader
 
-	transactions Transactions
+	transactions 	     Transactions
 	results      ContractResults
 
 	// caches

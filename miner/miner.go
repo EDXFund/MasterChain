@@ -38,7 +38,7 @@ import (
 // Backend wraps all methods required for mining.
 type Backend interface {
 	BlockChain() *core.BlockChain
-	TxPool() *core.TxPool
+	TxPool() core.TxPoolIntf
 	ShardPool() *qchain.ShardChainPool
 	ChainDb()        ethdb.Database
 }

@@ -75,10 +75,10 @@ type contractReception struct {
 // Minimized data to transfer
 // contract data should be retrieved by other command
 type ContractResult struct {
-	TxType            byte 		`json:"txHash" 		gencodec:"required"`
-	TxHash            common.Hash `json:"txHash" 		gencodec:"required"`
-	GasPrice          uint64      `json:"gasPrice"		gencodec:"required"`
-	PostState         []byte      `json:"root"		gencodec:"required"`
+	TxType            byte 			`json:"txHash" 		gencodec:"required"`
+	TxHash            common.Hash 	`json:"txHash" 		gencodec:"required"`
+	GasUsed           uint64      	`json:"gasPrice"		gencodec:"required"`
+	PostState         []byte      	`json:"root"		gencodec:"required"`
 	Data              []byte		`json:"data"`
 }
 type ContractResults []*ContractResult;
@@ -240,7 +240,7 @@ func (sb *SuperBody) ToBody() *Body {
 }
 
 func (sb *SuperBody) ToSBody() *SBody {
-	return &SBody{Transactions: sb.Transactions, Receipts: sb.Results}
+	return &SBody{ Receipts: sb.Results}
 }
 
 type HeadEncode struct {

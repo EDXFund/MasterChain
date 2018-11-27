@@ -32,6 +32,7 @@ func WriteShardBlockEntries(db DatabaseWriter, block types.BlockIntf) {
 	if block != nil && !reflect.ValueOf(block).IsNil() {
 		for i, shardBlock := range block.ShardBlocks() {
 			entry := TxLookupEntry{
+				ShardId:    block.ShardId(),
 				BlockHash:  block.Hash(),
 				BlockIndex: block.NumberU64(),
 				Index:      uint64(i),
@@ -98,12 +99,40 @@ func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf) {
 func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 	db.Delete(txLookupKey(hash))
 }
+func GetTxOfAccountNonce(db DatabaseReader, account common.Address,nonce uint64) (common.Hash,bool){
+	data, _ := db.Get(txAccountNonceKey(account,nonce))
+	if len(data) == 0 {
+		return  common.Hash{},false
+	}else {
+		var txHash  common.Hash
+		rlp.DecodeBytes(data,txHash)
+		return txHash,true
+	}
+}
+func WriteTxOfAccountNonce(db DatabaseWriter, account common.Address,nonce uint64,hash common.Hash) error{
+	err := db.Put(txAccountNonceKey(account,nonce),hash.Bytes())
+	if err != nil {
+		log.Crit("error in put txHash",err)
+	}
+	return err
+}
+func WriteTransactoin(db DatabaseWriter, hash common.Hash, tx *types.Transaction) error{
+	data,err := rlp.EncodeToBytes(tx)
+	if err != nil {
+		log.Crit("error in encode transaction",err)
+		return err
+	}
+	err = db.Put(txKey(hash),data)
+	if err != nil {
+		log.Crit("error in put transaction",err)
+	}
+	return err
+}
 
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
-
-	_, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
+	_,blockHash, blockNumber, txIndex:= ReadTxLookupEntry(db,hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}

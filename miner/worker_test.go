@@ -17,8 +17,14 @@
 package miner
 
 import (
+	"fmt"
+	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/qchain"
+	"github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
+	"io"
 	"math/big"
+	"os"
 	"testing"
 	"time"
 
@@ -72,7 +78,7 @@ func init() {
 // testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
 type testWorkerBackend struct {
 	db         ethdb.Database
-	txPool     *core.TxPool
+	txPool     core.TxPoolIntf
 	shardPool  *qchain.ShardChainPool
 	chain      *core.BlockChain
 	testTxFeed event.Feed
@@ -99,8 +105,16 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db, shardId)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,shardId)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, shardId)
-	shardpool := qchain.NewShardChainPool(chain,db)
+	var txpool core.TxPoolIntf
+	var shardpool *qchain.ShardChainPool
+	if shardId == types.ShardMaster {
+		txpool = core.NewTxPoolMaster(testTxPoolConfig, chainConfig, chain, shardId)
+		shardpool = qchain.NewShardChainPool(chain,db)
+	}else {
+		txpool = core.NewTxPoolShard(*testTxPoolConfig.ToShardConfig(), chainConfig, chain, shardId)
+	}
+
+
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
 		blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {
@@ -161,7 +175,7 @@ func newTestWorkerMasterBackend(t *testing.T, chainConfig *params.ChainConfig, e
 	genesis := gspec.MustCommit(db, types.ShardMaster)
 
 	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,types.ShardMaster)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain, types.ShardMaster)
+	txpool := core.NewTxPoolMaster(testTxPoolConfig, chainConfig, chain, types.ShardMaster)
 	shardpool := qchain.NewShardChainPool(chain,db)
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -193,7 +207,7 @@ func newTestWorkerMasterBackend(t *testing.T, chainConfig *params.ChainConfig, e
 	}
 }
 func (b *testWorkerBackend) BlockChain() *core.BlockChain { return b.chain }
-func (b *testWorkerBackend) TxPool() *core.TxPool         { return b.txPool }
+func (b *testWorkerBackend) TxPool() core.TxPoolIntf         { return b.txPool }
 func (b *testWorkerBackend) ShardPool() *qchain.ShardChainPool         { return b.shardPool }
 func (b *testWorkerBackend) ChainDb()  ethdb.Database         { return b.db }
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
@@ -266,9 +280,28 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 		t.Errorf("account balance mismatch: have %d, want %d", balance, 2000)
 	}
 }
+var (
+	ostream log.Handler
+	glogger *log.GlogHandler
+)
+
+func Init() {
+	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
+	output := io.Writer(os.Stderr)
+	if usecolor {
+		output = colorable.NewColorableStderr()
+	}
+	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
+	glogger = log.NewGlogHandler(ostream)
+}
+
 
 
 func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+	Init()
+	log.PrintOrigins(true)
+	glogger.Verbosity(log.Lvl(4))
+
 	defer engine.Close()
 
 	state := make(chan  struct{})
@@ -287,7 +320,7 @@ func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consen
 	}*/
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
-
+		fmt.Println("add tx")
 		b.txPool.AddLocals(newTxs)
 	}()
 
@@ -295,6 +328,7 @@ func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consen
 
 
 	go func(){
+		fmt.Println("waiting")
 		// Ensure the new tx events has been processed
 		time.Sleep(60000 * time.Millisecond)
 		block:= w.pendingBlock()
