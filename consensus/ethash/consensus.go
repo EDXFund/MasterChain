@@ -702,8 +702,9 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 			}
 		}
 	}
-	rewardOfShard := new(big.Int).Div(blockReward,big.NewInt(int64(shardsCount)))
+/*	rewardOfShard := new(big.Int).Div(blockReward,big.NewInt(int64(shardsCount)))
 	for _,blk := range blks {
 		blk.
 	}
+*/
 }
