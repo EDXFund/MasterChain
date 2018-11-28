@@ -119,8 +119,7 @@ type statusData struct {
 	TD              *big.Int
 	CurrentBlock    common.Hash
 	GenesisBlock    common.Hash
-	ShardTd         []*big.Int
-	ShardHead       []common.Hash
+	ShardInfo       []*types.SInfo
 }
 
 // newBlockHashesData is the network packet for the block announcements.
@@ -141,6 +140,11 @@ type getBlockHeadersData struct {
 	Amount  uint64       // Maximum number of headers to retrieve
 	Skip    uint64       // Blocks to skip between consecutive headers
 	Reverse bool         // Query direction (false = rising towards latest, true = falling towards genesis)
+}
+
+type getBlockBodysData struct {
+	ShardId uint16
+	Hashs   []common.Hash
 }
 
 // hashOrNumber is a combined field for specifying an origin block.

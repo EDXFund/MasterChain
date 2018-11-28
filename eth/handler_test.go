@@ -48,10 +48,18 @@ func TestProtocolCompatibility(t *testing.T) {
 		compatible bool
 		shardId    uint16
 	}{
-		{61, downloader.FullSync, true, types.ShardMaster}, {62, downloader.FullSync, true, types.ShardMaster}, {63, downloader.FullSync, true, types.ShardMaster},
-		{61, downloader.FastSync, false, types.ShardMaster}, {62, downloader.FastSync, false, types.ShardMaster}, {63, downloader.FastSync, true, types.ShardMaster},
-		{61, downloader.FullSync, true, 0}, {62, downloader.FullSync, true, 0}, {63, downloader.FullSync, true, 0},
-		{61, downloader.FastSync, false, 0}, {62, downloader.FastSync, false, 0}, {63, downloader.FastSync, true, 0},
+		{61, downloader.FullSync, true, types.ShardMaster},
+		{62, downloader.FullSync, true, types.ShardMaster},
+		{63, downloader.FullSync, true, types.ShardMaster},
+		{61, downloader.FastSync, false, types.ShardMaster},
+		{62, downloader.FastSync, false, types.ShardMaster},
+		{63, downloader.FastSync, true, types.ShardMaster},
+		{61, downloader.FullSync, true, 0},
+		{62, downloader.FullSync, true, 0},
+		{63, downloader.FullSync, true, 0},
+		{61, downloader.FastSync, false, 0},
+		{62, downloader.FastSync, false, 0},
+		{63, downloader.FastSync, true, 0},
 	}
 	// Make sure anything we screw up is restored
 	backup := ProtocolVersions
@@ -265,8 +273,8 @@ func testGetBlockHeaders(t *testing.T, protocol int, shardId uint16) {
 }
 
 // Tests that block contents can be retrieved from a remote chain based on their hashes.
-func TestGetBlockBodies62(t *testing.T)  { testGetBlockBodies(t, 62, types.ShardMaster) }
-func TestGetBlockBodies63(t *testing.T)  { testGetBlockBodies(t, 63, types.ShardMaster) }
+func TestGetBlockBodies62(t *testing.T)  { testGetBlockBodies(t, 62, 0) }
+func TestGetBlockBodies63(t *testing.T)  { testGetBlockBodies(t, 63, 0) }
 func TestGetBlockBodies62S(t *testing.T) { testGetBlockBodies(t, 62, 0) }
 func TestGetBlockBodies63S(t *testing.T) { testGetBlockBodies(t, 63, 0) }
 func testGetBlockBodies(t *testing.T, protocol int, shardId uint16) {
@@ -333,28 +341,47 @@ func testGetBlockBodies(t *testing.T, protocol int, shardId uint16) {
 			}
 		}
 		// Send the hash request and verify the response
-		p2p.Send(peer.app, 0x05, hashes)
+		p2p.Send(peer.app, 0x05, getBlockBodysData{
+			ShardId: shardId,
+			Hashs:   hashes,
+		})
 
-		result := make([]rlp.RawValue, len(bodies))
-
-		for _, val := range bodies {
-			var item *types.SuperBody
-			if val.ShardId() == types.ShardMaster {
-				blk := val.ToBlock().Body()
-				item = &types.SuperBody{ShardBlocks: blk.ShardBlocks, Uncles: nil, Receipts: nil, Transactions: nil, Results: nil}
-
-			} else {
-				blk := val.ToSBlock().Body()
-				item = &types.SuperBody{ShardBlocks: blk.ShardBlocks, Uncles: nil, Receipts: nil, Transactions: nil, Results: nil}
-
+		result := blockBodiesData{ShardId: shardId}
+		lenBodies := len(bodies)
+		if shardId == types.ShardMaster {
+			data := make([]blockMasterBody, lenBodies)
+			for i, val := range bodies {
+				body := val.Body()
+				data[i] = blockMasterBody{BlockInfos: body.ShardBlocks, Receipts: body.Receipts}
 			}
-			data, err := rlp.EncodeToBytes(item)
-			if err == nil {
-				rawVal, _ := rlp.EncodeToBytes(&types.BodyEncode{ShardId: val.ShardId(), Body: data})
-				result = append(result, rlp.RawValue(rawVal))
+			result.Data, _ = rlp.EncodeToBytes(data)
+		} else {
+			data := make([]blockShardBody, lenBodies)
+			for i, val := range bodies {
+				body := val.Body()
+				data[i] = blockShardBody{Transactions: body.Transactions, ContractResults: body.Results}
 			}
-
+			result.Data, _ = rlp.EncodeToBytes(data)
 		}
+
+		//for _, val := range bodies {
+		//	var item *types.SuperBody
+		//	if val.ShardId() == types.ShardMaster {
+		//		blk := val.ToBlock().Body()
+		//		item = &types.SuperBody{ShardBlocks: blk.ShardBlocks, Uncles: nil, Receipts: nil, Transactions: nil, Results: nil}
+		//
+		//	} else {
+		//		blk := val.ToSBlock().Body()
+		//		item = &types.SuperBody{ShardBlocks: blk.ShardBlocks, Uncles: nil, Receipts: nil, Transactions: nil, Results: nil}
+		//
+		//	}
+		//	data, err := rlp.EncodeToBytes(item)
+		//	if err == nil {
+		//		rawVal, _ := rlp.EncodeToBytes(&types.BodyEncode{ShardId: val.ShardId(), Body: data})
+		//		result = append(result, rlp.RawValue(rawVal))
+		//	}
+		//
+		//}
 
 		if err := p2p.ExpectMsg(peer.app, 0x06, result); err != nil {
 			t.Errorf("test %d: bodies mismatch: %v", i, err)
@@ -466,7 +493,7 @@ func testGetNodeData(t *testing.T, protocol int, shardId uint16) {
 }
 
 // Tests that the transaction receipts can be retrieved based on hashes.
-func TestGetReceipt63(t *testing.T)  { testGetReceipt(t, 63, types.ShardMaster) }
+func TestGetReceipt63(t *testing.T)  { testGetReceipt(t, 63, 0) }
 func TestGetReceipt63S(t *testing.T) { testGetReceipt(t, 63, 0) }
 func testGetReceipt(t *testing.T, protocol int, shardId uint16) {
 	// Define three accounts to simulate transactions with

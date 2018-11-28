@@ -187,8 +187,7 @@ func (p *testPeer) handshake(t *testing.T, td *big.Int, head common.Hash, genesi
 		TD:              td,
 		CurrentBlock:    head,
 		GenesisBlock:    genesis,
-		ShardTd:         []*big.Int{},
-		ShardHead:       []common.Hash{},
+		ShardInfo:       []*types.SInfo{},
 	}
 	if err := p2p.ExpectMsg(p.app, StatusMsg, msg); err != nil {
 		t.Fatalf("status recv: %v", err)

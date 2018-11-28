@@ -49,10 +49,10 @@ var (
 type blockRetrievalFn func(common.Hash) types.BlockIntf
 
 // headerRequesterFn is a callback type for sending a header retrieval request.
-type headerRequesterFn func(common.Hash) error
+type headerRequesterFn func(common.Hash, uint16) error
 
 // bodyRequesterFn is a callback type for sending a body retrieval request.
-type bodyRequesterFn func([]common.Hash) error
+type bodyRequesterFn func([]common.Hash, uint16) error
 
 // headerVerifierFn is a callback type to verify a block's header for fast propagation.
 type headerVerifierFn func(header types.HeaderIntf) error
@@ -61,7 +61,7 @@ type headerVerifierFn func(header types.HeaderIntf) error
 type blockBroadcasterFn func(block types.BlockIntf, propagate bool)
 
 // chainHeightFn is a callback type to retrieve the current chain height.
-type chainHeightFn func() uint64
+type chainHeightFn func(shardId uint16) uint64
 
 // chainInsertFn is a callback type to insert a batch of blocks into the local chain.
 type chainInsertFn func(types.BlockIntfs) (int, error)
@@ -72,11 +72,11 @@ type peerDropFn func(id string)
 // announce is the hash notification of the availability of a new block in the
 // network.
 type announce struct {
-	shardId uint16		 //shard of the announced block
-	hash   common.Hash   // Hash of the block being announced
-	number uint64        // Number of the block being announced (0 = unknown | old protocol)
-	header types.HeaderIntf // Header of the block partially reassembled (new protocol)
-	time   time.Time     // Timestamp of the announcement
+	shardId uint16           //shard of the announced block
+	hash    common.Hash      // Hash of the block being announced
+	number  uint64           // Number of the block being announced (0 = unknown | old protocol)
+	header  types.HeaderIntf // Header of the block partially reassembled (new protocol)
+	time    time.Time        // Timestamp of the announcement
 
 	origin string // Identifier of the peer originating the notification
 
@@ -86,26 +86,31 @@ type announce struct {
 
 // headerFilterTask represents a batch of headers needing fetcher filtering.
 type headerFilterTask struct {
-	peer    string          // The source peer of block headers
+	peer    string             // The source peer of block headers
 	headers []types.HeaderIntf // Collection of headers to filter
-	time    time.Time       // Arrival time of the headers
+	time    time.Time          // Arrival time of the headers
 }
 
 // bodyFilterTask represents a batch of block bodies (transactions and uncles)
 // needing fetcher filtering.
 type bodyFilterTask struct {
-	peer         string                 // The source peer of block bodies
-	shardBlocks [][]*types.ShardBlockInfo // Collection of transactions per block bodies
-	receipts       [][]*types.Receipt     // Collection of uncles per block bodies
-	transactions [][]*types.Transaction // Collection of transactions per block bodies
-	contractResults       [][]*types.ContractResult      // Collection of contract results
-	time         time.Time              // Arrival time of the blocks' contents
+	peer            string                    // The source peer of block bodies
+	shardBlocks     [][]*types.ShardBlockInfo // Collection of transactions per block bodies
+	receipts        [][]*types.Receipt        // Collection of uncles per block bodies
+	transactions    [][]*types.Transaction    // Collection of transactions per block bodies
+	contractResults [][]*types.ContractResult // Collection of contract results
+	time            time.Time                 // Arrival time of the blocks' contents
 }
 
 // inject represents a schedules import operation.
 type inject struct {
 	origin string
 	block  types.BlockIntf
+}
+
+type requsetHash struct {
+	hash    common.Hash
+	shardId uint16
 }
 
 // Fetcher is responsible for accumulating block announcements from various peers
@@ -147,7 +152,7 @@ type Fetcher struct {
 	queueChangeHook    func(common.Hash, bool) // Method to call upon adding or deleting a block from the import queue
 	fetchingHook       func([]common.Hash)     // Method to call upon starting a block (eth/61) or header (eth/62) fetch
 	completingHook     func([]common.Hash)     // Method to call upon starting a block body fetch (eth/62)
-	importedHook       func(types.BlockIntf)      // Method to call upon successful block import (both eth/61 and eth/62)
+	importedHook       func(types.BlockIntf)   // Method to call upon successful block import (both eth/61 and eth/62)
 }
 
 // New creates a block fetcher to retrieve blocks based on hash announcements.
@@ -194,7 +199,7 @@ func (f *Fetcher) Stop() {
 func (f *Fetcher) Notify(peer string, shardId uint16, hash common.Hash, number uint64, time time.Time,
 	headerFetcher headerRequesterFn, bodyFetcher bodyRequesterFn) error {
 	block := &announce{
-		shardId:	 shardId,
+		shardId:     shardId,
 		hash:        hash,
 		number:      number,
 		time:        time,
@@ -251,16 +256,17 @@ func (f *Fetcher) FilterHeaders(peer string, headers []types.HeaderIntf, time ti
 		return nil
 	}
 }
-func (f *Fetcher) FilterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,txs [][]*types.Transaction,results [][]*types.ContractResult, time time.Time, shardId uint16) ([][]*types.ShardBlockInfo,[][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult ) {
+func (f *Fetcher) FilterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt, txs [][]*types.Transaction, results [][]*types.ContractResult, time time.Time, shardId uint16) ([][]*types.ShardBlockInfo, [][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult) {
 	if shardId == types.ShardMaster {
-		return f.FilterMasterBodies(peer,shardBlocks,receipts,time)
-	}else {
-		return f.FilterShardBodies(peer,txs,results,time)
+		return f.FilterMasterBodies(peer, shardBlocks, receipts, time)
+	} else {
+		return f.FilterShardBodies(peer, txs, results, time)
 	}
 }
+
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult ) {
+func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBlockInfo, receipts [][]*types.Receipt, time time.Time) ([][]*types.ShardBlockInfo, [][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult) {
 	fmt.Println("Filtering bodies", "peer", peer, "txs", len(shardBlocks))
 
 	// Send the filter channel to the fetcher
@@ -270,30 +276,29 @@ func (f *Fetcher) FilterMasterBodies(peer string, shardBlocks [][]*types.ShardBl
 	case f.bodyFilter <- filter:
 		fmt.Println("put new Body Task filter")
 	case <-f.quit:
-		return nil,nil,nil,nil
+		return nil, nil, nil, nil
 	}
 	// Request the filtering of the body list
 	select {
-	case filter <- &bodyFilterTask{peer: peer, shardBlocks: shardBlocks, receipts:receipts, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, shardBlocks: shardBlocks, receipts: receipts, time: time}:
 		fmt.Println("put a task to Body Task filter")
 	case <-f.quit:
-		return nil,nil,nil,nil
+		return nil, nil, nil, nil
 	}
 
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
 		fmt.Println("received result from Body Task filter")
-		return task.shardBlocks, task.receipts,nil,nil
+		return task.shardBlocks, task.receipts, nil, nil
 	case <-f.quit:
-		return nil, nil,nil,nil
+		return nil, nil, nil, nil
 	}
 }
 
-
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, results [][]*types.ContractResult,time time.Time) ([][]*types.ShardBlockInfo,[][]*types.Receipt,[][]*types.Transaction,[][]*types.ContractResult ) {
+func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, results [][]*types.ContractResult, time time.Time) ([][]*types.ShardBlockInfo, [][]*types.Receipt, [][]*types.Transaction, [][]*types.ContractResult) {
 	fmt.Println("Filtering bodies", "peer", peer, "txs", len(txs))
 
 	// Send the filter channel to the fetcher
@@ -302,21 +307,21 @@ func (f *Fetcher) FilterShardBodies(peer string, txs [][]*types.Transaction, res
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil,nil,nil,nil
+		return nil, nil, nil, nil
 	}
 	// Request the filtering of the body list
 	select {
-	case filter <- &bodyFilterTask{peer: peer, transactions: txs, contractResults:results, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, transactions: txs, contractResults: results, time: time}:
 	case <-f.quit:
-		return nil,nil,nil,nil
+		return nil, nil, nil, nil
 	}
 
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return nil,nil,task.transactions, task.contractResults
+		return nil, nil, task.transactions, task.contractResults
 	case <-f.quit:
-		return nil, nil,nil,nil
+		return nil, nil, nil, nil
 	}
 }
 
@@ -335,10 +340,11 @@ func (f *Fetcher) loop() {
 			}
 		}
 		// Import any queued blocks that could potentially fit
-		height := f.chainHeight()
+
 		for !f.queue.Empty() {
 			op := f.queue.PopItem().(*inject)
 			hash := op.block.Hash()
+			height := f.chainHeight(op.block.ShardId())
 			if f.queueChangeHook != nil {
 				f.queueChangeHook(hash, false)
 			}
@@ -376,7 +382,7 @@ func (f *Fetcher) loop() {
 			}
 			// If we have a valid block number, check that it's potentially useful
 			if notification.number > 0 {
-				if dist := int64(notification.number) - int64(f.chainHeight()); dist < -maxUncleDist || dist > maxQueueDist {
+				if dist := int64(notification.number) - int64(f.chainHeight(notification.shardId)); dist < -maxUncleDist || dist > maxQueueDist {
 					fmt.Println("Peer discarded announcement", "peer", notification.origin, "number", notification.number, "hash", notification.hash, "distance", dist)
 					propAnnounceDropMeter.Mark(1)
 					break
@@ -410,7 +416,7 @@ func (f *Fetcher) loop() {
 
 		case <-fetchTimer.C:
 			// At least one block's timer ran out, check for needing retrieval
-			request := make(map[string][]common.Hash)
+			request := make(map[string][]requsetHash)
 
 			for hash, announces := range f.announced {
 				if time.Since(announces[0].time) > arriveTimeout-gatherSlack {
@@ -420,25 +426,25 @@ func (f *Fetcher) loop() {
 
 					// If the block still didn't arrive, queue for fetching
 					nBlock := f.getBlock(hash)
-					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
-						request[announce.origin] = append(request[announce.origin], hash)
+					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
+						request[announce.origin] = append(request[announce.origin], requsetHash{hash, announce.shardId})
 						f.fetching[hash] = announce
 					}
 				}
 			}
 			// Send out all block header requests
-			for peer, hashes := range request {
-				fmt.Println("Fetching scheduled headers", "peer", peer, "list", hashes)
+			for peer, requestHash := range request {
+				fmt.Println("Fetching scheduled headers", "peer", peer, "list", requestHash)
 
 				// Create a closure of the fetch and schedule in on a new thread
-				fetchHeader, hashes := f.fetching[hashes[0]].fetchHeader, hashes
+				fetchHeader := f.fetching[requestHash[0].hash].fetchHeader
 				go func() {
 					if f.fetchingHook != nil {
-						f.fetchingHook(hashes)
+						//f.fetchingHook(requestHash)
 					}
-					for _, hash := range hashes {
+					for _, rhash := range requestHash {
 						headerFetchMeter.Mark(1)
-						fetchHeader(hash) // Suboptimal, but protocol doesn't allow batch header retrievals
+						fetchHeader(rhash.hash, rhash.shardId) // Suboptimal, but protocol doesn't allow batch header retrievals
 					}
 				}()
 			}
@@ -447,7 +453,7 @@ func (f *Fetcher) loop() {
 
 		case <-completeTimer.C:
 			// At least one header's timer ran out, retrieve everything
-			request := make(map[string][]common.Hash)
+			request := make(map[string]map[uint16][]common.Hash)
 
 			for hash, announces := range f.fetched {
 				// Pick a random peer to retrieve from, reset all others
@@ -456,20 +462,26 @@ func (f *Fetcher) loop() {
 
 				// If the block still didn't arrive, queue for completion
 				if f.getBlock(hash) == nil {
-					request[announce.origin] = append(request[announce.origin], hash)
+
+					if request[announce.origin] == nil {
+						request[announce.origin] = map[uint16][]common.Hash{}
+					}
+
+					request[announce.origin][announce.shardId] = append(request[announce.origin][announce.shardId], hash)
 					f.completing[hash] = announce
 				}
 			}
 			// Send out all block body requests
-			for peer, hashes := range request {
-				fmt.Println("Fetching scheduled bodies", "peer", peer, "list", hashes)
-
+			for peer, shards := range request {
 				// Create a closure of the fetch and schedule in on a new thread
 				if f.completingHook != nil {
-					f.completingHook(hashes)
+					//f.completingHook(hashes)
 				}
-				bodyFetchMeter.Mark(int64(len(hashes)))
-				go f.completing[hashes[0]].fetchBodies(hashes)
+				for shardId, hashes := range shards {
+					fmt.Println("Fetching scheduled bodies", "peer", peer, "list", hashes)
+					bodyFetchMeter.Mark(int64(len(hashes)))
+					go f.completing[hashes[0]].fetchBodies(hashes, shardId)
+				}
 			}
 			// Schedule the next fetch if blocks are still pending
 			f.rescheduleComplete(completeTimer)
@@ -503,7 +515,7 @@ func (f *Fetcher) loop() {
 					}
 					// Only keep if not imported by other means
 					nBlock := f.getBlock(hash)
-					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
+					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
 						announce.header = header
 						announce.time = task.time
 
@@ -513,7 +525,7 @@ func (f *Fetcher) loop() {
 								fmt.Println("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number(), "hash", header.Hash())
 
 								block := types.NewBlockWithHeader(header)
-								block.SetReceivedAt( task.time)
+								block.SetReceivedAt(task.time)
 
 								complete = append(complete, block)
 								f.completing[hash] = announce
@@ -524,7 +536,7 @@ func (f *Fetcher) loop() {
 								fmt.Println("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number(), "hash", header.Hash())
 
 								block := types.NewBlockWithHeader(header)
-								block.SetReceivedAt( task.time)
+								block.SetReceivedAt(task.time)
 
 								complete = append(complete, block)
 								f.completing[hash] = announce
@@ -576,13 +588,13 @@ func (f *Fetcher) loop() {
 				return
 			}
 			var blocks []types.BlockIntf
-			if len (task.shardBlocks) > 0 {
+			if len(task.shardBlocks) > 0 {
 				blocks = procMasterBodies(task, f)
-			}else {
+			} else {
 				blocks = procShardBodies(task, f)
 			}
 
-			fmt.Println("filtered blocks:",len(blocks))
+			fmt.Println("filtered blocks:", len(blocks))
 			select {
 			case filter <- task:
 			case <-f.quit:
@@ -602,7 +614,7 @@ func (f *Fetcher) loop() {
 func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 	bodyFilterInMeter.Mark(int64(len(task.shardBlocks)))
 	blocks := []types.BlockIntf{}
-	for i := 0; i < len(task.shardBlocks) ; i++ {
+	for i := 0; i < len(task.shardBlocks); i++ {
 		// Match up a body to any possible completion request
 		matched := false
 
@@ -613,16 +625,16 @@ func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 				blockHash := types.DeriveSha(types.ShardBlockInfos(task.shardBlocks[i]))
 				//uncleHash := types.CalcUncleHash(task.uncles[i])
 
-				if blockHash == announce.header.ShardTxsHash()  && announce.origin == task.peer {
+				if blockHash == announce.header.ShardTxsHash() && announce.origin == task.peer {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
 
 					nBlock := f.getBlock(hash)
-					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
-						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil,nil, nil)
+					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
+						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil, nil, nil)
 						block.SetReceivedAt(task.time)
-						fmt.Println("header:",announce.header.Hash())
-						fmt.Println("block:",block.Hash())
+						fmt.Println("header:", announce.header.Hash())
+						fmt.Println("block:", block.Hash())
 						blocks = append(blocks, block)
 
 					} else {
@@ -660,7 +672,7 @@ func procShardBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
 					nBlock := f.getBlock(hash)
-					if nBlock == nil  || reflect.ValueOf(nBlock ).IsNil()  {
+					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
 						block := types.NewSBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
 						block.SetReceivedAt(task.time)
 
@@ -730,7 +742,7 @@ func (f *Fetcher) enqueue(peer string, block types.BlockIntf) {
 		return
 	}
 	// Discard any past or too distant blocks
-	if dist := int64(block.NumberU64()) - int64(f.chainHeight()); dist < -maxUncleDist || dist > maxQueueDist {
+	if dist := int64(block.NumberU64()) - int64(f.chainHeight(block.ShardId())); dist < -maxUncleDist || dist > maxQueueDist {
 		fmt.Println("Discarded propagated block, too far away", "peer", peer, "number", block.Number(), "hash", hash, "distance", dist)
 		propBroadcastDropMeter.Mark(1)
 		f.forgetHash(hash)
@@ -759,7 +771,7 @@ func (f *Fetcher) insert(peer string, block types.BlockIntf) {
 	hash := block.Hash()
 
 	// Run the import on a new thread
-//	fmt.Println("Importing propagated block", "peer", peer, "number", block.Number(), "hash", hash)
+	//	fmt.Println("Importing propagated block", "peer", peer, "number", block.Number(), "hash", hash)
 	go func() {
 		defer func() { f.done <- hash }()
 
