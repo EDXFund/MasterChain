@@ -168,7 +168,7 @@ func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
 func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }
 func (tx *Transaction) Value() *big.Int    { return new(big.Int).Set(tx.data.Amount) }
 func (tx *Transaction) Nonce() uint64      { return tx.data.AccountNonce }
-func (tx *Transaction) CheckNonce() bool   { return true }
+func (tx *Transaction) CheckNonce() bool   { return false }
 
 // To returns the recipient address of the transaction.
 // It returns nil if the transaction is a contract creation.
@@ -217,7 +217,7 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 		token:      tx.data.TokenId,
 		amount:     tx.data.Amount,
 		data:       tx.data.Payload,
-		checkNonce: true,
+		checkNonce: false,
 	}
 
 	var err error

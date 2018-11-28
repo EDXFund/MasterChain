@@ -159,6 +159,7 @@ func NewTxPoolShard(config TxPoolShardConfig, chainconfig *params.ChainConfig, c
 	return pool
 }
 func (pool *TxPoolShard)AddLocals(txs []*types.Transaction) []error {
+	pool.addTxs(txs,false)
 	return nil
 }
 
@@ -452,6 +453,7 @@ func (pool *TxPoolShard) Pending() (map[common.Address]types.Transactions, error
 
 
 	result := make(map[common.Address]types.Transactions)
+	fmt.Println(" all txs:",pool.all.Count())
     var errs error
 	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
 		msg,err := tx.AsMessage(pool.signer)

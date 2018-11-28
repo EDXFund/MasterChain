@@ -241,7 +241,10 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
-	worker.chainShardSub = eth.ShardPool().SubscribeChainShardsEvent(worker.chainShardCh)
+	if shardId == types.ShardMaster{
+		worker.chainShardSub = eth.ShardPool().SubscribeChainShardsEvent(worker.chainShardCh)
+	}
+
 	worker.txsCache,_   =        lru.New(txCacheSize)
 	// Sanitize recommit interval if the user-specified one is too short.
 	if recommit < minRecommitInterval {
@@ -485,7 +488,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 }
 
 func (w *worker) enterMaster() {
-	block := w.masterBuildEnvironment();
+	block := w.masterBuildEnvironment()
 	w.timer.Reset(1*time.Second)
 	w.startEngineSeal(block)
 
@@ -503,7 +506,7 @@ func (w *worker) enterResume() {
 	w.timer.Reset(10*time.Millisecond)
 }
 func (w *worker) enterState(newState uint8) {
-	fmt.Println("cur state:",w.state," new State:",newState)
+	fmt.Println("shardId:",w.shardId, "\tcur state:",w.state," \tnew State:",newState)
 	if w.exitFuncs[w.state] != nil {
 		w.exitFuncs[w.state]()
 	}
@@ -515,7 +518,10 @@ func (w *worker) enterState(newState uint8) {
 func (w *worker) mainStateLoop() {
 	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
-	defer w.chainShardSub.Unsubscribe()
+	if w.chainShardSub != nil{
+		defer w.chainShardSub.Unsubscribe()
+	}
+
 	w.stopEngineSeal()
 	<- w.timer.C
 	for {
@@ -605,6 +611,8 @@ func (w *worker)handleShardChain(blocks types.BlockIntfs){
 			//ignore shard
 		}
 	case ST_MASTER:
+		w.newShards += int32(len(blocks))
+	case ST_RESETING:
 		w.newShards += int32(len(blocks))
 	case ST_SHARD:
 		//ignore
@@ -815,7 +823,7 @@ func (w *worker) stopEngineSeal() {
 	}
 }
 func (w *worker) startEngineSeal(block types.BlockIntf) {
-	fmt.Println(" mine....")
+	fmt.Println(" mine....:",len(block.Results()))
 	if w.newTaskHook != nil {
 		w.newTaskHook(block)
 	}
@@ -841,37 +849,41 @@ func (w *worker) startEngineSeal(block types.BlockIntf) {
 }
 func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Address, interrupt *int32) bool {
 	coalescedLogs := make([]*types.Log,0,10)
-	gasUsed := w.current.header.GasUsed()
+	gasUsed := uint64(0);
+	gasUsed = gasUsed + w.current.header.GasUsed()
 	for _, block := range blocks {
 		for _, instruction := range block.Results() {
-			tx := w.eth.TxPool().Get(instruction.TxHash)
-			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
+			if instruction.TxType == core.TT_COMMON  {
+				tx := w.eth.TxPool().Get(instruction.TxHash)
+				w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
+				shardBase := block.Coinbase()
+				logs, err := w.masterCommitTransaction(tx, coinbase,&shardBase, &gasUsed)
+				switch err {
+				case core.ErrGasLimitReached:
+					// Pop the current out-of-gas transaction without shifting in the next from the account
+					log.Trace("Gas limit exceeded for current block", "sender")
 
-			logs, err := w.masterCommitTransaction(tx, coinbase, &gasUsed)
-			switch err {
-			case core.ErrGasLimitReached:
-				// Pop the current out-of-gas transaction without shifting in the next from the account
-				log.Trace("Gas limit exceeded for current block", "sender")
+				case core.ErrNonceTooLow:
+					// New head notification data race between the transaction pool and miner, shift
+					log.Trace("Skipping transaction with low nonce", "sender", "nonce", tx.Nonce())
 
-			case core.ErrNonceTooLow:
-				// New head notification data race between the transaction pool and miner, shift
-				log.Trace("Skipping transaction with low nonce", "sender", "nonce", tx.Nonce())
+				case core.ErrNonceTooHigh:
+					// Reorg notification data race between the transaction pool and miner, skip account =
+					log.Trace("Skipping account with hight nonce", "sender", "nonce", tx.Nonce())
 
-			case core.ErrNonceTooHigh:
-				// Reorg notification data race between the transaction pool and miner, skip account =
-				log.Trace("Skipping account with hight nonce", "sender", "nonce", tx.Nonce())
+				case nil:
+					// Everything ok, collect the logs and shift in the next transaction from the same account
+					coalescedLogs = append(coalescedLogs, logs...)
+					w.current.tcount++
 
-			case nil:
-				// Everything ok, collect the logs and shift in the next transaction from the same account
-				coalescedLogs = append(coalescedLogs, logs...)
-				w.current.tcount++
+				default:
+					// Strange error, discard the transaction and get the next in line (note, the
+					// nonce-too-high clause will prevent us from executing in vain).
+					log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 
-			default:
-				// Strange error, discard the transaction and get the next in line (note, the
-				// nonce-too-high clause will prevent us from executing in vain).
-				log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
-
+				}
 			}
+
 		}
 	}
 
@@ -898,10 +910,14 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	return false
 }
 
-func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.Address, gasUsed *uint64) ([]*types.Log, error) {
-	snap := w.current.state.Snapshot()
+func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.Address, shardBase *common.Address, gasUsed *uint64) ([]*types.Log, error) {
 
-	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, gasUsed, vm.Config{})
+	snap := w.current.state.Snapshot()
+	if w.current.gasPool == nil {
+		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit())
+	}
+
+	receipt, _, err := core.ApplyTransaction(w.config, w.chain, &coinbase, w.current.gasPool, shardBase, w.current.state, w.current.header, tx, gasUsed, vm.Config{})
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err

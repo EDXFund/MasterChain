@@ -269,6 +269,7 @@ func (c *stateObject) AddBalance(amount *big.Int) {
 
 		return
 	}
+	fmt.Println("address:",c.address.Bytes(),"\tprev :",c.Balance(),"\t now:",new(big.Int).Add(c.Balance(), amount))
 	c.SetBalance(new(big.Int).Add(c.Balance(), amount))
 }
 

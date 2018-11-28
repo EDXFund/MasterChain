@@ -604,7 +604,7 @@ func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.He
 }
 func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,  receipts []*types.Receipt) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
-	accumulateRewards(chain.Config(), state, header, nil)
+	accumulateRewards(chain.Config(), state, header, blks)
 	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 
 	// Header seems complete, assemble into a block and return
@@ -657,30 +657,53 @@ var (
 	big32 = big.NewInt(32)
 )
 
+var bitMask =[8]uint8{0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80}
+var stageMask = []uint64{13200000,26400000,39600000,52800000,66000000,79200000}
 // AccumulateRewards credits the coinbase of the given block with the mining
 // reward. The total reward consists of the static block reward and rewards for
 // included uncles. The coinbase of each uncle block is also rewarded.
-func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header types.HeaderIntf, uncles []types.HeaderIntf) {
+// the more shard included the more main block can be rewarded
+func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header types.HeaderIntf, blks []*types.ShardBlockInfo) {
 	// Select the correct block reward based on chain progression
-	blockReward := FrontierBlockReward
-	if config.IsByzantium(header.Number()) {
-		blockReward = ByzantiumBlockReward
-	}
-	if config.IsConstantinople(header.Number()) {
-		blockReward = ConstantinopleBlockReward
-	}
-	// Accumulate the rewards for the miner and any included uncles
-	reward := new(big.Int).Set(blockReward)
-	/*r := new(big.Int)
-	for _, uncle := range uncles {
-		r.Add(uncle.Number(), big8)
-		r.Sub(r, header.Number())
-		r.Mul(r, blockReward)
-		r.Div(r, big8)
-		state.AddBalance(uncle.Coinbase(), r)
 
-		r.Div(blockReward, big32)
-		reward.Add(reward, r)
-	}*/
-	state.AddBalance(header.Coinbase(), reward)
+
+	blockReward := new(big.Int);
+
+
+	blockNumber := header.NumberU64()
+	if blockNumber < stageMask[0] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e18),big.NewInt(20))
+	} else if blockNumber >= stageMask[0] && blockNumber < stageMask[1] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e18),big.NewInt(10))
+	} else 	if blockNumber >= stageMask[1] && blockNumber < stageMask[2] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e18),big.NewInt(5))
+	} else	if blockNumber >= stageMask[2] && blockNumber < stageMask[3] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e17),big.NewInt(25))
+	} else 	if blockNumber >= stageMask[3] && blockNumber < stageMask[4] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e16),big.NewInt(125))
+	} else	if blockNumber >= stageMask[4] && blockNumber < stageMask[5] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e15),big.NewInt(625))
+	} else  if blockNumber >= stageMask[5] {
+		blockReward = new(big.Int).Mul(big.NewInt(1e14),big.NewInt(3125))
+	}
+
+
+	state.AddBalance(header.Coinbase(), blockReward)
+
+
+	//calc reward for shard blocks
+	shardEnabled := header.ToHeader().ShardEnabled()
+
+	shardsCount:=0
+	for _,enabled := range shardEnabled {
+		for i := 0; i <8; i ++{
+			if (enabled & bitMask[i]) != 0 {
+				shardsCount++
+			}
+		}
+	}
+	rewardOfShard := new(big.Int).Div(blockReward,big.NewInt(int64(shardsCount)))
+	for _,blk := range blks {
+		blk.
+	}
 }

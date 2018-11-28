@@ -400,7 +400,7 @@ func (t *HeaderTreeManager)GetPendingCount() int {
 }
 //cut all node, only tree from node survived
 func (t *HeaderTreeManager)ReduceTo(node types.HeaderIntf) error{
-	invalidHashes := make([]common.Hash,1)
+	invalidHashes := make([]common.Hash,0,1)
 	var newTree *HeaderTree = nil
 	for hash,val := range  t.trees {
 		if val.self.Number().Uint64() < node.Number().Uint64() {
@@ -450,7 +450,7 @@ func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderI
 
 func (t *HeaderTreeManager) Pending() []types.HeaderIntf {
 	if len(t.confirmed) > 0 {
-		result := make([]types.HeaderIntf,1)
+		result := make([]types.HeaderIntf,0,len(t.confirmed))
 		for _,val := range t.confirmed {
 			if  val.Hash() != t.rootHash  {
 				result = append(result,val)
