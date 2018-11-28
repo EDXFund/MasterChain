@@ -177,7 +177,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain,shardId)
 		eth.shardPool = qchain.NewShardChainPool(eth.blockchain,eth.chainDb);
 	}else{
-		eth.txPool = core.NewTxPoolShard(config.TxPool, eth.chainConfig, eth.blockchain,shardId)
+		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain,shardId)
 	}
 
 

@@ -146,7 +146,7 @@ func (b *EthAPIBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) e
 	return b.eth.BlockChain().SubscribeChainHeadEvent(ch)
 }
 
-func (b *EthAPIBackend) SubscribeChainShardsEvent(ch chan<- core.ChainsShardEvent) event.Subscription {
+func (b *EthAPIBackend) SubscribeChainShardsEvent(ch chan<- *core.ChainsShardEvent) event.Subscription {
 	return b.eth.BlockChain().SubscribeChainShardsEvent(ch)
 }
 

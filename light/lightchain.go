@@ -538,7 +538,7 @@ func (self *LightChain) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) e
 }
 
 // SubscribeChainShardEvent registers a subscription of ChainShardEvent.
-func (self *LightChain) SubscribeChainShardsEvent(ch chan<- core.ChainsShardEvent) event.Subscription {
+func (self *LightChain) SubscribeChainShardsEvent(ch chan<- *core.ChainsShardEvent) event.Subscription {
 	return self.scope.Track(self.chainShardFeed.Subscribe(ch))
 }
 

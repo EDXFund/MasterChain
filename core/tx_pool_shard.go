@@ -54,6 +54,13 @@ type TxPoolIntf interface {
 	AddLocals(txs []*types.Transaction) []error
 	SubscribeNewTxsEvent(ch chan<- NewTxsEvent) event.Subscription
 	Get(hash common.Hash) *types.Transaction
+	SetGasPrice(*big.Int)
+	AddLocal(tx *types.Transaction) error
+	State() *state.ManagedState
+	Stats() (int, int)
+	AddRemotes([]*types.Transaction) []error
+	Content() (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
+	Stop()
 }
 // TxPoolShardConfig are the configuration parameters of the transaction pool.
 type TxPoolShardConfig struct {
@@ -158,11 +165,18 @@ func NewTxPoolShard(config TxPoolShardConfig, chainconfig *params.ChainConfig, c
 
 	return pool
 }
+func (pool *TxPoolShard)AddRemotes(txs []*types.Transaction) []error{
+pool.addTxs(txs,false)
+return nil
+}
 func (pool *TxPoolShard)AddLocals(txs []*types.Transaction) []error {
 	pool.addTxs(txs,false)
 	return nil
 }
-
+func (pool *TxPoolShard)AddLocal(tx *types.Transaction) error {
+	pool.AddTx(tx,false)
+	return nil
+}
 // loop is the transaction pool's main event loop, waiting for and reacting to
 // outside blockchain events as well as for various reporting and transaction
 // eviction events.

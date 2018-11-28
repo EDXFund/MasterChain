@@ -91,12 +91,18 @@ func pricedTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ec
 	return tx
 }
 
-func setupTxPool(shardId uint16) (*TxPool, *ecdsa.PrivateKey) {
+func setupTxPool(shardId uint16) (TxPoolIntf, *ecdsa.PrivateKey) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
 	blockchain := &testBlockChain{shardId, statedb, 1000000, new(event.Feed)}
 
 	key, _ := crypto.GenerateKey()
-	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain,shardId)
+	var pool TxPoolIntf
+	if shardId == types.ShardMaster {
+		pool = NewTxPoolMaster(testTxPoolConfig, params.TestChainConfig, blockchain,shardId)
+	}else {
+		pool = NewTxPoolShard(testTxPoolConfig, params.TestChainConfig, blockchain,shardId)
+	}
+
 
 	return pool, key
 }

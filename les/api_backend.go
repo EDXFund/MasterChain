@@ -152,7 +152,7 @@ func (b *LesApiBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) e
 	return b.eth.blockchain.SubscribeChainHeadEvent(ch)
 }
 
-func (b *LesApiBackend) SubscribeChainShardsEvent(ch chan<- core.ChainsShardEvent) event.Subscription {
+func (b *LesApiBackend) SubscribeChainShardsEvent(ch chan<- *core.ChainsShardEvent) event.Subscription {
 	return b.eth.blockchain.SubscribeChainShardsEvent(ch)
 }
 

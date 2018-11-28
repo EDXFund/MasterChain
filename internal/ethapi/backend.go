@@ -56,7 +56,7 @@ type Backend interface {
 	GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header types.HeaderIntf, vmCfg vm.Config) (*vm.EVM, func() error, error)
 	SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
-	SubscribeChainShardsEvent(ch chan<- core.ChainsShardEvent) event.Subscription
+	SubscribeChainShardsEvent(ch chan<- *core.ChainsShardEvent) event.Subscription
 
 	// TxPool API
 	SendTx(ctx context.Context, signedTx *types.Transaction) error
