@@ -618,7 +618,7 @@ func (c *Clique) finalizeShard(chain consensus.ChainReader, header types.HeaderI
 	header.SetUncleHash (types.CalcUncleHash(nil))
 
 	// Assemble and return the final block for sealing
-	return types.NewSBlock(header, txs, results), nil
+	return types.NewSBlock(header,results), nil
 }
 func (c *Clique) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo, receipts []*types.Receipt) (types.BlockIntf, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped

@@ -229,8 +229,6 @@ func (b *SHeader) setHashDirty(v bool)        { b.dirty = v }
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type SBody struct {
-	Transactions []*Transaction
-
 	//receipts
 	Receipts ContractResults
 }
@@ -239,7 +237,7 @@ type SBody struct {
 type SBlock struct {
 	header *SHeader
 
-	transactions Transactions
+	transactions 	     Transactions
 	results      ContractResults
 
 	// caches
@@ -324,22 +322,17 @@ type sstorageblock struct {
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewSBlock(header HeaderIntf, txs []*Transaction, receipts []*ContractResult) BlockIntf {
-	b := &SBlock{header: CopySHeader(header.ToSHeader()), td: new(big.Int)}
+func NewSBlock(header HeaderIntf,  results []*ContractResult) BlockIntf {
+	b := &SBlock{header: CopySHeader(header.ToSHeader()), td: new(big.Int),results:make(ContractResults,len(results))}
 
 	// TODO: panic if len(txs) != len(receipts)
-	if len(txs) == 0 {
-		b.header.txHash = EmptyRootHash
-	} else {
-		b.header.txHash = DeriveSha(Transactions(txs))
-		b.transactions = make(Transactions, len(txs))
-		copy(b.transactions, txs)
-	}
+	b.header.txHash = EmptyRootHash
 
-	if len(receipts) == 0 {
+	if len(results) == 0 {
 		b.header.receiptHash = EmptyRootHash
 	} else {
-		b.header.receiptHash = DeriveSha(ContractResults(receipts))
+		b.header.receiptHash = DeriveSha(ContractResults(results))
+		copy(b.results, results)
 		//b.header.Bloom = CreateBloom(receipts)
 	}
 

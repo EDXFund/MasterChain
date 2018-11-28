@@ -306,7 +306,7 @@ func WriteBody(db DatabaseWriter, hash common.Hash,shardId uint16, number uint64
 
 // DeleteBody removes all block body data associated with a hash.
 func DeleteBody(db DatabaseDeleter,shardId uint16, hash common.Hash, number uint64) {
-	if err := db.Delete(blockBodyKey(shardId, number, hash)); err != nil {
+	if err := db.Delete(blockBodyKey(types.ShardMaster, number, hash)); err != nil {
 		log.Crit("Failed to delete block body", "err", err)
 	}
 }

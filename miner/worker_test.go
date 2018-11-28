@@ -17,7 +17,14 @@
 package miner
 
 import (
+	"fmt"
+	"github.com/EDXFund/MasterChain/log"
+	"github.com/EDXFund/MasterChain/qchain"
+	"github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
+	"io"
 	"math/big"
+	"os"
 	"testing"
 	"time"
 
@@ -62,22 +69,23 @@ func init() {
 		Period: 10,
 		Epoch:  30000,
 	}
-	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
+	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testBankKey)
 	pendingTxs = append(pendingTxs, tx1)
-	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testBankKey)
 	newTxs = append(newTxs, tx2)
 }
 
 // testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
 type testWorkerBackend struct {
 	db         ethdb.Database
-	txPool     *core.TxPool
+	txPool     core.TxPoolIntf
+	shardPool  *qchain.ShardChainPool
 	chain      *core.BlockChain
 	testTxFeed event.Feed
 	uncleBlock types.BlockIntf
 }
 
-func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
+func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int, shardId uint16) *testWorkerBackend {
 	var (
 		db    = ethdb.NewMemDatabase()
 		gspec = core.Genesis{
@@ -94,10 +102,18 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, shardId)
 
-	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,0xFFFF)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
+	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,shardId)
+	var txpool core.TxPoolIntf
+	var shardpool *qchain.ShardChainPool
+	if shardId == types.ShardMaster {
+		txpool = core.NewTxPoolMaster(testTxPoolConfig, chainConfig, chain, shardId)
+		shardpool = qchain.NewShardChainPool(chain,db)
+	}else {
+		txpool = core.NewTxPoolShard(*testTxPoolConfig.ToShardConfig(), chainConfig, chain, shardId)
+	}
+
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -120,35 +136,130 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		db:         db,
 		chain:      chain,
 		txPool:     txpool,
+		shardPool:shardpool,
 		uncleBlock: blocks[0],
 	}
 }
+func createChain(chainConfig *params.ChainConfig, number int,shardId uint16) []types.BlockIntf {
+	var (
+		db    = ethdb.NewMemDatabase()
+		gspec = core.Genesis{
+			Config: chainConfig,
+			Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+		}
+	)
 
+	genesis := gspec.MustCommit(db, shardId)
+	//chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil, shardId)
+	// overwrite the old chain
+	chainblock, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, number, nil)
+	return chainblock
+}
+func newTestWorkerMasterBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
+	var (
+		db    = ethdb.NewMemDatabase()
+		gspec = core.Genesis{
+			Config: chainConfig,
+			Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+		}
+	)
+
+	switch engine.(type) {
+	case *clique.Clique:
+		gspec.ExtraData = make([]byte, 32+common.AddressLength+65)
+		copy(gspec.ExtraData[32:], testBankAddress[:])
+	case *ethash.Ethash:
+	default:
+		t.Fatalf("unexpected consensus engine type: %T", engine)
+	}
+	genesis := gspec.MustCommit(db, types.ShardMaster)
+
+	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,types.ShardMaster)
+	txpool := core.NewTxPoolMaster(testTxPoolConfig, chainConfig, chain, types.ShardMaster)
+	shardpool := qchain.NewShardChainPool(chain,db)
+	// Generate a small n-block chain and an uncle block for it
+	if n > 0 {
+		blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {
+			gen.SetCoinbase(testBankAddress)
+		})
+		if _, err := chain.InsertChain(blocks); err != nil {
+			t.Fatalf("failed to insert origin chain: %v", err)
+		}
+	}
+	parent := genesis
+	if n > 0 {
+		parent = chain.GetBlockByHash(chain.CurrentBlock().ParentHash())
+	}
+	blocks, _ := core.GenerateChain(chainConfig, parent, engine, db, 1, func(i int, gen *core.BlockGen) {
+		gen.SetCoinbase(testUserAddress)
+	})
+
+	for i := 0; i< 8; i++ {
+		shardBlocks := createChain(chainConfig,12,uint16(i))
+		chain.InsertChain(shardBlocks)
+	}
+	return &testWorkerBackend{
+		db:         db,
+		chain:      chain,
+		txPool:     txpool,
+		shardPool:shardpool,
+		uncleBlock: blocks[0],
+	}
+}
 func (b *testWorkerBackend) BlockChain() *core.BlockChain { return b.chain }
-func (b *testWorkerBackend) TxPool() *core.TxPool         { return b.txPool }
+func (b *testWorkerBackend) TxPool() core.TxPoolIntf         { return b.txPool }
+func (b *testWorkerBackend) ShardPool() *qchain.ShardChainPool         { return b.shardPool }
+func (b *testWorkerBackend) ChainDb()  ethdb.Database         { return b.db }
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 
-func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int) (*worker, *testWorkerBackend) {
-	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
+func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shardId uint16) (*worker, *testWorkerBackend) {
+	backend := newTestWorkerBackend(t, chainConfig, engine, blocks, shardId)
 	backend.txPool.AddLocals(pendingTxs)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil,shardId)
+	w.setEtherbase(testBankAddress)
+	w.start()
+	return w, backend
+}
+
+
+func newTestWorkerMaster(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int) (*worker, *testWorkerBackend) {
+	backend := newTestWorkerMasterBackend(t, chainConfig, engine, blocks)
+	backend.txPool.AddLocals(pendingTxs)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil,types.ShardMaster)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
 
-func TestPendingStateAndBlockEthash(t *testing.T) {
-	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker())
+/*func TestPendingStateAndBlockEthash(t *testing.T) {
+	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
 }
 func TestPendingStateAndBlockClique(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
+}*/
+func TestPendingStateAndBlockEthash0(t *testing.T) {
+	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(),0)
+}
+func TestPendingStateAndBlockClique0(t *testing.T) {
+	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
 }
 
-func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+func TestPendingStateAndBlockEthash10(t *testing.T) {
+	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(),10)
+}
+func TestPendingStateAndBlockClique10(t *testing.T) {
+	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+}
+func TestShardBlock(t *testing.T) {
+	testShardBlock(t, ethashChainConfig, ethash.NewFaker())
+}
+
+func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine,shardId uint16) {
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0)
+	w, b := newTestWorker(t, chainConfig, engine, 0, shardId)
+	w.start()
 	defer w.close()
 
 	// Ensure snapshot has been updated.
@@ -169,18 +280,94 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 		t.Errorf("account balance mismatch: have %d, want %d", balance, 2000)
 	}
 }
+var (
+	ostream log.Handler
+	glogger *log.GlogHandler
+)
 
-func TestEmptyWorkEthash(t *testing.T) {
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker())
-}
-func TestEmptyWorkClique(t *testing.T) {
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+func Init() {
+	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
+	output := io.Writer(os.Stderr)
+	if usecolor {
+		output = colorable.NewColorableStderr()
+	}
+	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
+	glogger = log.NewGlogHandler(ostream)
 }
 
-func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+
+
+func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+	Init()
+	log.PrintOrigins(true)
+	glogger.Verbosity(log.Lvl(4))
+
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0)
+	state := make(chan  struct{})
+	w, b := newTestWorker(t, chainConfig, engine, 0,10)
+	defer w.close()
+
+
+	// Ensure snapshot has been updated.
+	/*time.Sleep(100 * time.Millisecond)
+	block, _ := w.pending()
+	if block.NumberU64() != 1 {
+		t.Errorf("block number mismatch: have %d, want %d", block.NumberU64(), 1)
+	}
+	if len(block.Results()) != 0 {
+		t.Errorf("shard results error balance mismatch: have %d, want %d", len(block.Results()), 0)
+	}*/
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		fmt.Println("add tx")
+		b.txPool.AddLocals(newTxs)
+	}()
+
+
+
+
+	go func(){
+		fmt.Println("waiting")
+		// Ensure the new tx events has been processed
+		time.Sleep(60000 * time.Millisecond)
+		block:= w.pendingBlock()
+		if block == nil {
+			t.Errorf("shard results error: block is nil")
+		}else{
+			if len(block.Results()) != len(newTxs) {
+				t.Errorf("shard results error balance mismatch: have %d, want %d", len(block.Results()),len(newTxs))
+			}
+		}
+		state <- struct{}{}
+	}()
+
+	<- state
+}
+
+
+/*func TestEmptyWorkEthash(t *testing.T) {
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
+}
+func TestEmptyWorkClique(t *testing.T) {
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
+}*/
+func TestEmptyWorkEthash0(t *testing.T) {
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(),0)
+}
+func TestEmptyWorkClique0(t *testing.T) {
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+}
+func TestEmptyWorkEthash10(t *testing.T) {
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(),10)
+}
+func TestEmptyWorkClique10(t *testing.T) {
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+}
+func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
+	defer engine.Close()
+
+	w, _ := newTestWorker(t, chainConfig, engine, 0,shardId)
 	defer w.close()
 
 	var (
@@ -188,22 +375,22 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		taskIndex int
 	)
 
-	checkEqual := func(t *testing.T, task *task, index int) {
-		receiptLen, balance := 0, big.NewInt(0)
+	checkEqual := func(t *testing.T, block types.BlockIntf, index int) {
+		receiptLen, _ := 0, big.NewInt(0)
 		if index == 1 {
-			receiptLen, balance = 1, big.NewInt(1000)
+			receiptLen, _ = 1, big.NewInt(1000)
 		}
-		if len(task.receipts) != receiptLen {
-			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
+		if len(block.Receipts()) != receiptLen {
+			t.Errorf("receipt number mismatch: have %d, want %d", len(block.Receipts()), receiptLen)
 		}
-		if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
+		/*if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
 			t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
-		}
+		}*/
 	}
 
-	w.newTaskHook = func(task *task) {
-		if task.block.NumberU64() == 1 {
-			checkEqual(t, task, taskIndex)
+	w.newTaskHook = func(block types.BlockIntf) {
+		if block.NumberU64() == 1 {
+			checkEqual(t, block, taskIndex)
 			taskIndex += 1
 			taskCh <- struct{}{}
 		}
@@ -230,11 +417,11 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 }
 
-func TestStreamUncleBlock(t *testing.T) {
+/*func TestStreamUncleBlock(t *testing.T) {
 	ethash := ethash.NewFaker()
 	defer ethash.Close()
 
-	w, b := newTestWorker(t, ethashChainConfig, ethash, 1)
+	w, b := newTestWorker(t, ethashChainConfig, ethash, 1,types.ShardMaster)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
@@ -287,24 +474,38 @@ func TestStreamUncleBlock(t *testing.T) {
 }
 
 func TestRegenerateMiningBlockEthash(t *testing.T) {
-	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker())
+	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
 }
 
 func TestRegenerateMiningBlockClique(t *testing.T) {
-	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
+}
+*/
+func TestRegenerateMiningBlockEthash0(t *testing.T) {
+	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(),0)
 }
 
-func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+func TestRegenerateMiningBlockClique0(t *testing.T) {
+	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+}
+func TestRegenerateMiningBlockEthash10(t *testing.T) {
+	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(),10)
+}
+
+func TestRegenerateMiningBlockClique10(t *testing.T) {
+	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+}
+func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0)
+	w, b := newTestWorker(t, chainConfig, engine, 0,shardId)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
 
-	taskIndex := 0
-	w.newTaskHook = func(task *task) {
-		if task.block.NumberU64() == 1 {
+	//taskIndex := 0
+	/*w.newTaskHook = func(block types.BlockIntf) {
+		if block.NumberU64() == 1 {
 			if taskIndex == 2 {
 				receiptLen, balance := 2, big.NewInt(2000)
 				if len(task.receipts) != receiptLen {
@@ -317,8 +518,8 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 			taskCh <- struct{}{}
 			taskIndex += 1
 		}
-	}
-	w.skipSealHook = func(task *task) bool {
+	}*/
+	w.skipSealHook = func(block types.BlockIntf) bool {
 		return true
 	}
 	w.fullTaskHook = func() {
@@ -350,22 +551,38 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 		t.Error("new task timeout")
 	}
 }
-
+/*
 func TestAdjustIntervalEthash(t *testing.T) {
-	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker())
+	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
+}
+
+func TestAdjustIntervalClique0(t *testing.T) {
+	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
+}*/
+func TestAdjustIntervalEthash0(t *testing.T) {
+	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(),0)
+}
+
+func TestAdjustIntervalClique10(t *testing.T) {
+	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+}
+
+func TestAdjustIntervalEthash10(t *testing.T) {
+	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(),10)
 }
 
 func TestAdjustIntervalClique(t *testing.T) {
-	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
 }
 
-func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+
+func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0)
+	w, _ := newTestWorker(t, chainConfig, engine, 0,shardId)
 	defer w.close()
 
-	w.skipSealHook = func(task *task) bool {
+	w.skipSealHook = func(block types.BlockIntf) bool {
 		return true
 	}
 	w.fullTaskHook = func() {

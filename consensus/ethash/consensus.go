@@ -588,19 +588,19 @@ func (ethash *Ethash) Finalize(chain consensus.ChainReader, header types.HeaderI
 	if header.ShardId() == types.ShardMaster {
 		return ethash.finalizeMaster(chain,header,state,blks,receipts)
 	}else{
-		return ethash.finalizeShard(chain,header,state,txs,results)
+		return ethash.finalizeShard(chain,header,state,results)
 	}
 }
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given, and returns the final block.
-func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,  txs []*types.Transaction ,results []*types.ContractResult) (types.BlockIntf, error) {
+func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,results []*types.ContractResult) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
 	/*accumulateRewards(chain.Config(), state, header, nil)
 
 */
 	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 	// Header seems complete, assemble into a block and return
-	return types.NewSBlock(header, txs, results), nil
+	return types.NewSBlock(header, results), nil
 }
 func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,  receipts []*types.Receipt) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root

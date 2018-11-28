@@ -38,7 +38,7 @@ import (
 // Backend wraps all methods required for mining.
 type Backend interface {
 	BlockChain() *core.BlockChain
-	TxPool() *core.TxPool
+	TxPool() core.TxPoolIntf
 	ShardPool() *qchain.ShardChainPool
 	ChainDb()        ethdb.Database
 }
@@ -62,7 +62,7 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		mux:      mux,
 		engine:   engine,
 		exitCh:   make(chan struct{}),
-		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock),
+		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock,eth.BlockChain().ShardId()),
 		canStart: 1,
 	}
 	go miner.update()

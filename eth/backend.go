@@ -68,7 +68,7 @@ type Ethereum struct {
 	shutdownChan chan bool // Channel for shutting down the Ethereum
 
 	// Handlers
-	txPool          *core.TxPool
+	txPool          core.TxPoolIntf
 	shardPool       *qchain.ShardChainPool
 	blockchain      *core.BlockChain
 	protocolManager *ProtocolManager
@@ -173,7 +173,14 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
-	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain,shardId)
+	if shardId == types.ShardMaster{
+		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain,shardId)
+		eth.shardPool = qchain.NewShardChainPool(eth.blockchain,eth.chainDb);
+	}else{
+		eth.txPool = core.NewTxPoolShard(config.TxPool, eth.chainConfig, eth.blockchain,shardId)
+	}
+
+
 
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb); err != nil {
 		return nil, err
@@ -466,7 +473,7 @@ func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
 func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
 func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
-func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
+func (s *Ethereum) TxPool() core.TxPoolIntf               { return s.txPool }
 func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }

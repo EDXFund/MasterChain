@@ -54,8 +54,9 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block types.BlockIntf, r
 		header := block.Header()
 		header.SetNonce(types.BlockNonce{})
 		header.SetMixDigest ( common.Hash{})
+
 		select {
-		case results <- block.WithSeal(header).ToBlock():
+		case results <- block.WithSeal(header):
 		default:
 			log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", ethash.SealHash(block.Header().ToHeader()))
 		}

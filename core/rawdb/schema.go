@@ -52,6 +52,9 @@ var (
 	blockBodyPrefix     = []byte("b") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
 	blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
 
+	txAccountNoncePrefix  = []byte("an") // txLookupPrefix + hash -> transaction/receipt lookup metadata
+	txTransactionPrefix  = []byte("at") // txLookupPrefix + hash -> transaction/receipt lookup metadata
+
 	txLookupPrefix  = []byte("l") // txLookupPrefix + hash -> transaction/receipt lookup metadata
 	bloomBitsPrefix = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits
 
@@ -69,7 +72,7 @@ var (
 // a transaction or receipt given only its hash.
 type TxLookupEntry struct {
 	ShardId    uint16
-	BlockHash  common.Hash
+	BlockHash  common.Hash   //master block
 	BlockIndex uint64
 	Index      uint64
 }
@@ -132,7 +135,16 @@ func txLookupKey(hash common.Hash) []byte {
 	//val,_ :=  rlp.EncodeToBytes(shardId)
 	return append(txLookupPrefix,hash.Bytes()...)//append(val, hash.Bytes()...)...)
 }
+// txAccountNonceKey = txAccountNoncePrefix + address + nonce
+func txAccountNonceKey(account common.Address,nonce uint64) []byte {
+	val,_ :=  rlp.EncodeToBytes(nonce)
+	return append(txAccountNoncePrefix,append( account.Bytes(),val...)...)
+}
+// txAccountNonceKey = txAccountNoncePrefix + address + nonce
+func txKey(hash common.Hash) []byte {
 
+	return append(txTransactionPrefix,hash.Bytes()...)
+}
 // bloomBitsKey = bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash
 func bloomBitsKey(bit uint, section uint64,  hash common.Hash) []byte {
 	//val,_ :=  rlp.EncodeToBytes(shardId)
