@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/EDXFund/MasterChain/core"
+	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/rlp"
 	"math/big"
 	"sync"
@@ -88,8 +89,7 @@ type peer struct {
 	td   *big.Int
 	lock sync.RWMutex
 
-	shardTd   []*big.Int
-	shardHead []common.Hash
+	shardInfo []*types.SInfo
 
 	knownTxs    mapset.Set                // Set of transaction hashes known to be known by this peer
 	knownBlocks mapset.Set                // Set of block hashes known to be known by this peer
@@ -174,13 +174,19 @@ func (p *peer) Head() (hash common.Hash, td *big.Int) {
 	return hash, new(big.Int).Set(p.td)
 }
 
-// Head retrieves a copy of the current head hash and total difficulty of the
+// Head retrieves a copy of the current shard head hash and total difficulty of the
 // peer.
 func (p *peer) SHead(shardId uint16) (hash common.Hash, td *big.Int) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
-	return p.shardHead[shardId], new(big.Int).Set(p.shardTd[shardId])
+	for _, shard := range p.shardInfo {
+		if shard.ShardId == shardId {
+			return shard.HeadHash, shard.Td
+		}
+	}
+	return common.Hash{}, nil
+
 }
 
 // SetHead updates the head hash and total difficulty of the peer.
@@ -197,6 +203,10 @@ func (p *peer) SetHead(hash common.Hash, td *big.Int) {
 // never be propagated to this particular peer.
 func (p *peer) MarkBlock(hash common.Hash) {
 	// If we reached the memory allowance, drop a previously known block hash
+	//if p.shardId != types.ShardMaster && (shardId != p.shardId){
+	//	return
+	//}
+	//
 	for p.knownBlocks.Cardinality() >= maxKnownBlocks {
 		p.knownBlocks.Pop()
 	}
@@ -310,10 +320,10 @@ func (p *peer) SendBlockHeaders(headers []types.HeaderIntf, shardId uint16) erro
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
-func (p *peer) SendBlockBodies(bodies []types.BlockIntf) error {
+func (p *peer) SendBlockBodies(bodies []types.BlockIntf, shardId uint16) error {
 	lenBodies := len(bodies)
 	if lenBodies > 0 {
-		shardId := bodies[0].ShardId()
+
 		msg := blockBodiesData{ShardId: shardId}
 
 		var err error
@@ -364,9 +374,9 @@ func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
 
 // RequestOneHeader is a wrapper around the header query functions to fetch a
 // single header. It is used solely by the fetcher.
-func (p *peer) RequestOneHeader(hash common.Hash) error {
+func (p *peer) RequestOneHeader(hash common.Hash, shardId uint16) error {
 	p.Log().Debug("Fetching single header", "hash", hash)
-	return p2p.Send(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: hash}, Amount: uint64(1), Skip: uint64(0), Reverse: false})
+	return p2p.Send(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: hash}, Amount: uint64(1), Skip: uint64(0), Reverse: false, ShardId: shardId})
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
@@ -385,9 +395,13 @@ func (p *peer) RequestHeadersByNumber(origin uint64, amount int, skip int, rever
 
 // RequestBodies fetches a batch of blocks' bodies corresponding to the hashes
 // specified.
-func (p *peer) RequestBodies(hashes []common.Hash) error {
+func (p *peer) RequestBodies(hashes []common.Hash, shardId uint16) error {
 	p.Log().Debug("Fetching batch of block bodies", "count", len(hashes))
-	return p2p.Send(p.rw, GetBlockBodiesMsg, hashes)
+	gbd := getBlockBodysData{
+		ShardId: shardId,
+		Hashs:   hashes,
+	}
+	return p2p.Send(p.rw, GetBlockBodiesMsg, gbd)
 }
 
 // RequestNodeData fetches a batch of arbitrary data from a node's known state
@@ -412,6 +426,19 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 	genesis := blockChain.Genesis()
 	shardId := genesis.ShardId()
 	genesisBlock := blockChain.GenesisHashOf(shardId)
+
+	sInfo := []*types.SInfo{}
+
+	if shardId == types.ShardMaster {
+		for _, shard := range rawdb.ReadLastShardInfo(blockChain.DB()) {
+			sInfo = append(sInfo, &types.SInfo{
+				ShardId:  shard.ShardId(),
+				Td:       shard.Difficulty(),
+				HeadHash: shard.Hash(),
+			})
+		}
+	}
+
 	go func() {
 		errc <- p2p.Send(p.rw, StatusMsg, &statusData{
 			ProtocolVersion: uint32(p.version),
@@ -420,8 +447,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 			TD:              td,
 			CurrentBlock:    head,
 			GenesisBlock:    genesisBlock,
-			ShardTd:         []*big.Int{},
-			ShardHead:       []common.Hash{},
+			ShardInfo:       sInfo,
 		})
 	}()
 	go func() {
@@ -439,7 +465,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 			return p2p.DiscReadTimeout
 		}
 	}
-	p.td, p.head, p.shardHead, p.shardTd = status.TD, status.CurrentBlock, status.ShardHead, status.ShardTd
+	p.td, p.head, p.shardInfo = status.TD, status.CurrentBlock, status.ShardInfo
 	return nil
 }
 

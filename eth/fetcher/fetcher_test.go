@@ -35,13 +35,12 @@ import (
 )
 
 var (
-	testdb       = ethdb.NewMemDatabase()
-	testKey, _   = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	testAddress  = crypto.PubkeyToAddress(testKey.PublicKey)
-	genesis      = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000),types.ShardMaster)
-	genesis_shard      = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000), 0)
-	unknownBlock = types.NewBlock(&types.Header{}, nil, nil, nil)
-
+	testdb        = ethdb.NewMemDatabase()
+	testKey, _    = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	testAddress   = crypto.PubkeyToAddress(testKey.PublicKey)
+	genesis       = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000), types.ShardMaster)
+	genesis_shard = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000), 0)
+	unknownBlock  = types.NewBlock(&types.Header{}, nil, nil, nil)
 )
 
 // makeChain creates a chain of n blocks starting at and including parent.
@@ -55,7 +54,7 @@ func makeChain(n int, seed byte, parent types.BlockIntf) ([]common.Hash, map[com
 		// If the block number is multiple of 3, send a bonus transaction to the miner
 		if parent == genesis && i%3 == 0 {
 			signer := types.MakeSigner(params.TestChainConfig, block.Number())
-			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil), signer, testKey)
+			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, testKey)
 			if err != nil {
 				panic(err)
 			}
@@ -74,7 +73,7 @@ func makeChain(n int, seed byte, parent types.BlockIntf) ([]common.Hash, map[com
 		hashes[len(hashes)-i-2] = b.Hash()
 		if b.ShardId() == types.ShardMaster {
 			blockm[b.Hash()] = b.ToBlock()
-		}else {
+		} else {
 			blockm[b.Hash()] = b.ToSBlock()
 		}
 
@@ -86,9 +85,9 @@ func makeChain(n int, seed byte, parent types.BlockIntf) ([]common.Hash, map[com
 type fetcherTester struct {
 	fetcher *Fetcher
 
-	hashes []common.Hash                // Hash chain belonging to the tester
+	hashes []common.Hash                   // Hash chain belonging to the tester
 	blocks map[common.Hash]types.BlockIntf // Blocks belonging to the tester
-	drops  map[string]bool              // Map of peers dropped by the fetcher
+	drops  map[string]bool                 // Map of peers dropped by the fetcher
 
 	lock sync.RWMutex
 }
@@ -105,7 +104,7 @@ func newTester(shardId uint16) *fetcherTester {
 		tester.fetcher.Start()
 
 		return tester
-	}else{
+	} else {
 		tester := &fetcherTester{
 			hashes: []common.Hash{genesis_shard.Hash()},
 			blocks: map[common.Hash]types.BlockIntf{genesis_shard.Hash(): genesis_shard},
@@ -195,7 +194,7 @@ func (f *fetcherTester) makeHeaderFetcher(peer string, blocks map[common.Hash]ty
 }
 
 // makeBodyFetcher retrieves a block body fetcher associated with a simulated peer.
-func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]types.BlockIntf, drift time.Duration,shardId uint16) bodyRequesterFn {
+func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]types.BlockIntf, drift time.Duration, shardId uint16) bodyRequesterFn {
 	closure := make(map[common.Hash]types.BlockIntf)
 	for hash, block := range blocks {
 		closure[hash] = block
@@ -212,7 +211,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]type
 			if block, ok := closure[hash]; ok {
 				if shardId == types.ShardMaster {
 					shardBlocks = append(shardBlocks, block.ShardBlocks())
-				}else {
+				} else {
 					transactions = append(transactions, block.Transactions())
 					results = append(results, block.Results())
 				}
@@ -221,7 +220,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]type
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, shardBlocks,nil,transactions, results, time.Now().Add(drift),shardId)
+		go f.fetcher.FilterBodies(peer, shardBlocks, nil, transactions, results, time.Now().Add(drift), shardId)
 
 		return nil
 	}
@@ -302,19 +301,25 @@ func verifyImportDone(t *testing.T, imported chan types.BlockIntf) {
 
 // Tests that a fetcher accepts block announcements and initiates retrievals for
 // them, successfully importing into the local chain.
-func TestSequentialAnnouncements62M(t *testing.T) { testSequentialAnnouncements(t, 62,types.ShardMaster) }
-func TestSequentialAnnouncements63M(t *testing.T) { testSequentialAnnouncements(t, 63,types.ShardMaster) }
-func TestSequentialAnnouncements64M(t *testing.T) { testSequentialAnnouncements(t, 64,types.ShardMaster) }
-func TestSequentialAnnouncements62S(t *testing.T) { testSequentialAnnouncements(t, 62,0) }
-func TestSequentialAnnouncements63S(t *testing.T) { testSequentialAnnouncements(t, 63,0) }
-func TestSequentialAnnouncements64S(t *testing.T) { testSequentialAnnouncements(t, 64,0) }
-func testSequentialAnnouncements(t *testing.T, protocol int,shardId uint16) {
+func TestSequentialAnnouncements62M(t *testing.T) {
+	testSequentialAnnouncements(t, 62, types.ShardMaster)
+}
+func TestSequentialAnnouncements63M(t *testing.T) {
+	testSequentialAnnouncements(t, 63, types.ShardMaster)
+}
+func TestSequentialAnnouncements64M(t *testing.T) {
+	testSequentialAnnouncements(t, 64, types.ShardMaster)
+}
+func TestSequentialAnnouncements62S(t *testing.T) { testSequentialAnnouncements(t, 62, 0) }
+func TestSequentialAnnouncements63S(t *testing.T) { testSequentialAnnouncements(t, 63, 0) }
+func TestSequentialAnnouncements64S(t *testing.T) { testSequentialAnnouncements(t, 64, 0) }
+func testSequentialAnnouncements(t *testing.T, protocol int, shardId uint16) {
 	// Create a chain of blocks to import
 	targetBlocks := 4 * hashLimit
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(targetBlocks, 0, parent)
@@ -322,17 +327,17 @@ func testSequentialAnnouncements(t *testing.T, protocol int,shardId uint16) {
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
 
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0,shardId)
+	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0, shardId)
 
 	// Iteratively announce blocks until all are imported
 	imported := make(chan types.BlockIntf)
 	tester.fetcher.importedHook = func(block types.BlockIntf) {
 		imported <- block
-		fmt.Println("imported:",block.NumberU64())
-		}
+		fmt.Println("imported:", block.NumberU64())
+	}
 
 	for i := len(hashes) - 2; i >= 0; i-- {
-		tester.fetcher.Notify("valid",shardId,  hashes[i],uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+		tester.fetcher.Notify("valid", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 		verifyImportEvent(t, imported, true)
 	}
 	verifyImportDone(t, imported)
@@ -340,20 +345,26 @@ func testSequentialAnnouncements(t *testing.T, protocol int,shardId uint16) {
 
 // Tests that if blocks are announced by multiple peers (or even the same buggy
 // peer), they will only get downloaded at most once.
-func TestConcurrentAnnouncements62(t *testing.T) { testConcurrentAnnouncements(t, 62, types.ShardMaster) }
-func TestConcurrentAnnouncements63(t *testing.T) { testConcurrentAnnouncements(t, 63, types.ShardMaster) }
-func TestConcurrentAnnouncements64(t *testing.T) { testConcurrentAnnouncements(t, 64, types.ShardMaster) }
+func TestConcurrentAnnouncements62(t *testing.T) {
+	testConcurrentAnnouncements(t, 62, types.ShardMaster)
+}
+func TestConcurrentAnnouncements63(t *testing.T) {
+	testConcurrentAnnouncements(t, 63, types.ShardMaster)
+}
+func TestConcurrentAnnouncements64(t *testing.T) {
+	testConcurrentAnnouncements(t, 64, types.ShardMaster)
+}
 
 func TestConcurrentAnnouncements62S(t *testing.T) { testConcurrentAnnouncements(t, 62, 0) }
 func TestConcurrentAnnouncements63S(t *testing.T) { testConcurrentAnnouncements(t, 63, 0) }
 func TestConcurrentAnnouncements64S(t *testing.T) { testConcurrentAnnouncements(t, 64, 0) }
-func testConcurrentAnnouncements(t *testing.T, protocol int,shardId uint16 ) {
+func testConcurrentAnnouncements(t *testing.T, protocol int, shardId uint16) {
 	// Create a chain of blocks to import
 	targetBlocks := 4 * hashLimit
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(targetBlocks, 0, parent)
@@ -361,9 +372,9 @@ func testConcurrentAnnouncements(t *testing.T, protocol int,shardId uint16 ) {
 	// Assemble a tester with a built in counter for the requests
 	tester := newTester(shardId)
 	firstHeaderFetcher := tester.makeHeaderFetcher("first", blocks, -gatherSlack)
-	firstBodyFetcher := tester.makeBodyFetcher("first", blocks, 0,shardId)
+	firstBodyFetcher := tester.makeBodyFetcher("first", blocks, 0, shardId)
 	secondHeaderFetcher := tester.makeHeaderFetcher("second", blocks, -gatherSlack)
-	secondBodyFetcher := tester.makeBodyFetcher("second", blocks, 0,shardId)
+	secondBodyFetcher := tester.makeBodyFetcher("second", blocks, 0, shardId)
 
 	counter := uint32(0)
 	firstHeaderWrapper := func(hash common.Hash) error {
@@ -379,9 +390,9 @@ func testConcurrentAnnouncements(t *testing.T, protocol int,shardId uint16 ) {
 	tester.fetcher.importedHook = func(block types.BlockIntf) { imported <- block }
 
 	for i := len(hashes) - 2; i >= 0; i-- {
-		tester.fetcher.Notify("first",shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), firstHeaderWrapper, firstBodyFetcher)
-		tester.fetcher.Notify("second",shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout+time.Millisecond), secondHeaderWrapper, secondBodyFetcher)
-		tester.fetcher.Notify("second", shardId,hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout-time.Millisecond), secondHeaderWrapper, secondBodyFetcher)
+		tester.fetcher.Notify("first", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), firstHeaderWrapper, firstBodyFetcher)
+		tester.fetcher.Notify("second", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout+time.Millisecond), secondHeaderWrapper, secondBodyFetcher)
+		tester.fetcher.Notify("second", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout-time.Millisecond), secondHeaderWrapper, secondBodyFetcher)
 		verifyImportEvent(t, imported, true)
 	}
 	verifyImportDone(t, imported)
@@ -394,19 +405,25 @@ func testConcurrentAnnouncements(t *testing.T, protocol int,shardId uint16 ) {
 
 // Tests that announcements arriving while a previous is being fetched still
 // results in a valid import.
-func TestOverlappingAnnouncements62M(t *testing.T) { testOverlappingAnnouncements(t, 62,types.ShardMaster) }
-func TestOverlappingAnnouncements63M(t *testing.T) { testOverlappingAnnouncements(t, 63,types.ShardMaster) }
-func TestOverlappingAnnouncements64M(t *testing.T) { testOverlappingAnnouncements(t, 64,types.ShardMaster) }
-func TestOverlappingAnnouncements62S(t *testing.T) { testOverlappingAnnouncements(t, 62,0) }
-func TestOverlappingAnnouncements63S(t *testing.T) { testOverlappingAnnouncements(t, 63,0) }
-func TestOverlappingAnnouncements64S(t *testing.T) { testOverlappingAnnouncements(t, 64,0) }
+func TestOverlappingAnnouncements62M(t *testing.T) {
+	testOverlappingAnnouncements(t, 62, types.ShardMaster)
+}
+func TestOverlappingAnnouncements63M(t *testing.T) {
+	testOverlappingAnnouncements(t, 63, types.ShardMaster)
+}
+func TestOverlappingAnnouncements64M(t *testing.T) {
+	testOverlappingAnnouncements(t, 64, types.ShardMaster)
+}
+func TestOverlappingAnnouncements62S(t *testing.T) { testOverlappingAnnouncements(t, 62, 0) }
+func TestOverlappingAnnouncements63S(t *testing.T) { testOverlappingAnnouncements(t, 63, 0) }
+func TestOverlappingAnnouncements64S(t *testing.T) { testOverlappingAnnouncements(t, 64, 0) }
 func testOverlappingAnnouncements(t *testing.T, protocol int, shardId uint16) {
 	// Create a chain of blocks to import
 	targetBlocks := 4 * hashLimit
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(targetBlocks, 0, parent)
@@ -414,7 +431,7 @@ func testOverlappingAnnouncements(t *testing.T, protocol int, shardId uint16) {
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
 	var bodyFetcher bodyRequesterFn
-	bodyFetcher = tester.makeBodyFetcher("valid", blocks, 0,shardId)
+	bodyFetcher = tester.makeBodyFetcher("valid", blocks, 0, shardId)
 
 	// Iteratively announce blocks, but overlap them continuously
 	overlap := 16
@@ -437,18 +454,18 @@ func testOverlappingAnnouncements(t *testing.T, protocol int, shardId uint16) {
 }
 
 // Tests that announces already being retrieved will not be duplicated.
-func TestPendingDeduplication62M(t *testing.T) { testPendingDeduplication(t, 62,types.ShardMaster) }
-func TestPendingDeduplication63M(t *testing.T) { testPendingDeduplication(t, 63,types.ShardMaster) }
-func TestPendingDeduplication64M(t *testing.T) { testPendingDeduplication(t, 64,types.ShardMaster) }
-func TestPendingDeduplication62S(t *testing.T) { testPendingDeduplication(t, 62,0) }
-func TestPendingDeduplication63S(t *testing.T) { testPendingDeduplication(t, 63,0) }
-func TestPendingDeduplication64S(t *testing.T) { testPendingDeduplication(t, 64,0) }
+func TestPendingDeduplication62M(t *testing.T) { testPendingDeduplication(t, 62, types.ShardMaster) }
+func TestPendingDeduplication63M(t *testing.T) { testPendingDeduplication(t, 63, types.ShardMaster) }
+func TestPendingDeduplication64M(t *testing.T) { testPendingDeduplication(t, 64, types.ShardMaster) }
+func TestPendingDeduplication62S(t *testing.T) { testPendingDeduplication(t, 62, 0) }
+func TestPendingDeduplication63S(t *testing.T) { testPendingDeduplication(t, 63, 0) }
+func TestPendingDeduplication64S(t *testing.T) { testPendingDeduplication(t, 64, 0) }
 func testPendingDeduplication(t *testing.T, protocol int, shardId uint16) {
 	// Create a hash and corresponding block
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(1, 0, parent)
@@ -457,7 +474,7 @@ func testPendingDeduplication(t *testing.T, protocol int, shardId uint16) {
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("repeater", blocks, -gatherSlack)
 	var bodyFetcher bodyRequesterFn
-	tester.makeBodyFetcher("repeater", blocks, 0,shardId)
+	tester.makeBodyFetcher("repeater", blocks, 0, shardId)
 
 	delay := 50 * time.Millisecond
 	counter := uint32(0)
@@ -473,7 +490,7 @@ func testPendingDeduplication(t *testing.T, protocol int, shardId uint16) {
 	}
 	// Announce the same block many times until it's fetched (wait for any pending ops)
 	for tester.getBlock(hashes[0]) == nil {
-		tester.fetcher.Notify("repeater",shardId, hashes[0], 1, time.Now().Add(-arriveTimeout), headerWrapper, bodyFetcher)
+		tester.fetcher.Notify("repeater", shardId, hashes[0], 1, time.Now().Add(-arriveTimeout), headerWrapper, bodyFetcher)
 		time.Sleep(time.Millisecond)
 	}
 	time.Sleep(delay)
@@ -489,19 +506,19 @@ func testPendingDeduplication(t *testing.T, protocol int, shardId uint16) {
 
 // Tests that announcements retrieved in a random order are cached and eventually
 // imported when all the gaps are filled in.
-func TestRandomArrivalImport62M(t *testing.T) { testRandomArrivalImport(t, 62,types.ShardMaster) }
-func TestRandomArrivalImport63M(t *testing.T) { testRandomArrivalImport(t, 63,types.ShardMaster) }
-func TestRandomArrivalImport64M(t *testing.T) { testRandomArrivalImport(t, 64,types.ShardMaster) }
-func TestRandomArrivalImport62S(t *testing.T) { testRandomArrivalImport(t, 62,0) }
-func TestRandomArrivalImport63S(t *testing.T) { testRandomArrivalImport(t, 63,0) }
-func TestRandomArrivalImport64S(t *testing.T) { testRandomArrivalImport(t, 64,0) }
-func testRandomArrivalImport(t *testing.T, protocol int,shardId uint16) {
+func TestRandomArrivalImport62M(t *testing.T) { testRandomArrivalImport(t, 62, types.ShardMaster) }
+func TestRandomArrivalImport63M(t *testing.T) { testRandomArrivalImport(t, 63, types.ShardMaster) }
+func TestRandomArrivalImport64M(t *testing.T) { testRandomArrivalImport(t, 64, types.ShardMaster) }
+func TestRandomArrivalImport62S(t *testing.T) { testRandomArrivalImport(t, 62, 0) }
+func TestRandomArrivalImport63S(t *testing.T) { testRandomArrivalImport(t, 63, 0) }
+func TestRandomArrivalImport64S(t *testing.T) { testRandomArrivalImport(t, 64, 0) }
+func testRandomArrivalImport(t *testing.T, protocol int, shardId uint16) {
 	// Create a chain of blocks to import, and choose one to delay
 	targetBlocks := maxQueueDist
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(targetBlocks, 0, parent)
@@ -509,7 +526,7 @@ func testRandomArrivalImport(t *testing.T, protocol int,shardId uint16) {
 
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0,shardId)
+	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0, shardId)
 
 	// Iteratively announce blocks, skipping one entry
 	imported := make(chan types.BlockIntf, len(hashes)-1)
@@ -517,30 +534,30 @@ func testRandomArrivalImport(t *testing.T, protocol int,shardId uint16) {
 
 	for i := len(hashes) - 1; i >= 0; i-- {
 		if i != skip {
-			tester.fetcher.Notify("valid",shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+			tester.fetcher.Notify("valid", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 			time.Sleep(time.Millisecond)
 		}
 	}
 	// Finally announce the skipped entry and check full import
-	tester.fetcher.Notify("valid", shardId,hashes[skip], uint64(len(hashes)-skip-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+	tester.fetcher.Notify("valid", shardId, hashes[skip], uint64(len(hashes)-skip-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 	verifyImportCount(t, imported, len(hashes)-1)
 }
 
 // Tests that direct block enqueues (due to block propagation vs. hash announce)
 // are correctly schedule, filling and import queue gaps.
-func TestQueueGapFill62M(t *testing.T) { testQueueGapFill(t, 62,types.ShardMaster) }
-func TestQueueGapFill63M(t *testing.T) { testQueueGapFill(t, 63,types.ShardMaster) }
-func TestQueueGapFill64M(t *testing.T) { testQueueGapFill(t, 64,types.ShardMaster) }
-func TestQueueGapFill62S(t *testing.T) { testQueueGapFill(t, 62,0) }
-func TestQueueGapFill63S(t *testing.T) { testQueueGapFill(t, 63,0) }
-func TestQueueGapFill64S(t *testing.T) { testQueueGapFill(t, 64,0) }
-func testQueueGapFill(t *testing.T, protocol int,shardId uint16) {
+func TestQueueGapFill62M(t *testing.T) { testQueueGapFill(t, 62, types.ShardMaster) }
+func TestQueueGapFill63M(t *testing.T) { testQueueGapFill(t, 63, types.ShardMaster) }
+func TestQueueGapFill64M(t *testing.T) { testQueueGapFill(t, 64, types.ShardMaster) }
+func TestQueueGapFill62S(t *testing.T) { testQueueGapFill(t, 62, 0) }
+func TestQueueGapFill63S(t *testing.T) { testQueueGapFill(t, 63, 0) }
+func TestQueueGapFill64S(t *testing.T) { testQueueGapFill(t, 64, 0) }
+func testQueueGapFill(t *testing.T, protocol int, shardId uint16) {
 	// Create a chain of blocks to import, and choose one to not announce at all
 	targetBlocks := maxQueueDist
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(targetBlocks, 0, parent)
@@ -548,7 +565,7 @@ func testQueueGapFill(t *testing.T, protocol int,shardId uint16) {
 
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0,shardId)
+	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0, shardId)
 
 	// Iteratively announce blocks, skipping one entry
 	imported := make(chan types.BlockIntf, len(hashes)-1)
@@ -556,7 +573,7 @@ func testQueueGapFill(t *testing.T, protocol int,shardId uint16) {
 
 	for i := len(hashes) - 1; i >= 0; i-- {
 		if i != skip {
-			tester.fetcher.Notify("valid", shardId,hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+			tester.fetcher.Notify("valid", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 			time.Sleep(time.Millisecond)
 		}
 	}
@@ -567,18 +584,18 @@ func testQueueGapFill(t *testing.T, protocol int,shardId uint16) {
 
 // Tests that blocks arriving from various sources (multiple propagations, hash
 // announces, etc) do not get scheduled for import multiple times.
-func TestImportDeduplication62M(t *testing.T) { testImportDeduplication(t, 62,types.ShardMaster) }
-func TestImportDeduplication63M(t *testing.T) { testImportDeduplication(t, 63,types.ShardMaster) }
-func TestImportDeduplication64M(t *testing.T) { testImportDeduplication(t, 64,types.ShardMaster) }
-func TestImportDeduplication62S(t *testing.T) { testImportDeduplication(t, 62,0) }
-func TestImportDeduplication63S(t *testing.T) { testImportDeduplication(t, 63,0) }
-func TestImportDeduplication64S(t *testing.T) { testImportDeduplication(t, 64,0) }
-func testImportDeduplication(t *testing.T, protocol int,shardId uint16) {
+func TestImportDeduplication62M(t *testing.T) { testImportDeduplication(t, 62, types.ShardMaster) }
+func TestImportDeduplication63M(t *testing.T) { testImportDeduplication(t, 63, types.ShardMaster) }
+func TestImportDeduplication64M(t *testing.T) { testImportDeduplication(t, 64, types.ShardMaster) }
+func TestImportDeduplication62S(t *testing.T) { testImportDeduplication(t, 62, 0) }
+func TestImportDeduplication63S(t *testing.T) { testImportDeduplication(t, 63, 0) }
+func TestImportDeduplication64S(t *testing.T) { testImportDeduplication(t, 64, 0) }
+func testImportDeduplication(t *testing.T, protocol int, shardId uint16) {
 	// Create two blocks to import (one for duplication, the other for stalling)
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 	hashes, blocks := makeChain(2, 0, parent)
@@ -586,7 +603,7 @@ func testImportDeduplication(t *testing.T, protocol int,shardId uint16) {
 	// Create the tester and wrap the importer with a counter
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0,shardId)
+	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0, shardId)
 
 	counter := uint32(0)
 	tester.fetcher.insertChain = func(blocks types.BlockIntfs) (int, error) {
@@ -600,7 +617,7 @@ func testImportDeduplication(t *testing.T, protocol int,shardId uint16) {
 	tester.fetcher.importedHook = func(block types.BlockIntf) { imported <- block }
 
 	// Announce the duplicating block, wait for retrieval, and also propagate directly
-	tester.fetcher.Notify("valid", shardId,hashes[0], 1, time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+	tester.fetcher.Notify("valid", shardId, hashes[0], 1, time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 	<-fetching
 
 	tester.fetcher.Enqueue("valid", blocks[hashes[0]])
@@ -650,20 +667,26 @@ func TestDistantPropagationDiscarding(t *testing.T) {
 // Tests that announcements with numbers much lower or higher than out current
 // head get discarded to prevent wasting resources on useless blocks from faulty
 // peers.
-func TestDistantAnnouncementDiscarding62M(t *testing.T) { testDistantAnnouncementDiscarding(t, 62,types.ShardMaster) }
-func TestDistantAnnouncementDiscarding63M(t *testing.T) { testDistantAnnouncementDiscarding(t, 63,types.ShardMaster) }
-func TestDistantAnnouncementDiscarding64M(t *testing.T) { testDistantAnnouncementDiscarding(t, 64,types.ShardMaster) }
+func TestDistantAnnouncementDiscarding62M(t *testing.T) {
+	testDistantAnnouncementDiscarding(t, 62, types.ShardMaster)
+}
+func TestDistantAnnouncementDiscarding63M(t *testing.T) {
+	testDistantAnnouncementDiscarding(t, 63, types.ShardMaster)
+}
+func TestDistantAnnouncementDiscarding64M(t *testing.T) {
+	testDistantAnnouncementDiscarding(t, 64, types.ShardMaster)
+}
 
-func TestDistantAnnouncementDiscarding62S(t *testing.T) { testDistantAnnouncementDiscarding(t, 62,0) }
-func TestDistantAnnouncementDiscarding63S(t *testing.T) { testDistantAnnouncementDiscarding(t, 63,0) }
-func TestDistantAnnouncementDiscarding64S(t *testing.T) { testDistantAnnouncementDiscarding(t, 64,0) }
+func TestDistantAnnouncementDiscarding62S(t *testing.T) { testDistantAnnouncementDiscarding(t, 62, 0) }
+func TestDistantAnnouncementDiscarding63S(t *testing.T) { testDistantAnnouncementDiscarding(t, 63, 0) }
+func TestDistantAnnouncementDiscarding64S(t *testing.T) { testDistantAnnouncementDiscarding(t, 64, 0) }
 
-func testDistantAnnouncementDiscarding(t *testing.T, protocol int,shardId uint16) {
+func testDistantAnnouncementDiscarding(t *testing.T, protocol int, shardId uint16) {
 	// Create a long chain to import and define the discard boundaries
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 
@@ -681,20 +704,20 @@ func testDistantAnnouncementDiscarding(t *testing.T, protocol int,shardId uint16
 	tester.lock.Unlock()
 
 	headerFetcher := tester.makeHeaderFetcher("lower", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("lower", blocks, 0,shardId)
+	bodyFetcher := tester.makeBodyFetcher("lower", blocks, 0, shardId)
 
 	fetching := make(chan struct{}, 2)
 	tester.fetcher.fetchingHook = func(hashes []common.Hash) { fetching <- struct{}{} }
 
 	// Ensure that a block with a lower number than the threshold is discarded
-	tester.fetcher.Notify("lower", shardId,hashes[low], blocks[hashes[low]].NumberU64(), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+	tester.fetcher.Notify("lower", shardId, hashes[low], blocks[hashes[low]].NumberU64(), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 	select {
 	case <-time.After(50 * time.Millisecond):
 	case <-fetching:
 		t.Fatalf("fetcher requested stale header")
 	}
 	// Ensure that a block with a higher number than the threshold is discarded
-	tester.fetcher.Notify("higher", shardId,hashes[high], blocks[hashes[high]].NumberU64(), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+	tester.fetcher.Notify("higher", shardId, hashes[high], blocks[hashes[high]].NumberU64(), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 	select {
 	case <-time.After(50 * time.Millisecond):
 	case <-fetching:
@@ -704,19 +727,25 @@ func testDistantAnnouncementDiscarding(t *testing.T, protocol int,shardId uint16
 
 // Tests that peers announcing blocks with invalid numbers (i.e. not matching
 // the headers provided afterwards) get dropped as malicious.
-func TestInvalidNumberAnnouncement62M(t *testing.T) { testInvalidNumberAnnouncement(t, 62,types.ShardMaster) }
-func TestInvalidNumberAnnouncement63M(t *testing.T) { testInvalidNumberAnnouncement(t, 63,types.ShardMaster) }
-func TestInvalidNumberAnnouncement64M(t *testing.T) { testInvalidNumberAnnouncement(t, 64,types.ShardMaster) }
+func TestInvalidNumberAnnouncement62M(t *testing.T) {
+	testInvalidNumberAnnouncement(t, 62, types.ShardMaster)
+}
+func TestInvalidNumberAnnouncement63M(t *testing.T) {
+	testInvalidNumberAnnouncement(t, 63, types.ShardMaster)
+}
+func TestInvalidNumberAnnouncement64M(t *testing.T) {
+	testInvalidNumberAnnouncement(t, 64, types.ShardMaster)
+}
 
-func TestInvalidNumberAnnouncement62S(t *testing.T) { testInvalidNumberAnnouncement(t, 62,0) }
-func TestInvalidNumberAnnouncement63S(t *testing.T) { testInvalidNumberAnnouncement(t, 63,0) }
-func TestInvalidNumberAnnouncement64S(t *testing.T) { testInvalidNumberAnnouncement(t, 64,0) }
-func testInvalidNumberAnnouncement(t *testing.T, protocol int,shardId uint16) {
+func TestInvalidNumberAnnouncement62S(t *testing.T) { testInvalidNumberAnnouncement(t, 62, 0) }
+func TestInvalidNumberAnnouncement63S(t *testing.T) { testInvalidNumberAnnouncement(t, 63, 0) }
+func TestInvalidNumberAnnouncement64S(t *testing.T) { testInvalidNumberAnnouncement(t, 64, 0) }
+func testInvalidNumberAnnouncement(t *testing.T, protocol int, shardId uint16) {
 	// Create a single block to import and check numbers against
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 
@@ -724,7 +753,7 @@ func testInvalidNumberAnnouncement(t *testing.T, protocol int,shardId uint16) {
 
 	tester := newTester(shardId)
 	badHeaderFetcher := tester.makeHeaderFetcher("bad", blocks, -gatherSlack)
-	badBodyFetcher := tester.makeBodyFetcher("bad", blocks, 0,shardId)
+	badBodyFetcher := tester.makeBodyFetcher("bad", blocks, 0, shardId)
 
 	imported := make(chan types.BlockIntf)
 	tester.fetcher.importedHook = func(block types.BlockIntf) { imported <- block }
@@ -742,9 +771,9 @@ func testInvalidNumberAnnouncement(t *testing.T, protocol int,shardId uint16) {
 	}
 
 	goodHeaderFetcher := tester.makeHeaderFetcher("good", blocks, -gatherSlack)
-	goodBodyFetcher := tester.makeBodyFetcher("good", blocks, 0,shardId)
+	goodBodyFetcher := tester.makeBodyFetcher("good", blocks, 0, shardId)
 	// Make sure a good announcement passes without a drop
-	tester.fetcher.Notify("good",shardId, hashes[0], 1, time.Now().Add(-arriveTimeout), goodHeaderFetcher, goodBodyFetcher)
+	tester.fetcher.Notify("good", shardId, hashes[0], 1, time.Now().Add(-arriveTimeout), goodHeaderFetcher, goodBodyFetcher)
 	verifyImportEvent(t, imported, true)
 
 	tester.lock.RLock()
@@ -759,18 +788,18 @@ func testInvalidNumberAnnouncement(t *testing.T, protocol int,shardId uint16) {
 
 // Tests that if a block is empty (i.e. header only), no body request should be
 // made, and instead the header should be assembled into a whole block in itself.
-func TestEmptyBlockShortCircuit62M(t *testing.T) { testEmptyBlockShortCircuit(t, 62,types.ShardMaster) }
-func TestEmptyBlockShortCircuit63M(t *testing.T) { testEmptyBlockShortCircuit(t, 63,types.ShardMaster) }
-func TestEmptyBlockShortCircuit64M(t *testing.T) { testEmptyBlockShortCircuit(t, 64,types.ShardMaster) }
-func TestEmptyBlockShortCircuit62S(t *testing.T) { testEmptyBlockShortCircuit(t, 62,0) }
-func TestEmptyBlockShortCircuit63S(t *testing.T) { testEmptyBlockShortCircuit(t, 63,0) }
-func TestEmptyBlockShortCircuit64S(t *testing.T) { testEmptyBlockShortCircuit(t, 64,0) }
-func testEmptyBlockShortCircuit(t *testing.T, protocol int,shardId uint16) {
+func TestEmptyBlockShortCircuit62M(t *testing.T) { testEmptyBlockShortCircuit(t, 62, types.ShardMaster) }
+func TestEmptyBlockShortCircuit63M(t *testing.T) { testEmptyBlockShortCircuit(t, 63, types.ShardMaster) }
+func TestEmptyBlockShortCircuit64M(t *testing.T) { testEmptyBlockShortCircuit(t, 64, types.ShardMaster) }
+func TestEmptyBlockShortCircuit62S(t *testing.T) { testEmptyBlockShortCircuit(t, 62, 0) }
+func TestEmptyBlockShortCircuit63S(t *testing.T) { testEmptyBlockShortCircuit(t, 63, 0) }
+func TestEmptyBlockShortCircuit64S(t *testing.T) { testEmptyBlockShortCircuit(t, 64, 0) }
+func testEmptyBlockShortCircuit(t *testing.T, protocol int, shardId uint16) {
 	// Create a chain of blocks to import
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 
@@ -778,7 +807,7 @@ func testEmptyBlockShortCircuit(t *testing.T, protocol int,shardId uint16) {
 
 	tester := newTester(shardId)
 	headerFetcher := tester.makeHeaderFetcher("valid", blocks, -gatherSlack)
-	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0,shardId)
+	bodyFetcher := tester.makeBodyFetcher("valid", blocks, 0, shardId)
 
 	// Add a monitoring hook for all internal events
 	fetching := make(chan []common.Hash)
@@ -792,7 +821,7 @@ func testEmptyBlockShortCircuit(t *testing.T, protocol int,shardId uint16) {
 
 	// Iteratively announce blocks until all are imported
 	for i := len(hashes) - 2; i >= 0; i-- {
-		tester.fetcher.Notify("valid", shardId,hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
+		tester.fetcher.Notify("valid", shardId, hashes[i], uint64(len(hashes)-i-1), time.Now().Add(-arriveTimeout), headerFetcher, bodyFetcher)
 
 		// All announces should fetch the header
 		verifyFetchingEvent(t, fetching, true)
@@ -809,14 +838,20 @@ func testEmptyBlockShortCircuit(t *testing.T, protocol int,shardId uint16) {
 // Tests that a peer is unable to use unbounded memory with sending infinite
 // block announcements to a node, but that even in the face of such an attack,
 // the fetcher remains operational.
-func TestHashMemoryExhaustionAttack62M(t *testing.T) { testHashMemoryExhaustionAttack(t, 62, types.ShardMaster) }
-func TestHashMemoryExhaustionAttack63M(t *testing.T) { testHashMemoryExhaustionAttack(t, 63, types.ShardMaster) }
-func TestHashMemoryExhaustionAttack64M(t *testing.T) { testHashMemoryExhaustionAttack(t, 64, types.ShardMaster) }
+func TestHashMemoryExhaustionAttack62M(t *testing.T) {
+	testHashMemoryExhaustionAttack(t, 62, types.ShardMaster)
+}
+func TestHashMemoryExhaustionAttack63M(t *testing.T) {
+	testHashMemoryExhaustionAttack(t, 63, types.ShardMaster)
+}
+func TestHashMemoryExhaustionAttack64M(t *testing.T) {
+	testHashMemoryExhaustionAttack(t, 64, types.ShardMaster)
+}
 
 func TestHashMemoryExhaustionAttack62S(t *testing.T) { testHashMemoryExhaustionAttack(t, 62, 0) }
 func TestHashMemoryExhaustionAttack63S(t *testing.T) { testHashMemoryExhaustionAttack(t, 63, 0) }
 func TestHashMemoryExhaustionAttack64S(t *testing.T) { testHashMemoryExhaustionAttack(t, 64, 0) }
-func testHashMemoryExhaustionAttack(t *testing.T, protocol int,shardId uint16) {
+func testHashMemoryExhaustionAttack(t *testing.T, protocol int, shardId uint16) {
 	// Create a tester with instrumented import hooks
 	tester := newTester(shardId)
 
@@ -834,7 +869,7 @@ func testHashMemoryExhaustionAttack(t *testing.T, protocol int,shardId uint16) {
 	var parent types.BlockIntf
 	if shardId == types.ShardMaster {
 		parent = genesis
-	}else {
+	} else {
 		parent = genesis_shard
 	}
 
@@ -849,9 +884,9 @@ func testHashMemoryExhaustionAttack(t *testing.T, protocol int,shardId uint16) {
 	// Feed the tester a huge hashset from the attacker, and a limited from the valid peer
 	for i := 0; i < len(attack); i++ {
 		if i < maxQueueDist {
-			tester.fetcher.Notify("valid",shardId, hashes[len(hashes)-2-i], uint64(i+1), time.Now(), validHeaderFetcher, validBodyFetcher)
+			tester.fetcher.Notify("valid", shardId, hashes[len(hashes)-2-i], uint64(i+1), time.Now(), validHeaderFetcher, validBodyFetcher)
 		}
-		tester.fetcher.Notify("attacker",shardId, attack[i], 1 /* don't distance drop */, time.Now(), attackerHeaderFetcher, attackerBodyFetcher)
+		tester.fetcher.Notify("attacker", shardId, attack[i], 1 /* don't distance drop */, time.Now(), attackerHeaderFetcher, attackerBodyFetcher)
 	}
 	if count := atomic.LoadInt32(&announces); count != hashLimit+maxQueueDist {
 		t.Fatalf("queued announce count mismatch: have %d, want %d", count, hashLimit+maxQueueDist)

@@ -187,7 +187,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 			for id, sh := range pm.blockchain.GetLatestShards() {
 
 				td := pm.blockchain.GetTd(sh.Hash(), sh.NumberU64())
-				pHead, pTd := peer.shardHead[id], peer.shardTd[id]
+				pHead, pTd := peer.SHead(id)
 
 				if pTd.Cmp(td) > 0 {
 					shards = append(shards, &types.SInfo{

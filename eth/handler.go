@@ -170,8 +170,13 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	validator := func(header types.HeaderIntf) error {
 		return engine.VerifyHeader(blockchain, header, true)
 	}
-	heighter := func() uint64 {
-		return blockchain.CurrentBlock().NumberU64()
+	heighter := func(shardId uint16) uint64 {
+		if shardId == types.ShardMaster {
+			return blockchain.CurrentBlock().NumberU64()
+		} else {
+			return blockchain.GetLatestShard(shardId).DifficultyU64()
+		}
+
 	}
 	inserter := func(blocks types.BlockIntfs) (int, error) {
 		// If fast sync is running, deny importing weird blocks
@@ -345,7 +350,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		dataInChain, err := pm.validateShardId(query.ShardId)
+		dataInChain, err := pm.defineShardId(query.ShardId)
 		if err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
@@ -534,30 +539,45 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 	case msg.Code == GetBlockBodiesMsg:
 		// Decode the retrieval message
-		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
-		if _, err := msgStream.List(); err != nil {
-			return err
+		var query getBlockBodysData
+
+		if err := msg.Decode(&query); err != nil {
+			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+		datainChain, err := pm.defineShardId(query.ShardId)
+		if err != nil {
+			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+
+		bodies := []types.BlockIntf{}
+
+		if datainChain {
+			for _, hash := range query.Hashs {
+				bodies = append(bodies, pm.blockchain.GetBlockByHash(hash))
+			}
+		} else {
+			for _, hash := range query.Hashs {
+				body := rawdb.ReadBlock(pm.blockchain.DB(), hash, 0)
+				bodies = append(bodies, body)
+			}
+		}
+
 		// Gather blocks until the fetch or network limits is reached
-		var (
-			hash   common.Hash
-			bytes  int
-			bodies []rlp.RawValue
-		)
-		for bytes < softResponseLimit && len(bodies) < downloader.MaxBlockFetch {
-			// Retrieve the hash of the next block
-			if err := msgStream.Decode(&hash); err == rlp.EOL {
-				break
-			} else if err != nil {
-				return errResp(ErrDecode, "msg %v: %v", msg, err)
-			}
-			// Retrieve the requested block body, stopping if enough was found
-			if data := pm.blockchain.GetBodyRLP(hash); len(data) != 0 {
-				bodies = append(bodies, data)
-				bytes += len(data)
-			}
-		}
-		return p.SendBlockBodiesRLP(bodies)
+
+		//for bytes < softResponseLimit && len(bodies) < downloader.MaxBlockFetch {
+		//	// Retrieve the hash of the next block
+		//	if err := msgStream.Decode(&hash); err == rlp.EOL {
+		//		break
+		//	} else if err != nil {
+		//		return errResp(ErrDecode, "msg %v: %v", msg, err)
+		//	}
+		//	// Retrieve the requested block body, stopping if enough was found
+		//	if data := pm.blockchain.GetBodyRLP(hash); len(data) != 0 {
+		//		bodies = append(bodies, data)
+		//		bytes += len(data)
+		//	}
+		//}
+		return p.SendBlockBodies(bodies, query.ShardId)
 
 	case msg.Code == BlockBodiesMsg:
 		// A batch of block bodies arrived to one of our previous requests
@@ -565,7 +585,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		//// TODO 当主链收到区块信息时，需要同步确认区块中对应的分片区块是否已经读取，如果没有，需要读取完成
 		if request.ShardId == types.ShardMaster {
 			// Deliver them all to the downloader for queuing
 			bodyData := make([]*blockMasterBody, 1)
@@ -584,6 +603,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// Filter out any explicitly requested bodies, deliver the rest to the downloader
 			filter := len(blocks) > 0
 			if filter {
+				//TODO 如果本地是分片，那么需要检查主链区块中的信息，看看本地区块是否已经完整了，没有的话，需要发送读取请求
+
 				blocks, _, _, _ = pm.fetcher.FilterMasterBodies(p.id, blocks, receipts, time.Now())
 			}
 			if len(blocks) > 0 || !filter {
@@ -591,7 +612,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if err != nil {
 					log.Debug("Failed to deliver bodies", "err", err)
 				}
-				//TODO 如果本地是分片，那么需要检查主链区块中的信息，看看本地区块是否已经完整了，没有的话，需要发送读取请求
 			}
 		} else { //Shard Block Info
 			bodyData := []blockShardBody{}
@@ -789,7 +809,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	return nil
 }
 
-func (pm *ProtocolManager) validateShardId(shardId uint16) (bool, error) {
+func (pm *ProtocolManager) defineShardId(shardId uint16) (bool, error) {
 
 	selfShardId := pm.blockchain.ShardId()
 	dataInChain := true

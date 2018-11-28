@@ -18,7 +18,6 @@ package eth
 
 import (
 	"fmt"
-	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -62,15 +61,15 @@ func testStatusMsgErrors(t *testing.T, protocol int, shardId uint16) {
 			wantError: errResp(ErrNoStatusMsg, "first msg has code 2 (!= 0)"),
 		},
 		{
-			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, shardId, td, head.Hash(), genesis.Hash(), []*big.Int{}, []common.Hash{}},
+			code: StatusMsg, data: statusData{10, DefaultConfig.NetworkId, shardId, td, head.Hash(), genesis.Hash(), []*types.SInfo{}},
 			wantError: errResp(ErrProtocolVersionMismatch, "10 (!= %d)", protocol),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), 999, shardId, td, head.Hash(), genesis.Hash(), []*big.Int{}, []common.Hash{}},
+			code: StatusMsg, data: statusData{uint32(protocol), 999, shardId, td, head.Hash(), genesis.Hash(), []*types.SInfo{}},
 			wantError: errResp(ErrNetworkIdMismatch, "999 (!= 1)"),
 		},
 		{
-			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, shardId, td, head.Hash(), common.Hash{3}, []*big.Int{}, []common.Hash{}},
+			code: StatusMsg, data: statusData{uint32(protocol), DefaultConfig.NetworkId, shardId, td, head.Hash(), common.Hash{3}, []*types.SInfo{}},
 			wantError: errResp(ErrGenesisBlockMismatch, "0300000000000000 (!= %x)", genesis.Hash().Bytes()[:8]),
 		},
 	}
