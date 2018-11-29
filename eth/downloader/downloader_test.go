@@ -52,21 +52,21 @@ func init() {
 type downloadTester struct {
 	downloader *Downloader
 
-	genesis types.BlockIntf   // Genesis blocks used by the tester and peers
-	stateDb ethdb.Database // Database used by the tester for syncing from peers
-	peerDb  ethdb.Database // Database of the peers containing all data
+	genesis types.BlockIntf // Genesis blocks used by the tester and peers
+	stateDb ethdb.Database  // Database used by the tester for syncing from peers
+	peerDb  ethdb.Database  // Database of the peers containing all data
 
-	ownHashes   []common.Hash                  // Hash chain belonging to the tester
-	ownHeaders  map[common.Hash]types.HeaderIntf  // Headers belonging to the tester
-	ownBlocks   map[common.Hash]types.BlockIntf   // Blocks belonging to the tester
-	ownReceipts map[common.Hash]types.Receipts // Receipts belonging to the tester
-	ownChainTd  map[common.Hash]*big.Int       // Total difficulties of the blocks in the local chain
+	ownHashes   []common.Hash                    // Hash chain belonging to the tester
+	ownHeaders  map[common.Hash]types.HeaderIntf // Headers belonging to the tester
+	ownBlocks   map[common.Hash]types.BlockIntf  // Blocks belonging to the tester
+	ownReceipts map[common.Hash]types.Receipts   // Receipts belonging to the tester
+	ownChainTd  map[common.Hash]*big.Int         // Total difficulties of the blocks in the local chain
 
-	peerHashes   map[string][]common.Hash                  // Hash chain belonging to different test peers
-	peerHeaders  map[string]map[common.Hash]types.HeaderIntf  // Headers belonging to different test peers
-	peerBlocks   map[string]map[common.Hash]types.BlockIntf   // Blocks belonging to different test peers
-	peerReceipts map[string]map[common.Hash]types.Receipts // Receipts belonging to different test peers
-	peerChainTds map[string]map[common.Hash]*big.Int       // Total difficulties of the blocks in the peer chains
+	peerHashes   map[string][]common.Hash                    // Hash chain belonging to different test peers
+	peerHeaders  map[string]map[common.Hash]types.HeaderIntf // Headers belonging to different test peers
+	peerBlocks   map[string]map[common.Hash]types.BlockIntf  // Blocks belonging to different test peers
+	peerReceipts map[string]map[common.Hash]types.Receipts   // Receipts belonging to different test peers
+	peerChainTds map[string]map[common.Hash]*big.Int         // Total difficulties of the blocks in the peer chains
 
 	peerMissingStates map[string]map[common.Hash]bool // State entries that fast sync should not return
 
@@ -76,7 +76,7 @@ type downloadTester struct {
 // newTester creates a new downloader test mocker.
 func newTester(shardId uint16) *downloadTester {
 	testdb := ethdb.NewMemDatabase()
-	genesis := core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000),shardId)
+	genesis := core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000), shardId)
 
 	tester := &downloadTester{
 		genesis:           genesis,
@@ -192,7 +192,7 @@ func (dl *downloadTester) terminate() {
 }
 
 // sync starts synchronizing with a remote peer, blocking until it completes.
-func (dl *downloadTester) sync(id string, td *big.Int, mode SyncMode) error {
+func (dl *downloadTester) sync(id string, td *big.Int, mode SyncMode, shardId uint16) error {
 	dl.lock.RLock()
 	hash := dl.peerHashes[id][0]
 	// If no particular TD was requested, load from the peer's blockchain
@@ -205,7 +205,7 @@ func (dl *downloadTester) sync(id string, td *big.Int, mode SyncMode) error {
 	dl.lock.RUnlock()
 
 	// Synchronise with the chosen peer and ensure proper cleanup afterwards
-	err := dl.downloader.synchronise(id, hash, td, mode)
+	err := dl.downloader.synchronise(id, hash, td, mode, shardId)
 	select {
 	case <-dl.downloader.cancelCh:
 		// Ok, downloader fully cancelled after sync cycle
@@ -481,7 +481,16 @@ func (dlp *downloadTesterPeer) waitDelay() {
 
 // Head constructs a function to retrieve a peer's current head hash
 // and total difficulty.
-func (dlp *downloadTesterPeer) Head() (common.Hash, *big.Int ) {
+func (dlp *downloadTesterPeer) Head() (common.Hash, *big.Int) {
+	dlp.dl.lock.RLock()
+	defer dlp.dl.lock.RUnlock()
+
+	return dlp.dl.peerHashes[dlp.id][0], nil
+}
+
+// Head constructs a function to retrieve a peer's current head hash
+// and total difficulty.
+func (dlp *downloadTesterPeer) SHead(shardId uint16) (common.Hash, *big.Int) {
 	dlp.dl.lock.RLock()
 	defer dlp.dl.lock.RUnlock()
 
@@ -506,13 +515,13 @@ func (dlp *downloadTesterPeer) RequestHeadersByHash(origin common.Hash, amount i
 	dlp.dl.lock.RUnlock()
 
 	// Use the absolute header fetcher to satisfy the query
-	return dlp.RequestHeadersByNumber(number, amount, skip, reverse,shardId)
+	return dlp.RequestHeadersByNumber(number, amount, skip, reverse, shardId)
 }
 
 // RequestHeadersByNumber constructs a GetBlockHeaders function based on a numbered
 // origin; associated with a particular peer in the download tester. The returned
 // function can be used to retrieve batches of headers from the particular peer.
-func (dlp *downloadTesterPeer) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool,shardId uint16) error {
+func (dlp *downloadTesterPeer) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool, shardId uint16) error {
 	dlp.waitDelay()
 
 	dlp.dl.lock.RLock()
@@ -538,7 +547,7 @@ func (dlp *downloadTesterPeer) RequestHeadersByNumber(origin uint64, amount int,
 // RequestBodies constructs a getBlockBodies method associated with a particular
 // peer in the download tester. The returned function can be used to retrieve
 // batches of block bodies from the particularly requested peer.
-func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash) error {
+func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash, shardId uint16) error {
 	dlp.waitDelay()
 
 	dlp.dl.lock.RLock()
@@ -547,20 +556,14 @@ func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash) error {
 	blocks := dlp.dl.peerBlocks[dlp.id]
 	var transactions [][]*types.Transaction
 	var shardInfos [][]*types.ShardBlockInfo
-	var results    [][]*types.ContractResult
-	var receipts    [][]*types.Receipt
-
-
-
+	var results [][]*types.ContractResult
+	var receipts [][]*types.Receipt
 
 	//uncles := make([][]types.HeaderIntf, 0, len(hashes))
 
-	var shardId uint16
-	for index, hash := range hashes {
+	for _, hash := range hashes {
 		if block, ok := blocks[hash]; ok {
-			if index == 0 {
-				shardId = block.ShardId()
-			}
+
 			if block.Transactions() != nil {
 				if transactions == nil {
 					transactions = make([][]*types.Transaction, 0, len(hashes))
@@ -573,22 +576,22 @@ func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash) error {
 				}
 				shardInfos = append(shardInfos, block.ShardBlocks())
 			}
-			if  block.Results() != nil {
-				if(results == nil) {
+			if block.Results() != nil {
+				if results == nil {
 					results = make([][]*types.ContractResult, 0, len(hashes))
 				}
-				results = append(results,block.Results())
+				results = append(results, block.Results())
 			}
 			if block.Receipts() != nil {
 				if receipts == nil {
 					receipts = make([][]*types.Receipt, 0, len(hashes))
 				}
-				receipts = append(receipts,block.Receipts())
+				receipts = append(receipts, block.Receipts())
 			}
 
 		}
 	}
-	go dlp.dl.downloader.DeliverBodies(dlp.id, shardInfos,receipts,transactions, results,shardId)
+	go dlp.dl.downloader.DeliverBodies(dlp.id, shardInfos, receipts, transactions, results, shardId)
 
 	return nil
 }
@@ -693,19 +696,41 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 // Tests that simple synchronization against a canonical chain works correctly.
 // In this test common ancestor lookup should be short circuited and not require
 // binary searching.
-func TestCanonicalSynchronisation62(t *testing.T)      { testCanonicalSynchronisation(t, 62, FullSync,types.ShardMaster) }
-func TestCanonicalSynchronisation63Full(t *testing.T)  { testCanonicalSynchronisation(t, 63, FullSync,types.ShardMaster) }
-func TestCanonicalSynchronisation63Fast(t *testing.T)  { testCanonicalSynchronisation(t, 63, FastSync,types.ShardMaster) }
-func TestCanonicalSynchronisation64Full(t *testing.T)  { testCanonicalSynchronisation(t, 64, FullSync,types.ShardMaster) }
-func TestCanonicalSynchronisation64Fast(t *testing.T)  { testCanonicalSynchronisation(t, 64, FastSync,types.ShardMaster) }
-func TestCanonicalSynchronisation64Light(t *testing.T) { testCanonicalSynchronisation(t, 64, LightSync,types.ShardMaster) }
-func TestCanonicalSynchronisation62S(t *testing.T)      { testCanonicalSynchronisation(t, 62, FullSync,0) }
-func TestCanonicalSynchronisation63FullS(t *testing.T)  { testCanonicalSynchronisation(t, 63, FullSync,0) }
-func TestCanonicalSynchronisation63FastS(t *testing.T)  { testCanonicalSynchronisation(t, 63, FastSync,0) }
-func TestCanonicalSynchronisation64FullS(t *testing.T)  { testCanonicalSynchronisation(t, 64, FullSync,0) }
-func TestCanonicalSynchronisation64FastS(t *testing.T)  { testCanonicalSynchronisation(t, 64, FastSync,0) }
-func TestCanonicalSynchronisation64LightS(t *testing.T) { testCanonicalSynchronisation(t, 64, LightSync,0) }
-func testCanonicalSynchronisation(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func TestCanonicalSynchronisation62(t *testing.T) {
+	testCanonicalSynchronisation(t, 62, FullSync, types.ShardMaster)
+}
+func TestCanonicalSynchronisation63Full(t *testing.T) {
+	testCanonicalSynchronisation(t, 63, FullSync, types.ShardMaster)
+}
+func TestCanonicalSynchronisation63Fast(t *testing.T) {
+	testCanonicalSynchronisation(t, 63, FastSync, types.ShardMaster)
+}
+func TestCanonicalSynchronisation64Full(t *testing.T) {
+	testCanonicalSynchronisation(t, 64, FullSync, types.ShardMaster)
+}
+func TestCanonicalSynchronisation64Fast(t *testing.T) {
+	testCanonicalSynchronisation(t, 64, FastSync, types.ShardMaster)
+}
+func TestCanonicalSynchronisation64Light(t *testing.T) {
+	testCanonicalSynchronisation(t, 64, LightSync, types.ShardMaster)
+}
+func TestCanonicalSynchronisation62S(t *testing.T) { testCanonicalSynchronisation(t, 62, FullSync, 0) }
+func TestCanonicalSynchronisation63FullS(t *testing.T) {
+	testCanonicalSynchronisation(t, 63, FullSync, 0)
+}
+func TestCanonicalSynchronisation63FastS(t *testing.T) {
+	testCanonicalSynchronisation(t, 63, FastSync, 0)
+}
+func TestCanonicalSynchronisation64FullS(t *testing.T) {
+	testCanonicalSynchronisation(t, 64, FullSync, 0)
+}
+func TestCanonicalSynchronisation64FastS(t *testing.T) {
+	testCanonicalSynchronisation(t, 64, FastSync, 0)
+}
+func TestCanonicalSynchronisation64LightS(t *testing.T) {
+	testCanonicalSynchronisation(t, 64, LightSync, 0)
+}
+func testCanonicalSynchronisation(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -718,7 +743,7 @@ func testCanonicalSynchronisation(t *testing.T, protocol int, mode SyncMode,shar
 	tester.newPeer("peer", protocol, hashes, headers, blocks, receipts)
 
 	// Synchronise with the peer and make sure all relevant data was retrieved
-	if err := tester.sync("peer", nil, mode); err != nil {
+	if err := tester.sync("peer", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, targetBlocks+1)
@@ -726,17 +751,17 @@ func testCanonicalSynchronisation(t *testing.T, protocol int, mode SyncMode,shar
 
 // Tests that if a large batch of blocks are being downloaded, it is throttled
 // until the cached blocks are retrieved.
-func TestThrottling62(t *testing.T)     { testThrottling(t, 62, FullSync, types.ShardMaster) }
-func TestThrottling63Full(t *testing.T) { testThrottling(t, 63, FullSync, types.ShardMaster) }
-func TestThrottling63Fast(t *testing.T) { testThrottling(t, 63, FastSync, types.ShardMaster) }
-func TestThrottling64Full(t *testing.T) { testThrottling(t, 64, FullSync, types.ShardMaster) }
-func TestThrottling64Fast(t *testing.T) { testThrottling(t, 64, FastSync, types.ShardMaster) }
+func TestThrottling62(t *testing.T)      { testThrottling(t, 62, FullSync, types.ShardMaster) }
+func TestThrottling63Full(t *testing.T)  { testThrottling(t, 63, FullSync, types.ShardMaster) }
+func TestThrottling63Fast(t *testing.T)  { testThrottling(t, 63, FastSync, types.ShardMaster) }
+func TestThrottling64Full(t *testing.T)  { testThrottling(t, 64, FullSync, types.ShardMaster) }
+func TestThrottling64Fast(t *testing.T)  { testThrottling(t, 64, FastSync, types.ShardMaster) }
 func TestThrottling62S(t *testing.T)     { testThrottling(t, 62, FullSync, 0) }
 func TestThrottling63FullS(t *testing.T) { testThrottling(t, 63, FullSync, 0) }
 func TestThrottling63FastS(t *testing.T) { testThrottling(t, 63, FastSync, 0) }
 func TestThrottling64FullS(t *testing.T) { testThrottling(t, 64, FullSync, 0) }
 func TestThrottling64FastS(t *testing.T) { testThrottling(t, 64, FastSync, 0) }
-func testThrottling(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testThrottling(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 	tester := newTester(shardId)
 	defer tester.terminate()
@@ -756,7 +781,7 @@ func testThrottling(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
 	// Start a synchronisation concurrently
 	errc := make(chan error)
 	go func() {
-		errc <- tester.sync("peer", nil, mode)
+		errc <- tester.sync("peer", nil, mode, shardId)
 	}()
 	// Iteratively take some blocks, always checking the retrieval count
 	for {
@@ -829,7 +854,7 @@ func TestForkedSync63FastS(t *testing.T)  { testForkedSync(t, 63, FastSync, 0) }
 func TestForkedSync64FullS(t *testing.T)  { testForkedSync(t, 64, FullSync, 0) }
 func TestForkedSync64FastS(t *testing.T)  { testForkedSync(t, 64, FastSync, 0) }
 func TestForkedSync64LightS(t *testing.T) { testForkedSync(t, 64, LightSync, 0) }
-func testForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testForkedSync(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -843,13 +868,13 @@ func testForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
 	tester.newPeer("fork B", protocol, hashesB, headersB, blocksB, receiptsB)
 
 	// Synchronise with the peer and make sure all blocks were retrieved
-	if err := tester.sync("fork A", nil, mode); err != nil {
+	if err := tester.sync("fork A", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, common+fork+1)
 
 	// Synchronise with the second peer and make sure that fork is pulled too
-	if err := tester.sync("fork B", nil, mode); err != nil {
+	if err := tester.sync("fork B", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnForkedChain(t, tester, common+1, []int{common + fork + 1, common + fork + 1})
@@ -857,12 +882,14 @@ func testForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
 
 // Tests that synchronising against a much shorter but much heavyer fork works
 // corrently and is not dropped.
-func TestHeavyForkedSync62(t *testing.T)      { testHeavyForkedSync(t, 62, FullSync, types.ShardMaster) }
-func TestHeavyForkedSync63Full(t *testing.T)  { testHeavyForkedSync(t, 63, FullSync, types.ShardMaster) }
-func TestHeavyForkedSync63Fast(t *testing.T)  { testHeavyForkedSync(t, 63, FastSync, types.ShardMaster) }
-func TestHeavyForkedSync64Full(t *testing.T)  { testHeavyForkedSync(t, 64, FullSync, types.ShardMaster) }
-func TestHeavyForkedSync64Fast(t *testing.T)  { testHeavyForkedSync(t, 64, FastSync, types.ShardMaster) }
-func TestHeavyForkedSync64Light(t *testing.T) { testHeavyForkedSync(t, 64, LightSync, types.ShardMaster) }
+func TestHeavyForkedSync62(t *testing.T)     { testHeavyForkedSync(t, 62, FullSync, types.ShardMaster) }
+func TestHeavyForkedSync63Full(t *testing.T) { testHeavyForkedSync(t, 63, FullSync, types.ShardMaster) }
+func TestHeavyForkedSync63Fast(t *testing.T) { testHeavyForkedSync(t, 63, FastSync, types.ShardMaster) }
+func TestHeavyForkedSync64Full(t *testing.T) { testHeavyForkedSync(t, 64, FullSync, types.ShardMaster) }
+func TestHeavyForkedSync64Fast(t *testing.T) { testHeavyForkedSync(t, 64, FastSync, types.ShardMaster) }
+func TestHeavyForkedSync64Light(t *testing.T) {
+	testHeavyForkedSync(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestHeavyForkedSync62S(t *testing.T)      { testHeavyForkedSync(t, 62, FullSync, 0) }
 func TestHeavyForkedSync63FullS(t *testing.T)  { testHeavyForkedSync(t, 63, FullSync, 0) }
@@ -870,7 +897,7 @@ func TestHeavyForkedSync63FastS(t *testing.T)  { testHeavyForkedSync(t, 63, Fast
 func TestHeavyForkedSync64FullS(t *testing.T)  { testHeavyForkedSync(t, 64, FullSync, 0) }
 func TestHeavyForkedSync64FastS(t *testing.T)  { testHeavyForkedSync(t, 64, FastSync, 0) }
 func TestHeavyForkedSync64LightS(t *testing.T) { testHeavyForkedSync(t, 64, LightSync, 0) }
-func testHeavyForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testHeavyForkedSync(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -884,13 +911,13 @@ func testHeavyForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint1
 	tester.newPeer("heavy", protocol, hashesB[fork/2:], headersB, blocksB, receiptsB)
 
 	// Synchronise with the peer and make sure all blocks were retrieved
-	if err := tester.sync("light", nil, mode); err != nil {
+	if err := tester.sync("light", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, common+fork+1)
 
 	// Synchronise with the second peer and make sure that fork is pulled too
-	if err := tester.sync("heavy", nil, mode); err != nil {
+	if err := tester.sync("heavy", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnForkedChain(t, tester, common+1, []int{common + fork + 1, common + fork/2 + 1})
@@ -899,13 +926,22 @@ func testHeavyForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint1
 // Tests that chain forks are contained within a certain interval of the current
 // chain head, ensuring that malicious peers cannot waste resources by feeding
 // long dead chains.
-func TestBoundedForkedSync62(t *testing.T)      { testBoundedForkedSync(t, 62, FullSync, types.ShardMaster) }
-func TestBoundedForkedSync63Full(t *testing.T)  { testBoundedForkedSync(t, 63, FullSync, types.ShardMaster) }
-func TestBoundedForkedSync63Fast(t *testing.T)  { testBoundedForkedSync(t, 63, FastSync, types.ShardMaster) }
-func TestBoundedForkedSync64Full(t *testing.T)  { testBoundedForkedSync(t, 64, FullSync, types.ShardMaster) }
-func TestBoundedForkedSync64Fast(t *testing.T)  { testBoundedForkedSync(t, 64, FastSync, types.ShardMaster) }
-func TestBoundedForkedSync64Light(t *testing.T) { testBoundedForkedSync(t, 64, LightSync, types.ShardMaster) }
-
+func TestBoundedForkedSync62(t *testing.T) { testBoundedForkedSync(t, 62, FullSync, types.ShardMaster) }
+func TestBoundedForkedSync63Full(t *testing.T) {
+	testBoundedForkedSync(t, 63, FullSync, types.ShardMaster)
+}
+func TestBoundedForkedSync63Fast(t *testing.T) {
+	testBoundedForkedSync(t, 63, FastSync, types.ShardMaster)
+}
+func TestBoundedForkedSync64Full(t *testing.T) {
+	testBoundedForkedSync(t, 64, FullSync, types.ShardMaster)
+}
+func TestBoundedForkedSync64Fast(t *testing.T) {
+	testBoundedForkedSync(t, 64, FastSync, types.ShardMaster)
+}
+func TestBoundedForkedSync64Light(t *testing.T) {
+	testBoundedForkedSync(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestBoundedForkedSync62S(t *testing.T)      { testBoundedForkedSync(t, 62, FullSync, 0) }
 func TestBoundedForkedSync63FullS(t *testing.T)  { testBoundedForkedSync(t, 63, FullSync, 0) }
@@ -914,7 +950,7 @@ func TestBoundedForkedSync64FullS(t *testing.T)  { testBoundedForkedSync(t, 64, 
 func TestBoundedForkedSync64FastS(t *testing.T)  { testBoundedForkedSync(t, 64, FastSync, 0) }
 func TestBoundedForkedSync64LightS(t *testing.T) { testBoundedForkedSync(t, 64, LightSync, 0) }
 
-func testBoundedForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testBoundedForkedSync(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -928,13 +964,13 @@ func testBoundedForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uin
 	tester.newPeer("rewriter", protocol, hashesB, headersB, blocksB, receiptsB)
 
 	// Synchronise with the peer and make sure all blocks were retrieved
-	if err := tester.sync("original", nil, mode); err != nil {
+	if err := tester.sync("original", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, common+fork+1)
 
 	// Synchronise with the second peer and ensure that the fork is rejected to being too old
-	if err := tester.sync("rewriter", nil, mode); err != errInvalidAncestor {
+	if err := tester.sync("rewriter", nil, mode, shardId); err != errInvalidAncestor {
 		t.Fatalf("sync failure mismatch: have %v, want %v", err, errInvalidAncestor)
 	}
 }
@@ -942,13 +978,24 @@ func testBoundedForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uin
 // Tests that chain forks are contained within a certain interval of the current
 // chain head for short but heavy forks too. These are a bit special because they
 // take different ancestor lookup paths.
-func TestBoundedHeavyForkedSync62(t *testing.T)      { testBoundedHeavyForkedSync(t, 62, FullSync, types.ShardMaster) }
-func TestBoundedHeavyForkedSync63Full(t *testing.T)  { testBoundedHeavyForkedSync(t, 63, FullSync, types.ShardMaster) }
-func TestBoundedHeavyForkedSync63Fast(t *testing.T)  { testBoundedHeavyForkedSync(t, 63, FastSync, types.ShardMaster) }
-func TestBoundedHeavyForkedSync64Full(t *testing.T)  { testBoundedHeavyForkedSync(t, 64, FullSync, types.ShardMaster) }
-func TestBoundedHeavyForkedSync64Fast(t *testing.T)  { testBoundedHeavyForkedSync(t, 64, FastSync, types.ShardMaster) }
-func TestBoundedHeavyForkedSync64Light(t *testing.T) { testBoundedHeavyForkedSync(t, 64, LightSync, types.ShardMaster) }
-
+func TestBoundedHeavyForkedSync62(t *testing.T) {
+	testBoundedHeavyForkedSync(t, 62, FullSync, types.ShardMaster)
+}
+func TestBoundedHeavyForkedSync63Full(t *testing.T) {
+	testBoundedHeavyForkedSync(t, 63, FullSync, types.ShardMaster)
+}
+func TestBoundedHeavyForkedSync63Fast(t *testing.T) {
+	testBoundedHeavyForkedSync(t, 63, FastSync, types.ShardMaster)
+}
+func TestBoundedHeavyForkedSync64Full(t *testing.T) {
+	testBoundedHeavyForkedSync(t, 64, FullSync, types.ShardMaster)
+}
+func TestBoundedHeavyForkedSync64Fast(t *testing.T) {
+	testBoundedHeavyForkedSync(t, 64, FastSync, types.ShardMaster)
+}
+func TestBoundedHeavyForkedSync64Light(t *testing.T) {
+	testBoundedHeavyForkedSync(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestBoundedHeavyForkedSync62S(t *testing.T)      { testBoundedHeavyForkedSync(t, 62, FullSync, 0) }
 func TestBoundedHeavyForkedSync63FullS(t *testing.T)  { testBoundedHeavyForkedSync(t, 63, FullSync, 0) }
@@ -957,7 +1004,7 @@ func TestBoundedHeavyForkedSync64FullS(t *testing.T)  { testBoundedHeavyForkedSy
 func TestBoundedHeavyForkedSync64FastS(t *testing.T)  { testBoundedHeavyForkedSync(t, 64, FastSync, 0) }
 func TestBoundedHeavyForkedSync64LightS(t *testing.T) { testBoundedHeavyForkedSync(t, 64, LightSync, 0) }
 
-func testBoundedHeavyForkedSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testBoundedHeavyForkedSync(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -971,21 +1018,22 @@ func testBoundedHeavyForkedSync(t *testing.T, protocol int, mode SyncMode,shardI
 	tester.newPeer("heavy-rewriter", protocol, hashesB[MaxForkAncestry-17:], headersB, blocksB, receiptsB) // Root the fork below the ancestor limit
 
 	// Synchronise with the peer and make sure all blocks were retrieved
-	if err := tester.sync("original", nil, mode); err != nil {
+	if err := tester.sync("original", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, common+fork+1)
 
 	// Synchronise with the second peer and ensure that the fork is rejected to being too old
-	if err := tester.sync("heavy-rewriter", nil, mode); err != errInvalidAncestor {
+	if err := tester.sync("heavy-rewriter", nil, mode, shardId); err != errInvalidAncestor {
 		t.Fatalf("sync failure mismatch: have %v, want %v", err, errInvalidAncestor)
 	}
 }
-func TestInactiveDownloader62M(t *testing.T) {  testInactiveDownloader62(t,types.ShardMaster);}
-func TestInactiveDownloader62S(t *testing.T) {  testInactiveDownloader62(t,0);}
+func TestInactiveDownloader62M(t *testing.T) { testInactiveDownloader62(t, types.ShardMaster) }
+func TestInactiveDownloader62S(t *testing.T) { testInactiveDownloader62(t, 0) }
+
 // Tests that an inactive downloader will not accept incoming block headers and
 // bodies.
-func testInactiveDownloader62(t *testing.T,shardId uint16) {
+func testInactiveDownloader62(t *testing.T, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -995,20 +1043,21 @@ func testInactiveDownloader62(t *testing.T,shardId uint16) {
 	if err := tester.downloader.DeliverHeaders("bad peer", []types.HeaderIntf{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
-	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.ShardBlockInfo{},[][]*types.Receipt{}, [][]*types.Transaction{}, [][]*types.ContractResult{},shardId); err != errNoSyncActive {
+	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.ShardBlockInfo{}, [][]*types.Receipt{}, [][]*types.Transaction{}, [][]*types.ContractResult{}, shardId); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
 }
 
 func TestInactiveDownloader63M(t *testing.T) {
-	testInactiveDownloader63(t,types.ShardMaster)
+	testInactiveDownloader63(t, types.ShardMaster)
 }
 func TestInactiveDownloader63S(t *testing.T) {
-	testInactiveDownloader63(t,0)
+	testInactiveDownloader63(t, 0)
 }
+
 // Tests that an inactive downloader will not accept incoming block headers,
 // bodies and receipts.
-func testInactiveDownloader63(t *testing.T,shardId uint16) {
+func testInactiveDownloader63(t *testing.T, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -1018,7 +1067,7 @@ func testInactiveDownloader63(t *testing.T,shardId uint16) {
 	if err := tester.downloader.DeliverHeaders("bad peer", []types.HeaderIntf{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
-	if err := tester.downloader.DeliverBodies("bad peer",[][]*types.ShardBlockInfo{},[][]*types.Receipt{}, [][]*types.Transaction{}, [][]*types.ContractResult{},shardId); err != errNoSyncActive {
+	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.ShardBlockInfo{}, [][]*types.Receipt{}, [][]*types.Transaction{}, [][]*types.ContractResult{}, shardId); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
 	if err := tester.downloader.DeliverReceipts("bad peer", [][]*types.Receipt{}); err != errNoSyncActive {
@@ -1041,7 +1090,7 @@ func TestCancel64FullS(t *testing.T)  { testCancel(t, 64, FullSync, 0) }
 func TestCancel64FastS(t *testing.T)  { testCancel(t, 64, FastSync, 0) }
 func TestCancel64LightS(t *testing.T) { testCancel(t, 64, LightSync, 0) }
 
-func testCancel(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testCancel(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -1065,7 +1114,7 @@ func testCancel(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
 		t.Errorf("download queue not idle")
 	}
 	// Synchronise with the peer, but cancel afterwards
-	if err := tester.sync("peer", nil, mode); err != nil {
+	if err := tester.sync("peer", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	tester.downloader.Cancel()
@@ -1075,12 +1124,24 @@ func testCancel(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
 }
 
 // Tests that synchronisation from multiple peers works as intended (multi thread sanity test).
-func TestMultiSynchronisation62(t *testing.T)      { testMultiSynchronisation(t, 62, FullSync, types.ShardMaster) }
-func TestMultiSynchronisation63Full(t *testing.T)  { testMultiSynchronisation(t, 63, FullSync, types.ShardMaster) }
-func TestMultiSynchronisation63Fast(t *testing.T)  { testMultiSynchronisation(t, 63, FastSync, types.ShardMaster) }
-func TestMultiSynchronisation64Full(t *testing.T)  { testMultiSynchronisation(t, 64, FullSync, types.ShardMaster) }
-func TestMultiSynchronisation64Fast(t *testing.T)  { testMultiSynchronisation(t, 64, FastSync, types.ShardMaster) }
-func TestMultiSynchronisation64Light(t *testing.T) { testMultiSynchronisation(t, 64, LightSync, types.ShardMaster) }
+func TestMultiSynchronisation62(t *testing.T) {
+	testMultiSynchronisation(t, 62, FullSync, types.ShardMaster)
+}
+func TestMultiSynchronisation63Full(t *testing.T) {
+	testMultiSynchronisation(t, 63, FullSync, types.ShardMaster)
+}
+func TestMultiSynchronisation63Fast(t *testing.T) {
+	testMultiSynchronisation(t, 63, FastSync, types.ShardMaster)
+}
+func TestMultiSynchronisation64Full(t *testing.T) {
+	testMultiSynchronisation(t, 64, FullSync, types.ShardMaster)
+}
+func TestMultiSynchronisation64Fast(t *testing.T) {
+	testMultiSynchronisation(t, 64, FastSync, types.ShardMaster)
+}
+func TestMultiSynchronisation64Light(t *testing.T) {
+	testMultiSynchronisation(t, 64, LightSync, types.ShardMaster)
+}
 
 // Tests that synchronisation from multiple peers works as intended (multi thread sanity test).
 func TestMultiSynchronisation62S(t *testing.T)      { testMultiSynchronisation(t, 62, FullSync, 0) }
@@ -1089,8 +1150,6 @@ func TestMultiSynchronisation63FastS(t *testing.T)  { testMultiSynchronisation(t
 func TestMultiSynchronisation64FullS(t *testing.T)  { testMultiSynchronisation(t, 64, FullSync, 0) }
 func TestMultiSynchronisation64FastS(t *testing.T)  { testMultiSynchronisation(t, 64, FastSync, 0) }
 func TestMultiSynchronisation64LightS(t *testing.T) { testMultiSynchronisation(t, 64, LightSync, 0) }
-
-
 func testMultiSynchronisation(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
@@ -1106,7 +1165,7 @@ func testMultiSynchronisation(t *testing.T, protocol int, mode SyncMode, shardId
 		id := fmt.Sprintf("peer #%d", i)
 		tester.newPeer(id, protocol, hashes[i*blockCacheItems:], headers, blocks, receipts)
 	}
-	if err := tester.sync("peer #0", nil, mode); err != nil {
+	if err := tester.sync("peer #0", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, targetBlocks+1)
@@ -1114,12 +1173,24 @@ func testMultiSynchronisation(t *testing.T, protocol int, mode SyncMode, shardId
 
 // Tests that synchronisations behave well in multi-version protocol environments
 // and not wreak havoc on other nodes in the network.
-func TestMultiProtoSynchronisation62(t *testing.T)      { testMultiProtoSync(t, 62, FullSync, types.ShardMaster) }
-func TestMultiProtoSynchronisation63Full(t *testing.T)  { testMultiProtoSync(t, 63, FullSync, types.ShardMaster) }
-func TestMultiProtoSynchronisation63Fast(t *testing.T)  { testMultiProtoSync(t, 63, FastSync, types.ShardMaster) }
-func TestMultiProtoSynchronisation64Full(t *testing.T)  { testMultiProtoSync(t, 64, FullSync, types.ShardMaster) }
-func TestMultiProtoSynchronisation64Fast(t *testing.T)  { testMultiProtoSync(t, 64, FastSync, types.ShardMaster) }
-func TestMultiProtoSynchronisation64Light(t *testing.T) { testMultiProtoSync(t, 64, LightSync, types.ShardMaster) }
+func TestMultiProtoSynchronisation62(t *testing.T) {
+	testMultiProtoSync(t, 62, FullSync, types.ShardMaster)
+}
+func TestMultiProtoSynchronisation63Full(t *testing.T) {
+	testMultiProtoSync(t, 63, FullSync, types.ShardMaster)
+}
+func TestMultiProtoSynchronisation63Fast(t *testing.T) {
+	testMultiProtoSync(t, 63, FastSync, types.ShardMaster)
+}
+func TestMultiProtoSynchronisation64Full(t *testing.T) {
+	testMultiProtoSync(t, 64, FullSync, types.ShardMaster)
+}
+func TestMultiProtoSynchronisation64Fast(t *testing.T) {
+	testMultiProtoSync(t, 64, FastSync, types.ShardMaster)
+}
+func TestMultiProtoSynchronisation64Light(t *testing.T) {
+	testMultiProtoSync(t, 64, LightSync, types.ShardMaster)
+}
 
 // Tests that synchronisations behave well in multi-version protocol environments
 // and not wreak havoc on other nodes in the network.
@@ -1130,7 +1201,7 @@ func TestMultiProtoSynchronisation64FullS(t *testing.T)  { testMultiProtoSync(t,
 func TestMultiProtoSynchronisation64FastS(t *testing.T)  { testMultiProtoSync(t, 64, FastSync, 0) }
 func TestMultiProtoSynchronisation64LightS(t *testing.T) { testMultiProtoSync(t, 64, LightSync, 0) }
 
-func testMultiProtoSync(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testMultiProtoSync(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -1146,7 +1217,7 @@ func testMultiProtoSync(t *testing.T, protocol int, mode SyncMode,shardId uint16
 	tester.newPeer("peer 64", 64, hashes, headers, blocks, receipts)
 
 	// Synchronise with the requested peer and make sure all blocks were retrieved
-	if err := tester.sync(fmt.Sprintf("peer %d", protocol), nil, mode); err != nil {
+	if err := tester.sync(fmt.Sprintf("peer %d", protocol), nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, targetBlocks+1)
@@ -1162,12 +1233,22 @@ func testMultiProtoSync(t *testing.T, protocol int, mode SyncMode,shardId uint16
 
 // Tests that if a block is empty (e.g. header only), no body request should be
 // made, and instead the header should be assembled into a whole block in itself.
-func TestEmptyShortCircuit62(t *testing.T)      { testEmptyShortCircuit(t, 62, FullSync, types.ShardMaster) }
-func TestEmptyShortCircuit63Full(t *testing.T)  { testEmptyShortCircuit(t, 63, FullSync, types.ShardMaster) }
-func TestEmptyShortCircuit63Fast(t *testing.T)  { testEmptyShortCircuit(t, 63, FastSync, types.ShardMaster) }
-func TestEmptyShortCircuit64Full(t *testing.T)  { testEmptyShortCircuit(t, 64, FullSync, types.ShardMaster) }
-func TestEmptyShortCircuit64Fast(t *testing.T)  { testEmptyShortCircuit(t, 64, FastSync, types.ShardMaster) }
-func TestEmptyShortCircuit64Light(t *testing.T) { testEmptyShortCircuit(t, 64, LightSync, types.ShardMaster) }
+func TestEmptyShortCircuit62(t *testing.T) { testEmptyShortCircuit(t, 62, FullSync, types.ShardMaster) }
+func TestEmptyShortCircuit63Full(t *testing.T) {
+	testEmptyShortCircuit(t, 63, FullSync, types.ShardMaster)
+}
+func TestEmptyShortCircuit63Fast(t *testing.T) {
+	testEmptyShortCircuit(t, 63, FastSync, types.ShardMaster)
+}
+func TestEmptyShortCircuit64Full(t *testing.T) {
+	testEmptyShortCircuit(t, 64, FullSync, types.ShardMaster)
+}
+func TestEmptyShortCircuit64Fast(t *testing.T) {
+	testEmptyShortCircuit(t, 64, FastSync, types.ShardMaster)
+}
+func TestEmptyShortCircuit64Light(t *testing.T) {
+	testEmptyShortCircuit(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestEmptyShortCircuit62S(t *testing.T)      { testEmptyShortCircuit(t, 62, FullSync, 0) }
 func TestEmptyShortCircuit63FullS(t *testing.T)  { testEmptyShortCircuit(t, 63, FullSync, 0) }
@@ -1176,8 +1257,7 @@ func TestEmptyShortCircuit64FullS(t *testing.T)  { testEmptyShortCircuit(t, 64, 
 func TestEmptyShortCircuit64FastS(t *testing.T)  { testEmptyShortCircuit(t, 64, FastSync, 0) }
 func TestEmptyShortCircuit64LightS(t *testing.T) { testEmptyShortCircuit(t, 64, LightSync, 0) }
 
-
-func testEmptyShortCircuit(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testEmptyShortCircuit(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -1198,7 +1278,7 @@ func testEmptyShortCircuit(t *testing.T, protocol int, mode SyncMode,shardId uin
 		atomic.AddInt32(&receiptsHave, int32(len(headers)))
 	}
 	// Synchronise with the peer and make sure all blocks were retrieved
-	if err := tester.sync("peer", nil, mode); err != nil {
+	if err := tester.sync("peer", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, targetBlocks+1)
@@ -1225,12 +1305,24 @@ func testEmptyShortCircuit(t *testing.T, protocol int, mode SyncMode,shardId uin
 
 // Tests that headers are enqueued continuously, preventing malicious nodes from
 // stalling the downloader by feeding gapped header chains.
-func TestMissingHeaderAttack62(t *testing.T)      { testMissingHeaderAttack(t, 62, FullSync, types.ShardMaster) }
-func TestMissingHeaderAttack63Full(t *testing.T)  { testMissingHeaderAttack(t, 63, FullSync, types.ShardMaster) }
-func TestMissingHeaderAttack63Fast(t *testing.T)  { testMissingHeaderAttack(t, 63, FastSync, types.ShardMaster) }
-func TestMissingHeaderAttack64Full(t *testing.T)  { testMissingHeaderAttack(t, 64, FullSync, types.ShardMaster) }
-func TestMissingHeaderAttack64Fast(t *testing.T)  { testMissingHeaderAttack(t, 64, FastSync, types.ShardMaster) }
-func TestMissingHeaderAttack64Light(t *testing.T) { testMissingHeaderAttack(t, 64, LightSync, types.ShardMaster) }
+func TestMissingHeaderAttack62(t *testing.T) {
+	testMissingHeaderAttack(t, 62, FullSync, types.ShardMaster)
+}
+func TestMissingHeaderAttack63Full(t *testing.T) {
+	testMissingHeaderAttack(t, 63, FullSync, types.ShardMaster)
+}
+func TestMissingHeaderAttack63Fast(t *testing.T) {
+	testMissingHeaderAttack(t, 63, FastSync, types.ShardMaster)
+}
+func TestMissingHeaderAttack64Full(t *testing.T) {
+	testMissingHeaderAttack(t, 64, FullSync, types.ShardMaster)
+}
+func TestMissingHeaderAttack64Fast(t *testing.T) {
+	testMissingHeaderAttack(t, 64, FastSync, types.ShardMaster)
+}
+func TestMissingHeaderAttack64Light(t *testing.T) {
+	testMissingHeaderAttack(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestMissingHeaderAttack62S(t *testing.T)      { testMissingHeaderAttack(t, 62, FullSync, 0) }
 func TestMissingHeaderAttack63FullS(t *testing.T)  { testMissingHeaderAttack(t, 63, FullSync, 0) }
@@ -1238,7 +1330,6 @@ func TestMissingHeaderAttack63FastS(t *testing.T)  { testMissingHeaderAttack(t, 
 func TestMissingHeaderAttack64FullS(t *testing.T)  { testMissingHeaderAttack(t, 64, FullSync, 0) }
 func TestMissingHeaderAttack64FastS(t *testing.T)  { testMissingHeaderAttack(t, 64, FastSync, 0) }
 func TestMissingHeaderAttack64LightS(t *testing.T) { testMissingHeaderAttack(t, 64, LightSync, 0) }
-
 
 func testMissingHeaderAttack(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
@@ -1255,12 +1346,12 @@ func testMissingHeaderAttack(t *testing.T, protocol int, mode SyncMode, shardId 
 	missing := targetBlocks / 2
 	delete(tester.peerHeaders["attack"], hashes[missing])
 
-	if err := tester.sync("attack", nil, mode); err == nil {
+	if err := tester.sync("attack", nil, mode, shardId); err == nil {
 		t.Fatalf("succeeded attacker synchronisation")
 	}
 	// Synchronise with the valid peer and make sure sync succeeds
 	tester.newPeer("valid", protocol, hashes, headers, blocks, receipts)
-	if err := tester.sync("valid", nil, mode); err != nil {
+	if err := tester.sync("valid", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, targetBlocks+1)
@@ -1268,12 +1359,24 @@ func testMissingHeaderAttack(t *testing.T, protocol int, mode SyncMode, shardId 
 
 // Tests that if requested headers are shifted (i.e. first is missing), the queue
 // detects the invalid numbering.
-func TestShiftedHeaderAttack62(t *testing.T)      { testShiftedHeaderAttack(t, 62, FullSync, types.ShardMaster ) }
-func TestShiftedHeaderAttack63Full(t *testing.T)  { testShiftedHeaderAttack(t, 63, FullSync, types.ShardMaster) }
-func TestShiftedHeaderAttack63Fast(t *testing.T)  { testShiftedHeaderAttack(t, 63, FastSync, types.ShardMaster) }
-func TestShiftedHeaderAttack64Full(t *testing.T)  { testShiftedHeaderAttack(t, 64, FullSync, types.ShardMaster) }
-func TestShiftedHeaderAttack64Fast(t *testing.T)  { testShiftedHeaderAttack(t, 64, FastSync, types.ShardMaster) }
-func TestShiftedHeaderAttack64Light(t *testing.T) { testShiftedHeaderAttack(t, 64, LightSync, types.ShardMaster) }
+func TestShiftedHeaderAttack62(t *testing.T) {
+	testShiftedHeaderAttack(t, 62, FullSync, types.ShardMaster)
+}
+func TestShiftedHeaderAttack63Full(t *testing.T) {
+	testShiftedHeaderAttack(t, 63, FullSync, types.ShardMaster)
+}
+func TestShiftedHeaderAttack63Fast(t *testing.T) {
+	testShiftedHeaderAttack(t, 63, FastSync, types.ShardMaster)
+}
+func TestShiftedHeaderAttack64Full(t *testing.T) {
+	testShiftedHeaderAttack(t, 64, FullSync, types.ShardMaster)
+}
+func TestShiftedHeaderAttack64Fast(t *testing.T) {
+	testShiftedHeaderAttack(t, 64, FastSync, types.ShardMaster)
+}
+func TestShiftedHeaderAttack64Light(t *testing.T) {
+	testShiftedHeaderAttack(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestShiftedHeaderAttack62S(t *testing.T)      { testShiftedHeaderAttack(t, 62, FullSync, 0) }
 func TestShiftedHeaderAttack63FullS(t *testing.T)  { testShiftedHeaderAttack(t, 63, FullSync, 0) }
@@ -1282,7 +1385,7 @@ func TestShiftedHeaderAttack64FullS(t *testing.T)  { testShiftedHeaderAttack(t, 
 func TestShiftedHeaderAttack64FastS(t *testing.T)  { testShiftedHeaderAttack(t, 64, FastSync, 0) }
 func TestShiftedHeaderAttack64LightS(t *testing.T) { testShiftedHeaderAttack(t, 64, LightSync, 0) }
 
-func testShiftedHeaderAttack(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testShiftedHeaderAttack(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -1298,12 +1401,12 @@ func testShiftedHeaderAttack(t *testing.T, protocol int, mode SyncMode,shardId u
 	delete(tester.peerBlocks["attack"], hashes[len(hashes)-2])
 	delete(tester.peerReceipts["attack"], hashes[len(hashes)-2])
 
-	if err := tester.sync("attack", nil, mode); err == nil {
+	if err := tester.sync("attack", nil, mode, shardId); err == nil {
 		t.Fatalf("succeeded attacker synchronisation")
 	}
 	// Synchronise with the valid peer and make sure sync succeeds
 	tester.newPeer("valid", protocol, hashes, headers, blocks, receipts)
-	if err := tester.sync("valid", nil, mode); err != nil {
+	if err := tester.sync("valid", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	assertOwnChain(t, tester, targetBlocks+1)
@@ -1312,15 +1415,21 @@ func testShiftedHeaderAttack(t *testing.T, protocol int, mode SyncMode,shardId u
 // Tests that upon detecting an invalid header, the recent ones are rolled back
 // for various failure scenarios. Afterwards a full sync is attempted to make
 // sure no state was corrupted.
-func TestInvalidHeaderRollback63Fast(t *testing.T)  { testInvalidHeaderRollback(t, 63, FastSync, types.ShardMaster) }
-func TestInvalidHeaderRollback64Fast(t *testing.T)  { testInvalidHeaderRollback(t, 64, FastSync, types.ShardMaster) }
-func TestInvalidHeaderRollback64Light(t *testing.T) { testInvalidHeaderRollback(t, 64, LightSync, types.ShardMaster) }
+func TestInvalidHeaderRollback63Fast(t *testing.T) {
+	testInvalidHeaderRollback(t, 63, FastSync, types.ShardMaster)
+}
+func TestInvalidHeaderRollback64Fast(t *testing.T) {
+	testInvalidHeaderRollback(t, 64, FastSync, types.ShardMaster)
+}
+func TestInvalidHeaderRollback64Light(t *testing.T) {
+	testInvalidHeaderRollback(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestInvalidHeaderRollback63FastS(t *testing.T)  { testInvalidHeaderRollback(t, 63, FastSync, 0) }
 func TestInvalidHeaderRollback64FastS(t *testing.T)  { testInvalidHeaderRollback(t, 64, FastSync, 0) }
 func TestInvalidHeaderRollback64LightS(t *testing.T) { testInvalidHeaderRollback(t, 64, LightSync, 0) }
 
-func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	tester := newTester(shardId)
@@ -1336,7 +1445,7 @@ func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode,shardId
 	missing := fsHeaderSafetyNet + MaxHeaderFetch + 1
 	delete(tester.peerHeaders["fast-attack"], hashes[len(hashes)-missing])
 
-	if err := tester.sync("fast-attack", nil, mode); err == nil {
+	if err := tester.sync("fast-attack", nil, mode, shardId); err == nil {
 		t.Fatalf("succeeded fast attacker synchronisation")
 	}
 	if head := tester.CurrentHeader().Number().Int64(); int(head) > MaxHeaderFetch {
@@ -1350,7 +1459,7 @@ func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode,shardId
 	delete(tester.peerHeaders["fast-attack"], hashes[len(hashes)-missing]) // Make sure the fast-attacker doesn't fill in
 	delete(tester.peerHeaders["block-attack"], hashes[len(hashes)-missing])
 
-	if err := tester.sync("block-attack", nil, mode); err == nil {
+	if err := tester.sync("block-attack", nil, mode, shardId); err == nil {
 		t.Fatalf("succeeded block attacker synchronisation")
 	}
 	if head := tester.CurrentHeader().Number().Int64(); int(head) > 2*fsHeaderSafetyNet+MaxHeaderFetch {
@@ -1374,7 +1483,7 @@ func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode,shardId
 		tester.downloader.syncInitHook = nil
 	}
 
-	if err := tester.sync("withhold-attack", nil, mode); err == nil {
+	if err := tester.sync("withhold-attack", nil, mode, shardId); err == nil {
 		t.Fatalf("succeeded withholding attacker synchronisation")
 	}
 	if head := tester.CurrentHeader().Number().Int64(); int(head) > 2*fsHeaderSafetyNet+MaxHeaderFetch {
@@ -1390,7 +1499,7 @@ func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode,shardId
 	// did a fresh full sync. Note, we can't assert anything about the receipts
 	// since we won't purge the database of them, hence we can't use assertOwnChain.
 	tester.newPeer("valid", protocol, hashes, headers, blocks, receipts)
-	if err := tester.sync("valid", nil, mode); err != nil {
+	if err := tester.sync("valid", nil, mode, shardId); err != nil {
 		t.Fatalf("failed to synchronise blocks: %v", err)
 	}
 	if hs := len(tester.ownHeaders); hs != len(headers) {
@@ -1405,12 +1514,24 @@ func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode,shardId
 
 // Tests that a peer advertising an high TD doesn't get to stall the downloader
 // afterwards by not sending any useful hashes.
-func TestHighTDStarvationAttack62(t *testing.T)      { testHighTDStarvationAttack(t, 62, FullSync, types.ShardMaster) }
-func TestHighTDStarvationAttack63Full(t *testing.T)  { testHighTDStarvationAttack(t, 63, FullSync, types.ShardMaster) }
-func TestHighTDStarvationAttack63Fast(t *testing.T)  { testHighTDStarvationAttack(t, 63, FastSync, types.ShardMaster) }
-func TestHighTDStarvationAttack64Full(t *testing.T)  { testHighTDStarvationAttack(t, 64, FullSync, types.ShardMaster) }
-func TestHighTDStarvationAttack64Fast(t *testing.T)  { testHighTDStarvationAttack(t, 64, FastSync, types.ShardMaster) }
-func TestHighTDStarvationAttack64Light(t *testing.T) { testHighTDStarvationAttack(t, 64, LightSync, types.ShardMaster) }
+func TestHighTDStarvationAttack62(t *testing.T) {
+	testHighTDStarvationAttack(t, 62, FullSync, types.ShardMaster)
+}
+func TestHighTDStarvationAttack63Full(t *testing.T) {
+	testHighTDStarvationAttack(t, 63, FullSync, types.ShardMaster)
+}
+func TestHighTDStarvationAttack63Fast(t *testing.T) {
+	testHighTDStarvationAttack(t, 63, FastSync, types.ShardMaster)
+}
+func TestHighTDStarvationAttack64Full(t *testing.T) {
+	testHighTDStarvationAttack(t, 64, FullSync, types.ShardMaster)
+}
+func TestHighTDStarvationAttack64Fast(t *testing.T) {
+	testHighTDStarvationAttack(t, 64, FastSync, types.ShardMaster)
+}
+func TestHighTDStarvationAttack64Light(t *testing.T) {
+	testHighTDStarvationAttack(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestHighTDStarvationAttack62S(t *testing.T)      { testHighTDStarvationAttack(t, 62, FullSync, 0) }
 func TestHighTDStarvationAttack63FullS(t *testing.T)  { testHighTDStarvationAttack(t, 63, FullSync, 0) }
@@ -1428,15 +1549,21 @@ func testHighTDStarvationAttack(t *testing.T, protocol int, mode SyncMode, shard
 	hashes, headers, blocks, receipts := tester.makeChain(0, 0, tester.genesis, nil, false)
 	tester.newPeer("attack", protocol, []common.Hash{hashes[0]}, headers, blocks, receipts)
 
-	if err := tester.sync("attack", big.NewInt(1000000), mode); err != errStallingPeer {
+	if err := tester.sync("attack", big.NewInt(1000000), mode, shardId); err != errStallingPeer {
 		t.Fatalf("synchronisation error mismatch: have %v, want %v", err, errStallingPeer)
 	}
 }
 
 // Tests that misbehaving peers are disconnected, whilst behaving ones are not.
-func TestBlockHeaderAttackerDropping62(t *testing.T) { testBlockHeaderAttackerDropping(t, 62, types.ShardMaster) }
-func TestBlockHeaderAttackerDropping63(t *testing.T) { testBlockHeaderAttackerDropping(t, 63, types.ShardMaster) }
-func TestBlockHeaderAttackerDropping64(t *testing.T) { testBlockHeaderAttackerDropping(t, 64, types.ShardMaster) }
+func TestBlockHeaderAttackerDropping62(t *testing.T) {
+	testBlockHeaderAttackerDropping(t, 62, types.ShardMaster)
+}
+func TestBlockHeaderAttackerDropping63(t *testing.T) {
+	testBlockHeaderAttackerDropping(t, 63, types.ShardMaster)
+}
+func TestBlockHeaderAttackerDropping64(t *testing.T) {
+	testBlockHeaderAttackerDropping(t, 64, types.ShardMaster)
+}
 
 func TestBlockHeaderAttackerDropping62S(t *testing.T) { testBlockHeaderAttackerDropping(t, 62, 0) }
 func TestBlockHeaderAttackerDropping63S(t *testing.T) { testBlockHeaderAttackerDropping(t, 63, 0) }
@@ -1487,7 +1614,7 @@ func testBlockHeaderAttackerDropping(t *testing.T, protocol int, shardId uint16)
 		// Simulate a synchronisation and check the required result
 		tester.downloader.synchroniseMock = func(string, common.Hash) error { return tt.result }
 
-		tester.downloader.Synchronise(id, tester.genesis.Hash(), big.NewInt(1000), FullSync)
+		tester.downloader.Synchronise(id, []*types.SInfo{}, FullSync)
 		if _, ok := tester.peerHashes[id]; !ok != tt.drop {
 			t.Errorf("test %d: peer drop mismatch for %v: have %v, want %v", i, tt.result, !ok, tt.drop)
 		}
@@ -1509,7 +1636,6 @@ func TestSyncProgress63FastS(t *testing.T)  { testSyncProgress(t, 63, FastSync, 
 func TestSyncProgress64FullS(t *testing.T)  { testSyncProgress(t, 64, FullSync, 0) }
 func TestSyncProgress64FastS(t *testing.T)  { testSyncProgress(t, 64, FastSync, 0) }
 func TestSyncProgress64LightS(t *testing.T) { testSyncProgress(t, 64, LightSync, 0) }
-
 
 func testSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
@@ -1540,7 +1666,7 @@ func testSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId uint16)
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("peer-half", nil, mode); err != nil {
+		if err := tester.sync("peer-half", nil, mode, shardId); err != nil {
 			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
 		}
 	}()
@@ -1557,7 +1683,7 @@ func testSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId uint16)
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("peer-full", nil, mode); err != nil {
+		if err := tester.sync("peer-full", nil, mode, shardId); err != nil {
 			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
 		}
 	}()
@@ -1577,12 +1703,24 @@ func testSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId uint16)
 // Tests that synchronisation progress (origin block number and highest block
 // number) is tracked and updated correctly in case of a fork (or manual head
 // revertal).
-func TestForkedSyncProgress62(t *testing.T)      { testForkedSyncProgress(t, 62, FullSync, types.ShardMaster) }
-func TestForkedSyncProgress63Full(t *testing.T)  { testForkedSyncProgress(t, 63, FullSync, types.ShardMaster) }
-func TestForkedSyncProgress63Fast(t *testing.T)  { testForkedSyncProgress(t, 63, FastSync, types.ShardMaster) }
-func TestForkedSyncProgress64Full(t *testing.T)  { testForkedSyncProgress(t, 64, FullSync, types.ShardMaster) }
-func TestForkedSyncProgress64Fast(t *testing.T)  { testForkedSyncProgress(t, 64, FastSync, types.ShardMaster) }
-func TestForkedSyncProgress64Light(t *testing.T) { testForkedSyncProgress(t, 64, LightSync, types.ShardMaster) }
+func TestForkedSyncProgress62(t *testing.T) {
+	testForkedSyncProgress(t, 62, FullSync, types.ShardMaster)
+}
+func TestForkedSyncProgress63Full(t *testing.T) {
+	testForkedSyncProgress(t, 63, FullSync, types.ShardMaster)
+}
+func TestForkedSyncProgress63Fast(t *testing.T) {
+	testForkedSyncProgress(t, 63, FastSync, types.ShardMaster)
+}
+func TestForkedSyncProgress64Full(t *testing.T) {
+	testForkedSyncProgress(t, 64, FullSync, types.ShardMaster)
+}
+func TestForkedSyncProgress64Fast(t *testing.T) {
+	testForkedSyncProgress(t, 64, FastSync, types.ShardMaster)
+}
+func TestForkedSyncProgress64Light(t *testing.T) {
+	testForkedSyncProgress(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestForkedSyncProgress62S(t *testing.T)      { testForkedSyncProgress(t, 62, FullSync, 0) }
 func TestForkedSyncProgress63FullS(t *testing.T)  { testForkedSyncProgress(t, 63, FullSync, 0) }
@@ -1620,7 +1758,7 @@ func testForkedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId u
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("fork A", nil, mode); err != nil {
+		if err := tester.sync("fork A", nil, mode, shardId); err != nil {
 			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
 		}
 	}()
@@ -1640,7 +1778,7 @@ func testForkedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId u
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("fork B", nil, mode); err != nil {
+		if err := tester.sync("fork B", nil, mode, shardId); err != nil {
 			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
 		}
 	}()
@@ -1660,12 +1798,24 @@ func testForkedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId u
 // Tests that if synchronisation is aborted due to some failure, then the progress
 // origin is not updated in the next sync cycle, as it should be considered the
 // continuation of the previous sync and not a new instance.
-func TestFailedSyncProgress62(t *testing.T)      { testFailedSyncProgress(t, 62, FullSync, types.ShardMaster) }
-func TestFailedSyncProgress63Full(t *testing.T)  { testFailedSyncProgress(t, 63, FullSync, types.ShardMaster) }
-func TestFailedSyncProgress63Fast(t *testing.T)  { testFailedSyncProgress(t, 63, FastSync, types.ShardMaster) }
-func TestFailedSyncProgress64Full(t *testing.T)  { testFailedSyncProgress(t, 64, FullSync, types.ShardMaster) }
-func TestFailedSyncProgress64Fast(t *testing.T)  { testFailedSyncProgress(t, 64, FastSync, types.ShardMaster) }
-func TestFailedSyncProgress64Light(t *testing.T) { testFailedSyncProgress(t, 64, LightSync, types.ShardMaster) }
+func TestFailedSyncProgress62(t *testing.T) {
+	testFailedSyncProgress(t, 62, FullSync, types.ShardMaster)
+}
+func TestFailedSyncProgress63Full(t *testing.T) {
+	testFailedSyncProgress(t, 63, FullSync, types.ShardMaster)
+}
+func TestFailedSyncProgress63Fast(t *testing.T) {
+	testFailedSyncProgress(t, 63, FastSync, types.ShardMaster)
+}
+func TestFailedSyncProgress64Full(t *testing.T) {
+	testFailedSyncProgress(t, 64, FullSync, types.ShardMaster)
+}
+func TestFailedSyncProgress64Fast(t *testing.T) {
+	testFailedSyncProgress(t, 64, FastSync, types.ShardMaster)
+}
+func TestFailedSyncProgress64Light(t *testing.T) {
+	testFailedSyncProgress(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestFailedSyncProgress62S(t *testing.T)      { testFailedSyncProgress(t, 62, FullSync, 0) }
 func TestFailedSyncProgress63FullS(t *testing.T)  { testFailedSyncProgress(t, 63, FullSync, 0) }
@@ -1673,7 +1823,6 @@ func TestFailedSyncProgress63FastS(t *testing.T)  { testFailedSyncProgress(t, 63
 func TestFailedSyncProgress64FullS(t *testing.T)  { testFailedSyncProgress(t, 64, FullSync, 0) }
 func TestFailedSyncProgress64FastS(t *testing.T)  { testFailedSyncProgress(t, 64, FastSync, 0) }
 func TestFailedSyncProgress64LightS(t *testing.T) { testFailedSyncProgress(t, 64, LightSync, 0) }
-
 
 func testFailedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
@@ -1709,7 +1858,7 @@ func testFailedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId u
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("faulty", nil, mode); err == nil {
+		if err := tester.sync("faulty", nil, mode, shardId); err == nil {
 			panic("succeeded faulty synchronisation")
 		}
 	}()
@@ -1726,7 +1875,7 @@ func testFailedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId u
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("valid", nil, mode); err != nil {
+		if err := tester.sync("valid", nil, mode, shardId); err != nil {
 			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
 		}
 	}()
@@ -1745,12 +1894,22 @@ func testFailedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId u
 
 // Tests that if an attacker fakes a chain height, after the attack is detected,
 // the progress height is successfully reduced at the next sync invocation.
-func TestFakedSyncProgress62(t *testing.T)      { testFakedSyncProgress(t, 62, FullSync, types.ShardMaster) }
-func TestFakedSyncProgress63Full(t *testing.T)  { testFakedSyncProgress(t, 63, FullSync, types.ShardMaster) }
-func TestFakedSyncProgress63Fast(t *testing.T)  { testFakedSyncProgress(t, 63, FastSync, types.ShardMaster) }
-func TestFakedSyncProgress64Full(t *testing.T)  { testFakedSyncProgress(t, 64, FullSync, types.ShardMaster) }
-func TestFakedSyncProgress64Fast(t *testing.T)  { testFakedSyncProgress(t, 64, FastSync, types.ShardMaster) }
-func TestFakedSyncProgress64Light(t *testing.T) { testFakedSyncProgress(t, 64, LightSync, types.ShardMaster) }
+func TestFakedSyncProgress62(t *testing.T) { testFakedSyncProgress(t, 62, FullSync, types.ShardMaster) }
+func TestFakedSyncProgress63Full(t *testing.T) {
+	testFakedSyncProgress(t, 63, FullSync, types.ShardMaster)
+}
+func TestFakedSyncProgress63Fast(t *testing.T) {
+	testFakedSyncProgress(t, 63, FastSync, types.ShardMaster)
+}
+func TestFakedSyncProgress64Full(t *testing.T) {
+	testFakedSyncProgress(t, 64, FullSync, types.ShardMaster)
+}
+func TestFakedSyncProgress64Fast(t *testing.T) {
+	testFakedSyncProgress(t, 64, FastSync, types.ShardMaster)
+}
+func TestFakedSyncProgress64Light(t *testing.T) {
+	testFakedSyncProgress(t, 64, LightSync, types.ShardMaster)
+}
 
 func TestFakedSyncProgress62S(t *testing.T)      { testFakedSyncProgress(t, 62, FullSync, 0) }
 func TestFakedSyncProgress63FullS(t *testing.T)  { testFakedSyncProgress(t, 63, FullSync, 0) }
@@ -1794,7 +1953,7 @@ func testFakedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId ui
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("attack", nil, mode); err == nil {
+		if err := tester.sync("attack", nil, mode, shardId); err == nil {
 			panic("succeeded attacker synchronisation")
 		}
 	}()
@@ -1811,7 +1970,7 @@ func testFakedSyncProgress(t *testing.T, protocol int, mode SyncMode, shardId ui
 
 	go func() {
 		defer pending.Done()
-		if err := tester.sync("valid", nil, mode); err != nil {
+		if err := tester.sync("valid", nil, mode, shardId); err != nil {
 			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
 		}
 	}()
@@ -1839,12 +1998,12 @@ func TestDeliverHeadersHang(t *testing.T) {
 		syncMode SyncMode
 		shardId  uint16
 	}{
-		{62, FullSync,types.ShardMaster},
-		{63, FullSync,types.ShardMaster},
-		{63, FastSync,types.ShardMaster},
-		{64, FullSync,types.ShardMaster},
-		{64, FastSync,types.ShardMaster},
-		{64, LightSync,types.ShardMaster},
+		{62, FullSync, types.ShardMaster},
+		{63, FullSync, types.ShardMaster},
+		{63, FastSync, types.ShardMaster},
+		{64, FullSync, types.ShardMaster},
+		{64, FastSync, types.ShardMaster},
+		{64, LightSync, types.ShardMaster},
 		{62, FullSync, 0},
 		{63, FullSync, 0},
 		{63, FastSync, 0},
@@ -1854,7 +2013,7 @@ func TestDeliverHeadersHang(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("protocol %d mode %v shardId: %v", tc.protocol, tc.syncMode, tc.shardId), func(t *testing.T) {
-			testDeliverHeadersHang(t, tc.protocol, tc.syncMode,tc.shardId)
+			testDeliverHeadersHang(t, tc.protocol, tc.syncMode, tc.shardId)
 		})
 	}
 }
@@ -1865,12 +2024,13 @@ type floodingTestPeer struct {
 	pend   sync.WaitGroup
 }
 
-func (ftp *floodingTestPeer) Head() (common.Hash, *big.Int) { return ftp.peer.Head() }
+func (ftp *floodingTestPeer) Head() (common.Hash, *big.Int)                { return ftp.peer.Head() }
+func (ftp *floodingTestPeer) SHead(shardId uint16) (common.Hash, *big.Int) { return ftp.peer.Head() }
 func (ftp *floodingTestPeer) RequestHeadersByHash(hash common.Hash, count int, skip int, reverse bool) error {
 	return ftp.peer.RequestHeadersByHash(hash, count, skip, reverse)
 }
-func (ftp *floodingTestPeer) RequestBodies(hashes []common.Hash) error {
-	return ftp.peer.RequestBodies(hashes)
+func (ftp *floodingTestPeer) RequestBodies(hashes []common.Hash, shardId uint16) error {
+	return ftp.peer.RequestBodies(hashes, shardId)
 }
 func (ftp *floodingTestPeer) RequestReceipts(hashes []common.Hash) error {
 	return ftp.peer.RequestReceipts(hashes)
@@ -1879,7 +2039,7 @@ func (ftp *floodingTestPeer) RequestNodeData(hashes []common.Hash) error {
 	return ftp.peer.RequestNodeData(hashes)
 }
 
-func (ftp *floodingTestPeer) RequestHeadersByNumber(from uint64, count, skip int, reverse bool,shardId uint16) error {
+func (ftp *floodingTestPeer) RequestHeadersByNumber(from uint64, count, skip int, reverse bool, shardId uint16) error {
 	deliveriesDone := make(chan struct{}, 500)
 	for i := 0; i < cap(deliveriesDone); i++ {
 		peer := fmt.Sprintf("fake-peer%d", i)
@@ -1892,7 +2052,7 @@ func (ftp *floodingTestPeer) RequestHeadersByNumber(from uint64, count, skip int
 		}()
 	}
 	// Deliver the actual requested headers.
-	go ftp.peer.RequestHeadersByNumber(from, count, skip, reverse,shardId)
+	go ftp.peer.RequestHeadersByNumber(from, count, skip, reverse, shardId)
 	// None of the extra deliveries should block.
 	timeout := time.After(60 * time.Second)
 	for i := 0; i < cap(deliveriesDone); i++ {
@@ -1905,7 +2065,7 @@ func (ftp *floodingTestPeer) RequestHeadersByNumber(from uint64, count, skip int
 	return nil
 }
 
-func testDeliverHeadersHang(t *testing.T, protocol int, mode SyncMode,shardId uint16) {
+func testDeliverHeadersHang(t *testing.T, protocol int, mode SyncMode, shardId uint16) {
 	t.Parallel()
 
 	master := newTester(shardId)
@@ -1923,7 +2083,7 @@ func testDeliverHeadersHang(t *testing.T, protocol int, mode SyncMode,shardId ui
 			peer:   tester.downloader.peers.peers["peer"].peer,
 			tester: tester,
 		}
-		if err := tester.sync("peer", nil, mode); err != nil {
+		if err := tester.sync("peer", nil, mode, shardId); err != nil {
 			t.Errorf("test %d: sync failed: %v", i, err)
 		}
 		tester.terminate()

@@ -136,7 +136,7 @@ func (f *fetcherTester) broadcastBlock(block types.BlockIntf, propagate bool) {
 }
 
 // chainHeight retrieves the current height (block number) of the chain.
-func (f *fetcherTester) chainHeight() uint64 {
+func (f *fetcherTester) chainHeight(shardId uint16) uint64 {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 
@@ -180,7 +180,7 @@ func (f *fetcherTester) makeHeaderFetcher(peer string, blocks map[common.Hash]ty
 		closure[hash] = block
 	}
 	// Create a function that return a header from the closure
-	return func(hash common.Hash) error {
+	return func(hash common.Hash, shardId uint16) error {
 		// Gather the blocks to return
 		headers := make([]types.HeaderIntf, 0, 1)
 		if block, ok := closure[hash]; ok {
@@ -200,7 +200,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]type
 		closure[hash] = block
 	}
 	// Create a function that returns blocks from the closure
-	return func(hashes []common.Hash) error {
+	return func(hashes []common.Hash, shardId uint16) error {
 		// Gather the block bodies to return
 		shardBlocks := make([][]*types.ShardBlockInfo, 0, len(hashes))
 		transactions := make([][]*types.Transaction, 0, len(hashes))
@@ -377,13 +377,13 @@ func testConcurrentAnnouncements(t *testing.T, protocol int, shardId uint16) {
 	secondBodyFetcher := tester.makeBodyFetcher("second", blocks, 0, shardId)
 
 	counter := uint32(0)
-	firstHeaderWrapper := func(hash common.Hash) error {
+	firstHeaderWrapper := func(hash common.Hash, shardId uint16) error {
 		atomic.AddUint32(&counter, 1)
-		return firstHeaderFetcher(hash)
+		return firstHeaderFetcher(hash, shardId)
 	}
-	secondHeaderWrapper := func(hash common.Hash) error {
+	secondHeaderWrapper := func(hash common.Hash, shardId uint16) error {
 		atomic.AddUint32(&counter, 1)
-		return secondHeaderFetcher(hash)
+		return secondHeaderFetcher(hash, shardId)
 	}
 	// Iteratively announce blocks until all are imported
 	imported := make(chan types.BlockIntf)
@@ -478,13 +478,13 @@ func testPendingDeduplication(t *testing.T, protocol int, shardId uint16) {
 
 	delay := 50 * time.Millisecond
 	counter := uint32(0)
-	headerWrapper := func(hash common.Hash) error {
+	headerWrapper := func(hash common.Hash, shardId uint16) error {
 		atomic.AddUint32(&counter, 1)
 
 		// Simulate a long running fetch
 		go func() {
 			time.Sleep(delay)
-			headerFetcher(hash)
+			headerFetcher(hash, shardId)
 		}()
 		return nil
 	}
