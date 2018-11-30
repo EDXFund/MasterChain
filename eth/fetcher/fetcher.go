@@ -148,11 +148,11 @@ type Fetcher struct {
 	dropPeer       peerDropFn         // Drops a peer for misbehaving
 
 	// Testing hooks
-	announceChangeHook func(common.Hash, bool) // Method to call upon adding or deleting a hash from the announce list
-	queueChangeHook    func(common.Hash, bool) // Method to call upon adding or deleting a block from the import queue
-	fetchingHook       func([]common.Hash)     // Method to call upon starting a block (eth/61) or header (eth/62) fetch
-	completingHook     func([]common.Hash)     // Method to call upon starting a block body fetch (eth/62)
-	importedHook       func(types.BlockIntf)   // Method to call upon successful block import (both eth/61 and eth/62)
+	announceChangeHook func(common.Hash, bool)     // Method to call upon adding or deleting a hash from the announce list
+	queueChangeHook    func(common.Hash, bool)     // Method to call upon adding or deleting a block from the import queue
+	fetchingHook       func([]common.Hash, uint16) // Method to call upon starting a block (eth/61) or header (eth/62) fetch
+	completingHook     func([]common.Hash, uint16) // Method to call upon starting a block body fetch (eth/62)
+	importedHook       func(types.BlockIntf)       // Method to call upon successful block import (both eth/61 and eth/62)
 }
 
 // New creates a block fetcher to retrieve blocks based on hash announcements.
@@ -440,7 +440,13 @@ func (f *Fetcher) loop() {
 				fetchHeader := f.fetching[requestHash[0].hash].fetchHeader
 				go func() {
 					if f.fetchingHook != nil {
-						//f.fetchingHook(requestHash)
+						hashs := []common.Hash{}
+						var shardId uint16
+						for _, rhash := range requestHash {
+							shardId = rhash.shardId
+							hashs = append(hashs, rhash.hash) // Suboptimal, but protocol doesn't allow batch header retrievals
+						}
+						f.fetchingHook(hashs, shardId)
 					}
 					for _, rhash := range requestHash {
 						headerFetchMeter.Mark(1)
@@ -474,13 +480,15 @@ func (f *Fetcher) loop() {
 			// Send out all block body requests
 			for peer, shards := range request {
 				// Create a closure of the fetch and schedule in on a new thread
-				if f.completingHook != nil {
-					//f.completingHook(hashes)
-				}
+
 				for shardId, hashes := range shards {
-					fmt.Println("Fetching scheduled bodies", "peer", peer, "list", hashes)
-					bodyFetchMeter.Mark(int64(len(hashes)))
-					go f.completing[hashes[0]].fetchBodies(hashes, shardId)
+					if f.completingHook != nil {
+						f.completingHook(hashes, shardId)
+					} else {
+						fmt.Println("Fetching scheduled bodies", "peer", peer, "list", hashes)
+						bodyFetchMeter.Mark(int64(len(hashes)))
+						go f.completing[hashes[0]].fetchBodies(hashes, shardId)
+					}
 				}
 			}
 			// Schedule the next fetch if blocks are still pending
@@ -532,7 +540,7 @@ func (f *Fetcher) loop() {
 								continue
 							}
 						} else {
-							if header.TxHash() == types.DeriveSha(types.Transactions{}) && header.ResultHash() == types.DeriveSha(types.ContractResults{{}}) {
+							if header.TxHash() == types.DeriveSha(types.Transactions{}) {
 								fmt.Println("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number(), "hash", header.Hash())
 
 								block := types.NewBlockWithHeader(header)
