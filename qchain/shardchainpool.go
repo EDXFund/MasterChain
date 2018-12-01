@@ -178,7 +178,7 @@ func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 			results[shardId] = make(PendingShard)
 			for _, head := range pendings {
 				sb := types.ShardBlockInfo{}
-				sb.FillBy(&types.ShardBlockInfoStruct{shardId, head.NumberU64(), head.Hash(), head.ParentHash(), head.Difficulty().Uint64()})
+				sb.FillBy(&types.ShardBlockInfoStruct{shardId, head.NumberU64(), head.Hash(), head.ParentHash(), head.Coinbase(),head.Difficulty().Uint64()})
 				results[shardId][head.NumberU64()] = sb
 			}
 		}

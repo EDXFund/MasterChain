@@ -16,7 +16,6 @@ func (h HeaderStruct) MarshalJSON() ([]byte, error) {
 		ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
 		UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 		Coinbase       common.Address `json:"miner"            gencodec:"required"`
-		LastBlocksHash common.Hash    `json:"shardHash"		gencodec:"required"`
 		ShardMaskEp    uint16         `json:"shardHash"		gencodec:"required"`
 		ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"`
 		Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
@@ -31,13 +30,15 @@ func (h HeaderStruct) MarshalJSON() ([]byte, error) {
 		Time           *big.Int       `json:"timestamp"        gencodec:"required"`
 		Extra          []byte         `json:"extraData"        gencodec:"required"`
 		MixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
+		ShardState  	[]ShardState   `json:"rewardRemains"        gencodec:"required"`
+
 		Nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
 	}
 	var enc HeaderStruct
 	enc.ParentHash = h.ParentHash
 	enc.UncleHash = h.UncleHash
 	enc.Coinbase = h.Coinbase
-	enc.LastBlocksHash = h.LastBlocksHash
+	enc.ShardState = h.ShardState
 	enc.ShardMaskEp = h.ShardMaskEp
 	enc.ShardEnabled = h.ShardEnabled
 	enc.Root = h.Root
@@ -77,6 +78,8 @@ func (h *HeaderStruct) UnmarshalJSON(input []byte) error {
 		Time           *big.Int        `json:"timestamp"        gencodec:"required"`
 		Extra          []byte          `json:"extraData"        gencodec:"required"`
 		MixDigest      *common.Hash    `json:"mixHash"          gencodec:"required"`
+		ShardState  	[]ShardState   `json:"rewardRemains"        gencodec:"required"`
+
 		Nonce          *BlockNonce     `json:"nonce"            gencodec:"required"`
 	}
 	var dec HeaderStruct
@@ -95,8 +98,8 @@ func (h *HeaderStruct) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'miner' for HeaderStruct")
 	}
 	h.Coinbase = *dec.Coinbase
-	if dec.LastBlocksHash != nil {
-		h.LastBlocksHash = *dec.LastBlocksHash
+	if dec.ShardState != nil {
+		h.ShardState = dec.ShardState
 	}
 	if dec.ShardMaskEp != nil {
 		h.ShardMaskEp = *dec.ShardMaskEp

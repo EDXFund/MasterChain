@@ -249,7 +249,7 @@ func (bc *BlockChain) GetMasterChain() *types.ShardBlockInfo {
 	if bc.shardId != types.ShardMaster {
 		header := bc.master_head.CurrentHeader()
 		blockInfo := types.ShardBlockInfo{}
-		blockInfo.FillBy(&types.ShardBlockInfoStruct{types.ShardMaster, header.NumberU64(), header.Hash(), header.ParentHash(), header.Difficulty().Uint64()})
+		blockInfo.FillBy(&types.ShardBlockInfoStruct{types.ShardMaster, header.NumberU64(), header.Hash(), header.ParentHash(), header.Coinbase(),header.Difficulty().Uint64()})
 		return &blockInfo
 	} else {
 		return nil
@@ -262,7 +262,7 @@ func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo {
 		block := bc.Genesis().ToSBlock()
 
 		shardInfoS := new(types.ShardBlockInfo)
-		shardInfoS.FillBy(&types.ShardBlockInfoStruct{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Difficulty().Uint64()})
+		shardInfoS.FillBy(&types.ShardBlockInfoStruct{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Coinbase(),block.Difficulty().Uint64()})
 
 		return shardInfoS
 	} else {
@@ -1226,9 +1226,7 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 			n, events, logs, err := bc.insertChain(chain)
 
 			bc.PostChainEvents(events, logs)
-			if bc.shardId == types.ShardMaster {
-				bc.updateShardInfos(chain)
-			}
+
 			return n, err
 		} else {
 			if bc.shardId == types.ShardMaster { //主链收到了子链区块的信息，只需插入到shardManager中去
@@ -1246,33 +1244,7 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 	}
 
 }
-func (bc *BlockChain) updateShardInfos(chain types.BlockIntfs) {
-	latest := make(map[uint16]*types.ShardBlockInfo)
-	//find latest block infos
-	for _, body := range chain {
-		for _, item := range body.ShardBlocks() {
-			shardId := item.ShardId()
-			shard, ok := latest[shardId]
-			if !ok {
-				latest[shardId] = item
-			} else {
-				if item.Difficulty().Cmp(shard.Difficulty()) > 0 {
-					latest[shardId] = item
-				}
-			}
-		}
 
-	}
-
-	//update to bc
-
-	for index, val := range latest {
-		bc.latestShards[index] = val
-	}
-	//save to db
-	//rawdb.W    //write(hash-->value)
-	//           //write key-->Hash
-}
 func (bc *BlockChain) insertIntoShard(chain types.BlockIntfs) (int, error) {
 	bc.chainShardFeed.Send(&ChainsShardEvent{Block: chain})
 	return len(chain), nil

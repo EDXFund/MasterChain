@@ -232,10 +232,12 @@ func TestSingleTransaction(t *testing.T) {
 	testSingleTransaction(t, ethashChainConfig, ethash.NewFaker())
 }
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	Init()
+
 	log.PrintOrigins(true)
 	glogger.Verbosity(log.Lvl(4))
-
+	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+	log.Root().SetHandler(glogger)
 	defer engine.Close()
 
 	state := make(chan  struct{})
@@ -353,7 +355,7 @@ var (
 	glogger *log.GlogHandler
 )
 
-func Init() {
+func init() {
 	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
 	output := io.Writer(os.Stderr)
 	if usecolor {
@@ -366,9 +368,11 @@ func Init() {
 
 
 func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	Init()
 	log.PrintOrigins(true)
 	glogger.Verbosity(log.Lvl(4))
+	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+	log.Root().SetHandler(glogger)
 
 	defer engine.Close()
 

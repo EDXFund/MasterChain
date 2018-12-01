@@ -30,10 +30,10 @@ var (
 )
 
 func init() {
-	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
-	output := io.Writer(os.Stderr)
+	usecolor := (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
+	output := io.Writer(os.Stdout)
 	if usecolor {
-		output = colorable.NewColorableStderr()
+		output = colorable.NewColorableStdout()
 	}
 	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
 	glogger = log.NewGlogHandler(ostream)

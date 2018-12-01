@@ -469,14 +469,17 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 		return nil
 	}
 	blocks := types.BlockIntfs{}
+	shards := make([]*types.ShardBlockInfo,0,len(shardInfo))
 	for _,pendingShard := range shardInfo {
 		for _, shard := range pendingShard{
+			shards = append(shards,&shard)
 			blocks = append(blocks,rawdb.ReadBlock(w.eth.ChainDb(),shard.Hash(),shard.NumberU64()))
 		}
 
 	}
 	interrupt := int32(0)
 	w.newShards = 0
+	w.current.shards = shards
 	w.masterProcessShards(blocks,w.coinbase,&interrupt)
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
 	if err != nil {
@@ -527,7 +530,7 @@ func (w *worker) mainStateLoop() {
 	for {
 		select {
 		case <-w.startCh:
-			fmt.Println("evt_start")
+			fmt.Println("evt_start:",w.shardId)
 			if w.state == ST_IDLE{
 				if w.shardId == types.ShardMaster {
 					w.enterState(ST_MASTER)
@@ -537,19 +540,19 @@ func (w *worker) mainStateLoop() {
 			}
 
 		case <- w.timer.C:
-			fmt.Println("evt_timer")
+			fmt.Println("evt_timer:",w.shardId)
 			w.handleTimer(w.timer)
 		case newHead := <- w.chainHeadCh:
-			fmt.Println("evt_newChain")
+			fmt.Println("evt_newChain:",w.shardId)
 			w.handleNewHead(newHead.Block)
 		case newShards := <- w.chainShardCh:
-			fmt.Println("evt_shard")
+			fmt.Println("evt_shard:",w.shardId)
 			w.handleShardChain(newShards.Block)
 		case newTxs := <- w.txsCh:
-			fmt.Println("evt_newtx")
+			fmt.Println("evt_newtx:",w.shardId)
 			w.handleNewTxs(newTxs.Txs)
 		case newBlock := <- w.resultCh:
-			fmt.Println("evt_newblock")
+			fmt.Println("evt_newblock:",w.shardId)
 			w.handleNewBlock(newBlock)
 		case <- w.exitCh:
 			return
@@ -636,6 +639,7 @@ func (w *worker)handleNewTxs(txs types.Transactions){
 }
 func (w *worker)handleNewBlock(block types.BlockIntf){
 	w.chain.InsertChain(types.BlockIntfs{block})
+	w.enterState(ST_RESETING)
 }
 
 
@@ -933,7 +937,7 @@ func (w *worker) commit(interval func(), update bool, start time.Time) (types.Bl
 
 	s := w.current.state.Copy()
 	fmt.Println("do transaction:", w.current.results)
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, nil, w.current.results, nil, nil)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.shards, w.current.results, nil, nil)
 	if err != nil {
 		return nil,err
 	}

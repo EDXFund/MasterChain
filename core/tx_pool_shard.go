@@ -202,7 +202,7 @@ func (pool *TxPoolShard) loop() {
 		select {
 		// Handle ChainHeadEvent
 		case ev := <-pool.chainHeadCh:
-			fmt.Println("new Header")
+			fmt.Println("new Header shard")
 			if ev.Block != nil {
 				pool.mu.Lock()
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {

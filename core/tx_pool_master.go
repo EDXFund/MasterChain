@@ -315,7 +315,7 @@ func (pool *TxPool) loop() {
 		select {
 		// Handle ChainHeadEvent
 		case ev := <-pool.chainHeadCh:
-			fmt.Println("new Header")
+			fmt.Println("new Header master")
 			if ev.Block != nil {
 				pool.mu.Lock()
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {

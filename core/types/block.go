@@ -32,7 +32,11 @@ import (
 	//"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/rlp"
 )
-
+type ShardState struct {
+	ShardId  	 uint16
+	BlockNumber  uint64
+	RewardRemains uint32
+}
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go1
 
 // Header represents a block header in the Ethereum blockchain.
@@ -40,7 +44,6 @@ type Header struct {
 	parentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
 	uncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	coinbase       common.Address `json:"miner"            gencodec:"required"`
-	lastBlocksHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
 	shardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
 	shardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
 	root           common.Hash    `json:"stateRoot"        gencodec:"required"`
@@ -54,6 +57,7 @@ type Header struct {
 	gasUsed        uint64         `json:"gasUsed"          gencodec:"required"`
 	time           *big.Int       `json:"timestamp"        gencodec:"required"`
 	extra          []byte         `json:"extraData"        gencodec:"required"`
+	shardState  	[]ShardState    	  `json:"rewardRemains"        gencodec:"required"`
 	mixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
 	nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
 	dirty          bool
@@ -63,7 +67,6 @@ type HeaderStruct struct {
 	ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
 	UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase       common.Address `json:"miner"            gencodec:"required"`
-	LastBlocksHash common.Hash    `json:"shardHash"		gencodec:"required"` //hash of all LastShardInfo
 	ShardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
 	ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
 	Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
@@ -78,6 +81,7 @@ type HeaderStruct struct {
 	Time           *big.Int       `json:"timestamp"        gencodec:"required"`
 	Extra          []byte         `json:"extraData"        gencodec:"required"`
 	MixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
+	ShardState  	[]ShardState   `json:"rewardRemains"        gencodec:"required"`
 	Nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
@@ -86,7 +90,7 @@ func (h *Header) FillBy(h2 *HeaderStruct){
 	h.uncleHash = h2.UncleHash
 	h.coinbase = h2.Coinbase
 	h.root = h2.Root
-	h.lastBlocksHash = h2.LastBlocksHash
+	h.shardState = h2.ShardState
 	h.shardMaskEp = h2.ShardMaskEp
 	h.shardEnabled = h2.ShardEnabled
 
@@ -113,7 +117,7 @@ func (h *Header) ToHeaderStruct() *HeaderStruct {
 		Coinbase:h.coinbase,
 		Root:h.root,
 
-		LastBlocksHash:h.lastBlocksHash,
+		ShardState:h.shardState,
 		ShardTxsHash:h.shardTxsHash,
 		ShardMaskEp:h.shardMaskEp,
 		ShardEnabled:h.shardEnabled,
@@ -188,7 +192,7 @@ func (b *Header) ResultHash() common.Hash { return EmptyRootHash}
 func (b *Header) UncleHash() common.Hash   { return b.uncleHash }
 func (b *Header) Extra() []byte            { return common.CopyBytes(b.extra) }
 func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
-func (b *Header) LastBlocksHash() common.Hash {return b.lastBlocksHash}
+func (b *Header) ShardState() []ShardState {return b.shardState}
 
 func (b *Header) ShardExp() uint16      {return b.shardMaskEp }
 func (b *Header) ShardEnabled() [32]byte { return b.shardEnabled }
@@ -216,7 +220,7 @@ func (b *Header) SetGasUsed(v uint64) {
 	}
 func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v; b.setHashDirty(true)}
 func (b *Header) SetNonce(v BlockNonce) {b.nonce = v; b.setHashDirty(true)}
-func (b *Header) SetLastBlocksHash(v common.Hash ) { b.lastBlocksHash =v ; b.setHashDirty(true)}
+func (b *Header) SetShardState(v []ShardState ) { b.shardState =v ; b.setHashDirty(true)}
 
 
 type ShardBlockInfo struct {
@@ -224,6 +228,7 @@ type ShardBlockInfo struct {
 	blockNumber uint64
 	blockHash   common.Hash
 	parentHash  common.Hash  //for easy check parents hash
+	coinbase    common.Address
 	td  uint64
 }
 type ShardBlockInfoStruct struct {
@@ -231,6 +236,7 @@ type ShardBlockInfoStruct struct {
 	BlockNumber uint64
 	BlockHash   common.Hash
 	ParentHash  common.Hash
+	Coinbase    common.Address
 	Td  uint64
 }
 func (t *ShardBlockInfo)FillBy(t1 *ShardBlockInfoStruct) {
@@ -238,6 +244,7 @@ func (t *ShardBlockInfo)FillBy(t1 *ShardBlockInfoStruct) {
 	t.blockNumber = t1.BlockNumber
 	t.blockHash = t1.BlockHash
 	t.parentHash = t1.ParentHash
+	t.coinbase  = t1.Coinbase
 	t.td = t1.Td
 }
 func (t *ShardBlockInfo) ShardId() uint16         { return t.shardId }
@@ -248,7 +255,7 @@ func (t *ShardBlockInfo) Hash() common.Hash       { return t.blockHash }
 func (t *ShardBlockInfo) ParentHash() common.Hash { return t.parentHash }
 func (t *ShardBlockInfo) Difficulty() *big.Int    { return new(big.Int).SetUint64(t.td) }
 func (t *ShardBlockInfo) DifficultyU64() uint64   { return t.td }
-
+func (t *ShardBlockInfo) Coinbase() common.Address   { return t.coinbase }
 // Transactions is a Transaction slice type for basic sorting.
 type ShardBlockInfos []*ShardBlockInfo
 

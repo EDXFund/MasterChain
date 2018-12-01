@@ -608,7 +608,7 @@ func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.He
 	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, nil, nil, receipts), nil
+	return types.NewBlock(header, blks, nil, receipts), nil
 }
 // SealHash returns the hash of a block prior to it being sealed.
 func (ethash *Ethash) SealHash(header types.HeaderIntf) (hash common.Hash) {
@@ -659,6 +659,8 @@ var (
 
 var bitMask =[8]uint8{0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80}
 var stageMask = []uint64{13200000,26400000,39600000,52800000,66000000,79200000}
+var blockRewardBase = new(big.Int).Mul(big.NewInt(1e14),big.NewInt(3125))
+var rewardBaseUint = new(big.Int).Mul(big.NewInt(1e10),big.NewInt(3125))
 // AccumulateRewards credits the coinbase of the given block with the mining
 // reward. The total reward consists of the static block reward and rewards for
 // included uncles. The coinbase of each uncle block is also rewarded.
@@ -667,34 +669,37 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 	// Select the correct block reward based on chain progression
 
 
-	blockReward := new(big.Int);
+	blockRewardBase := new(big.Int).Mul(big.NewInt(1e14),big.NewInt(3125))
 
 
+    multiple := int64(1)
 	blockNumber := header.NumberU64()
 	if blockNumber < stageMask[0] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e18),big.NewInt(20))
+		multiple = 64
 	} else if blockNumber >= stageMask[0] && blockNumber < stageMask[1] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e18),big.NewInt(10))
+		multiple = 32
 	} else 	if blockNumber >= stageMask[1] && blockNumber < stageMask[2] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e18),big.NewInt(5))
+		multiple = 16
 	} else	if blockNumber >= stageMask[2] && blockNumber < stageMask[3] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e17),big.NewInt(25))
+		multiple = 8
 	} else 	if blockNumber >= stageMask[3] && blockNumber < stageMask[4] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e16),big.NewInt(125))
+		multiple =  4
 	} else	if blockNumber >= stageMask[4] && blockNumber < stageMask[5] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e15),big.NewInt(625))
+		multiple =2
 	} else  if blockNumber >= stageMask[5] {
-		blockReward = new(big.Int).Mul(big.NewInt(1e14),big.NewInt(3125))
+		multiple = 1
 	}
 
-
+	blockReward := new(big.Int).Mul(blockRewardBase,big.NewInt(multiple));
+	fmt.Println("award master coinbase:",header.Coinbase(),blockReward," of:",header.NumberU64());
+	//reward to master
 	state.AddBalance(header.Coinbase(), blockReward)
 
 
 	//calc reward for shard blocks
 	shardEnabled := header.ToHeader().ShardEnabled()
-
-	shardsCount:=0
+	shardEnabled[0] = shardEnabled[0] | 0x01
+	shardsCount := 0
 	for _,enabled := range shardEnabled {
 		for i := 0; i <8; i ++{
 			if (enabled & bitMask[i]) != 0 {
@@ -702,9 +707,68 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 			}
 		}
 	}
-/*	rewardOfShard := new(big.Int).Div(blockReward,big.NewInt(int64(shardsCount)))
-	for _,blk := range blks {
-		blk.
+	rewardOfShard := uint32(10000/shardsCount)
+
+	rewardInHeader := header.ToHeader().ShardState()//rawDb.ReadRewardRemains
+
+	rewardRemains :=make(map[uint16]*types.ShardState)
+	for _,shardState := range rewardInHeader {
+		rewardRemains[shardState.ShardId] = &shardState
 	}
-*/
+	for seg,enabled := range shardEnabled {
+		for i := 0; i <8; i ++{
+			if (enabled & bitMask[i]) != 0 {
+				index := uint16(seg*8 + i)
+				_,ok := rewardRemains[index]
+				if !ok {
+					rewardRemains[index] = &types.ShardState{index,0,uint32(rewardOfShard)}
+				}else {
+					rewardRemains[index].RewardRemains =rewardRemains[index].RewardRemains + rewardOfShard
+				}
+
+			}
+		}
+	}
+	blkInfos := make(map[uint16]types.ShardBlockInfos)
+	for _,blk := range blks {
+		blkInfos[blk.ShardId()] = append(blkInfos[blk.ShardId()],blk)
+	}
+	result :=make([]types.ShardState,0,shardsCount)
+	for shardId,blkArray := range blkInfos {
+		blockNo := uint64(0)
+		remains := uint32(0)
+		if ss,ok := rewardRemains[shardId]; ok {
+			if ss.RewardRemains < uint32(len(blkArray)) * rewardOfShard {
+				rewardOfShard = ss.RewardRemains/uint32(len(blkArray))
+			}
+			remains = ss.RewardRemains
+		}
+
+		for _,oneBlock := range blkArray {
+			if oneBlock.NumberU64() > blockNo {
+				blockNo = oneBlock.NumberU64()
+			}
+			fmt.Println("award shard coinbase:",oneBlock.Coinbase(),rewardOfShard);
+			//reward to master
+			if remains > rewardOfShard  {
+				remains -= rewardOfShard
+				state.AddBalance(oneBlock.Coinbase(), new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(rewardOfShard))))
+			}else {
+				state.AddBalance(oneBlock.Coinbase(), new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(remains))))
+				remains = 0
+			}
+
+
+		}
+		rewardRemains[shardId].RewardRemains = remains
+		//update shard state
+
+
+	}
+
+	for shardId,remain := range rewardRemains {
+		result = append(result,types.ShardState{shardId,remain.BlockNumber,remain.RewardRemains})
+	}
+	header.ToHeader().SetShardState(result)
+
 }
