@@ -60,18 +60,18 @@ func (b *BlockGen) SetCoinbase(addr common.Address) {
 		}
 		panic("coinbase can only be set once")
 	}
-	b.header.SetCoinbase ( addr)
+	b.header.SetCoinbase(addr)
 	b.gasPool = new(GasPool).AddGas(b.header.GasLimit())
 }
 
 // SetExtra sets the extra data field of the generated block.
 func (b *BlockGen) SetExtra(data []byte) {
-	b.header.SetExtra ( data)
+	b.header.SetExtra(data)
 }
 
 // SetNonce sets the nonce field of the generated block.
 func (b *BlockGen) SetNonce(nonce types.BlockNonce) {
-	b.header.SetNonce  (nonce)
+	b.header.SetNonce(nonce)
 }
 
 // AddTx adds a transaction to the generated block. If no coinbase has
@@ -101,7 +101,7 @@ func (b *BlockGen) AddTxWithChain(bc *BlockChain, tx *types.Transaction) {
 	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
 	//coinBase := b.header.Coinbase()
 	//gasUsed := b.header.GasUsed()
-	receipt, _, err := ApplyTransaction(b.config, bc, b.header.CoinbasePtr(), b.gasPool, nil,b.statedb, b.header, tx, b.header.GasUsedPtr(), vm.Config{})
+	receipt, _, err := ApplyTransaction(b.config, bc, b.header.CoinbasePtr(), b.gasPool, nil, b.statedb, b.header, tx, b.header.GasUsedPtr(), vm.Config{})
 	if err != nil {
 		panic(err)
 	}
@@ -162,7 +162,7 @@ func (b *BlockGen) OffsetTime(seconds int64) {
 	if b.header.Time().Cmp(b.parent.Header().Time()) <= 0 {
 		panic("block time out of range")
 	}
-	b.header.SetDifficulty (b.engine.CalcDifficulty(b.chainReader, b.header.Time().Uint64(), b.parent.Header()))
+	b.header.SetDifficulty(b.engine.CalcDifficulty(b.chainReader, b.header.Time().Uint64(), b.parent.Header()))
 }
 
 // GenerateChain creates a chain of n blocks. The first block's
@@ -185,7 +185,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 	genblock := func(i int, parent types.BlockIntf, statedb *state.StateDB) (types.BlockIntf, types.Receipts) {
 		// TODO(karalabe): This is needed for clique, which depends on multiple blocks.
 		// It's nonetheless ugly to spin up a blockchain here. Get rid of this somehow.
-		blockchain, _ := NewBlockChain(db, nil, config, engine, vm.Config{}, nil,parent.ShardId())
+		blockchain, _ := NewBlockChain(db, nil, config, engine, vm.Config{}, nil, parent.ShardId())
 		defer blockchain.Stop()
 
 		b := &BlockGen{i: i, parent: parent, chain: blocks, chainReader: blockchain, statedb: statedb, config: config, engine: engine}
@@ -196,7 +196,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 			limit := new(big.Int).Add(daoBlock, params.DAOForkExtraRange)
 			if b.header.Number().Cmp(daoBlock) >= 0 && b.header.Number().Cmp(limit) < 0 {
 				if config.DAOForkSupport {
-					b.header.SetExtra (common.CopyBytes(params.DAOForkBlockExtra))
+					b.header.SetExtra(common.CopyBytes(params.DAOForkBlockExtra))
 				}
 			}
 		}
@@ -209,7 +209,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 		}
 		if b.engine != nil {
 			// Finalize and seal the block
-			block, err := b.engine.Finalize(b.chainReader, b.header, statedb,b.blocks,b.results, b.txs, b.receipts)
+			block, err := b.engine.Finalize(b.chainReader, b.header, statedb, b.blocks, b.results, b.txs, b.receipts)
 
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number()))
@@ -232,13 +232,13 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 
 		blocks[i] = block
 		receipts[i] = receipt
-		blocks[i].ClearHashCache();
+		//blocks[i].ClearHashCache();
 
 		parent = block
 	}
-	for _, block := range blocks {
-	 block.ClearHashCache();
-	}
+	//for _, block := range blocks {
+	// block.ClearHashCache();
+	//}
 	return blocks, receipts
 }
 
@@ -264,42 +264,40 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 				ParentHash: parent.Hash(),
 				Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
 
-				Coinbase:   parent.Coinbase(),
-				Difficulty: engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
-				GasLimit: CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
-				Number:   new(big.Int).Add(parent.Number(), common.Big1),
-				ReceiptHash:common.Hash{},
-				ShardTxsHash:common.Hash{},
+				Coinbase:     parent.Coinbase(),
+				Difficulty:   engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
+				GasLimit:     CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
+				Number:       new(big.Int).Add(parent.Number(), common.Big1),
+				ReceiptHash:  common.Hash{},
+				ShardTxsHash: common.Hash{},
 
-				Time:     time,
+				Time: time,
 			})
 		return result
-	}else {
+	} else {
 		result := new(types.SHeader)
 		inner_parent := new(types.SHeader)
 		inner_parent.FillBy(&types.SHeaderStruct{
-			ShardId:parent.ShardId(),
+			ShardId:    parent.ShardId(),
 			Number:     parent.Number(),
 			Time:       new(big.Int).Sub(time, big.NewInt(10)),
 			Difficulty: parent.Difficulty(),
-
 		})
 		result.FillBy(
 			&types.SHeaderStruct{
-				ParentHash: parent.Hash(),
-				Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
-				Coinbase:   parent.Coinbase(),
-				Difficulty: engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
-				GasLimit: CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
-				ReceiptHash:common.Hash{},
-				TxHash:common.Hash{},
-				Number:   new(big.Int).Add(parent.Number(), common.Big1),
-				ShardId:parent.ShardId(),
-				Time:     time,
+				ParentHash:  parent.Hash(),
+				Root:        state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
+				Coinbase:    parent.Coinbase(),
+				Difficulty:  engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
+				GasLimit:    CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
+				ReceiptHash: common.Hash{},
+				TxHash:      common.Hash{},
+				Number:      new(big.Int).Add(parent.Number(), common.Big1),
+				ShardId:     parent.ShardId(),
+				Time:        time,
 			})
 		return result
 	}
-
 
 }
 
