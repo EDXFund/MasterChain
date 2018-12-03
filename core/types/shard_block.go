@@ -214,7 +214,7 @@ func (b *SHeader) SetExtra(v []byte) {
 }
 func (b *SHeader) SetTime(v *big.Int)           { b.time = v; b.setHashDirty(true) }
 func (b *SHeader) SetCoinbase(v common.Address) { b.coinbase = v; b.setHashDirty(true) }
-func (b *SHeader) SetRoot(v common.Hash)        { b.root = v; b.setHashDirty(true) }
+func (b *SHeader) SetRoot(v common.Hash)        { /*b.root = v; b.setHashDirty(true) */}
 func (b *SHeader) SetBloom(v Bloom)             { b.bloom = v; b.setHashDirty(true) }
 func (b *SHeader) SetDifficulty(v *big.Int) {
 	b.difficulty = new(big.Int).SetUint64(v.Uint64())

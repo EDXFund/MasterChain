@@ -267,7 +267,7 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	}()
 
 	go func() {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		//create a new send Txs
 		fmt.Println("create txs")
 		master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})

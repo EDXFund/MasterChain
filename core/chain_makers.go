@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/EDXFund/MasterChain/log"
 	"math/big"
 
 	"github.com/EDXFund/MasterChain/common"
@@ -135,7 +136,7 @@ func (b *BlockGen) TxNonce(addr common.Address) uint64 {
 
 // AddUncle adds an uncle header to the generated block.
 func (b *BlockGen) AddUncle(h types.HeaderIntf) {
-	b.uncles = append(b.uncles, h)
+	//b.uncles = append(b.uncles, h)
 }
 
 // PrevBlock returns a previously generated block by number. It panics if
@@ -190,6 +191,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 
 		b := &BlockGen{i: i, parent: parent, chain: blocks, chainReader: blockchain, statedb: statedb, config: config, engine: engine}
 		b.header = makeHeader(b.chainReader, parent, statedb, b.engine)
+		log.Debug("insert header:","number:",parent.Header().NumberU64(), "Hash:",parent.Hash(),"parent:",parent.ParentHash())
 		b.chainReader.SetCacheHeader(parent.Header())
 		// Mutate the state and block according to any hard-fork specs
 		if daoBlock := config.DAOForkBlock; daoBlock != nil {

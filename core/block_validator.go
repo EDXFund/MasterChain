@@ -121,9 +121,9 @@ func (v *BlockValidator) ValidateState(block, parent types.BlockIntf, statedb *s
 // otherwise nil and an error is returned.
 func (v *BlockValidator) validateShardState(block, parent *types.SBlock, statedb *state.StateDB, usedGas uint64) error {
 	header := block.Header()
-	if block.GasUsed() != usedGas {
+	/*if block.GasUsed() != usedGas {
 		return fmt.Errorf("invalid gas used (remote: %d local: %d)", block.GasUsed(), usedGas)
-	}
+	}*/
 
 	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, R1]]))
 	receiptSha := types.DeriveSha(types.ContractResults(block.Results()))

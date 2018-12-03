@@ -18,9 +18,14 @@ package eth
 
 import (
 	"fmt"
+	"github.com/EDXFund/MasterChain/log"
+	"github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
+	"io"
 	"math"
 	"math/big"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -492,6 +497,28 @@ func testGetNodeData(t *testing.T, protocol int, shardId uint16) {
 	}
 }
 
+var (
+	ostream log.Handler
+	glogger *log.GlogHandler
+)
+
+func init() {
+	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
+	output := io.Writer(os.Stderr)
+	if usecolor {
+		output = colorable.NewColorableStderr()
+	}
+	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
+	glogger = log.NewGlogHandler(ostream)
+	log.PrintOrigins(true)
+	glogger.Verbosity(log.Lvl(4))
+	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+	log.Root().SetHandler(glogger)
+}
+
+
+
 // Tests that the transaction receipts can be retrieved based on hashes.
 func TestGetReceipt63(t *testing.T)  { testGetReceipt(t, 63, 0) }
 func TestGetReceipt63S(t *testing.T) { testGetReceipt(t, 63, 0) }
@@ -513,22 +540,23 @@ func testGetReceipt(t *testing.T, protocol int, shardId uint16) {
 		case 1:
 			// In block 2, the test bank sends some more ether to account #1.
 			// acc1Addr passes it on to account #2.
-			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, testBankKey)
-			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, acc1Key)
-			block.AddTx(tx1)
-			block.AddTx(tx2)
+		//	tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBank), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, testBankKey)
+		//	tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1000), params.TxGas, nil, nil, 0), signer, acc1Key)
+		//	block.AddTx(tx1)
+		//	block.AddTx(tx2)
 		case 2:
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
-			block.SetExtra([]byte("yeehaw"))
+			//block.SetExtra([]byte("yeehaw"))
 		case 3:
 			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-			b2 := block.PrevBlock(1).Header()
+		/*	b2 := block.PrevBlock(1).Header()
 			b2.SetExtra([]byte("foo"))
 			block.AddUncle(b2)
 			b3 := block.PrevBlock(2).Header()
 			b3.SetExtra([]byte("foo"))
-			block.AddUncle(b3)
+			block.AddUncle(b3)*/
+
 		}
 	}
 	// Assemble the test environment
