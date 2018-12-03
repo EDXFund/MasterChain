@@ -21,20 +21,50 @@ import (
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/ethdb"
+	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/params"
+	"github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
+	"io"
+	"os"
 	"runtime"
 	"testing"
 	"time"
 )
+var (
+	ostream log.Handler
+	glogger *log.GlogHandler
+)
+
+func init() {
+	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
+	output := io.Writer(os.Stderr)
+	if usecolor {
+		output = colorable.NewColorableStderr()
+	}
+	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
+	glogger = log.NewGlogHandler(ostream)
+}
+
+
+
+
 
 // Tests that simple header verification works, for both good and bad blocks.
 func TestHeaderVerification(t *testing.T) {
+
+		log.PrintOrigins(true)
+		glogger.Verbosity(log.Lvl(4))
+		//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+		//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+		log.Root().SetHandler(glogger)
+
 	// Create a simple chain to verify
 	var (
 		testdb    = ethdb.NewMemDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
 
-		blocks, _ = GenerateChain(params.TestChainConfig, gspec.MustCommit(testdb,0xFFFF), ethash.NewFaker(), testdb, 8, nil)
+		blocks, _ = GenerateChain(params.TestChainConfig, gspec.MustCommit(testdb,types.ShardMaster), ethash.NewFaker(), testdb, 8, nil)
 	)
 
 //	fmt.Println("gen blk：",gen_block.Header().NumberU64(),"\t hash:",gen_block.Header().Hash(),"\tparent Hash:",gen_block.Hash())
@@ -74,7 +104,10 @@ func TestHeaderVerification(t *testing.T) {
 			case <-time.After(25 * time.Millisecond):
 			}
 		}
+	    block := blocks[i].(*types.Block)
+		t.Logf("before insert chain %v,%v,%v", block.Hash(),block.Header().Hash(),block.ParentHash())
 		chain.InsertChain(blocks[i : i+1])
+		t.Logf("after insert chain %v,%v,%v", block.Hash(),block.Header().Hash(),block.ParentHash())
 	}
 }
 

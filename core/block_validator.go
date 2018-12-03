@@ -102,7 +102,7 @@ func (v *BlockValidator) validateBody(block *types.Block) error {
 	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash() {
 		return fmt.Errorf("uncle root hash mismatch: have %x, want %x", hash, header.UncleHash())
 	}
-	if hash := types.DeriveSha(types.ShardBlockInfos(block.ShardBlocks())); hash != header.TxHash() {
+	if hash := types.DeriveSha(types.ShardBlockInfos(block.ShardBlocks())); hash != header.ShardTxsHash() {
 		return fmt.Errorf("2transaction root hash mismatch: have %x, want %x", hash, header.TxHash())
 	}
 	return nil

@@ -244,6 +244,9 @@ func (bc *BlockChain) getShardEnabledState() [32]byte {
 func (bc *BlockChain) GetLatestShards() map[uint16]*types.ShardBlockInfo {
 	return bc.latestShards
 }
+func (bc *BlockChain) SetCacheHeader(header types.HeaderIntf){
+	 bc.hc.SetCacheHeader(header)
+}
 
 func (bc *BlockChain) GetMasterChain() *types.ShardBlockInfo {
 	if bc.shardId != types.ShardMaster {

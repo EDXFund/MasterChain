@@ -222,7 +222,7 @@ func (b *Header) SetReceiptHash(v common.Hash) { b.receiptHash = v; b.setHashDir
 func (b *Header) SetTxHash(v common.Hash)      { ; b.setHashDirty(true) }
 func (b *Header) SetShardTxHash(v common.Hash) { b.shardTxsHash = v; b.setHashDirty(true) }
 func (b *Header) SetExtra(v []byte)            { b.extra = common.CopyBytes(v); b.setHashDirty(true) }
-func (b *Header) SetTime(v *big.Int)           { b.time = v }
+func (b *Header) SetTime(v *big.Int)           { b.time = v ; b.setHashDirty(true)}
 func (b *Header) SetCoinbase(v common.Address) {
 	b.coinbase = v
 	b.setHashDirty(true)
@@ -240,7 +240,10 @@ func (b *Header) SetGasUsed(v uint64) {
 	}
 func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v; b.setHashDirty(true)}
 func (b *Header) SetNonce(v BlockNonce) {b.nonce = v; b.setHashDirty(true)}
-func (b *Header) SetShardState(v []ShardState ) { b.shardState =v ; b.setHashDirty(true)}
+func (b *Header) SetShardState(v []ShardState ) {
+	b.shardState = v ;
+	b.setHashDirty(true)
+	}
 
 
 

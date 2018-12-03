@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/log"
 	"math/big"
 	"reflect"
 	"runtime"
@@ -176,11 +177,11 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 		parent = headers[index-1]
 	}
 	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
-	//	fmt.Printf("3，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+		log.Debug("error in find parent:","index:",index,"number:",headers[index].NumberU64(),"hash:",headers[index].Hash(),"parentHash:",headers[index].ParentHash())
 	//	fmt.Println("")
 		return consensus.ErrUnknownAncestor
 	} else {
-	//	fmt.Printf("K，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+		log.Trace("K，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
 	//	fmt.Println("")
 
 	}
@@ -604,7 +605,8 @@ func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.He
 }
 func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,  receipts []*types.Receipt) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
-	accumulateRewards(chain.Config(), state, header, blks)
+	parent := chain.GetHeader(header.ParentHash(),header.NumberU64()-1)
+	accumulateRewards(chain.Config(), state, parent,header, blks)
 	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 
 	// Header seems complete, assemble into a block and return
@@ -665,7 +667,7 @@ var rewardBaseUint = new(big.Int).Mul(big.NewInt(1e10),big.NewInt(3125))
 // reward. The total reward consists of the static block reward and rewards for
 // included uncles. The coinbase of each uncle block is also rewarded.
 // the more shard included the more main block can be rewarded
-func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header types.HeaderIntf, blks []*types.ShardBlockInfo) {
+func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent types.HeaderIntf,header types.HeaderIntf, blks []*types.ShardBlockInfo) {
 	// Select the correct block reward based on chain progression
 
 
@@ -709,7 +711,10 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 	}
 	rewardOfShard := uint32(10000/shardsCount)
 
-	rewardInHeader := header.ToHeader().ShardState()//rawDb.ReadRewardRemains
+	rewardInHeader := []types.ShardState{}
+	if parent != nil {
+		rewardInHeader = parent.ToHeader().ShardState()
+	}//rawDb.ReadRewardRemains
 
 	rewardRemains :=make(map[uint16]*types.ShardState)
 	for _,shardState := range rewardInHeader {

@@ -396,6 +396,18 @@ func (hc *HeaderChain) WriteTd(hash common.Hash, number uint64, td *big.Int) err
 	hc.tdCache.Add(hash, new(big.Int).Set(td))
 	return nil
 }
+// GetHeader retrieves a block header from the database by hash and number,
+// caching it if found.
+func (hc *HeaderChain)SetCacheHeader(header types.HeaderIntf) {
+
+
+
+	// Cache the found header for next time and return
+	hc.headerCache.Add(header.Hash(), header)
+
+}
+
+
 
 // GetHeader retrieves a block header from the database by hash and number,
 // caching it if found.
@@ -404,6 +416,7 @@ func (hc *HeaderChain) GetHeader(hash common.Hash, number uint64) types.HeaderIn
 	if header, ok := hc.headerCache.Get(hash); ok {
 		return header.(types.HeaderIntf)
 	}
+
 	header := rawdb.ReadHeader(hc.chainDb, hash, number)
 	if header == nil {
 		return nil

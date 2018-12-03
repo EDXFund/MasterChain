@@ -190,7 +190,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 
 		b := &BlockGen{i: i, parent: parent, chain: blocks, chainReader: blockchain, statedb: statedb, config: config, engine: engine}
 		b.header = makeHeader(b.chainReader, parent, statedb, b.engine)
-
+		b.chainReader.SetCacheHeader(parent.Header())
 		// Mutate the state and block according to any hard-fork specs
 		if daoBlock := config.DAOForkBlock; daoBlock != nil {
 			limit := new(big.Int).Add(daoBlock, params.DAOForkExtraRange)
@@ -210,6 +210,7 @@ func GenerateChain(config *params.ChainConfig, parent types.BlockIntf, engine co
 		if b.engine != nil {
 			// Finalize and seal the block
 			block, err := b.engine.Finalize(b.chainReader, b.header, statedb, b.blocks, b.results, b.txs, b.receipts)
+
 
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number()))
@@ -259,18 +260,19 @@ func makeHeader(chain consensus.ChainReader, parent types.BlockIntf, state *stat
 			Difficulty: parent.Difficulty(),
 			UncleHash:  parent.UncleHash(),
 		})
+		shardState := types.ShardState{0,0,uint32(10000*(parent.NumberU64()))}
 		result.FillBy(
 			&types.HeaderStruct{
 				ParentHash: parent.Hash(),
 				Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
-
+				ShardEnabled:[32]byte{0x01},
 				Coinbase:     parent.Coinbase(),
 				Difficulty:   engine.CalcDifficulty(chain, time.Uint64(), inner_parent),
 				GasLimit:     CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
 				Number:       new(big.Int).Add(parent.Number(), common.Big1),
 				ReceiptHash:  common.Hash{},
 				ShardTxsHash: common.Hash{},
-
+				ShardState:[]types.ShardState{shardState},
 				Time: time,
 			})
 		return result
