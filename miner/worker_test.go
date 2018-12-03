@@ -68,7 +68,7 @@ func init() {
 	ethashChainConfig = params.TestChainConfig
 	cliqueChainConfig = params.TestChainConfig
 	cliqueChainConfig.Clique = &params.CliqueConfig{
-		Period: 10,
+		Period: 100,
 		Epoch:  30000,
 	}
 	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testBankKey)
@@ -233,11 +233,6 @@ func TestSingleTransaction(t *testing.T) {
 }
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
-	log.PrintOrigins(true)
-	glogger.Verbosity(log.Lvl(4))
-	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
-	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
-	log.Root().SetHandler(glogger)
 	defer engine.Close()
 
 	state := make(chan  struct{})
@@ -363,6 +358,12 @@ func init() {
 	}
 	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
 	glogger = log.NewGlogHandler(ostream)
+
+	log.PrintOrigins(true)
+	glogger.Verbosity(log.Lvl(5))
+	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+	log.Root().SetHandler(glogger)
 }
 
 
@@ -661,8 +662,8 @@ func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine co
 		time.Sleep(100 * time.Millisecond)
 	}
 	var (
-		progress = make(chan struct{}, 10)
-		result   = make([]float64, 0, 10)
+		progress = make(chan struct{}, 100)
+		result   = make([]float64, 0, 100)
 		index    = 0
 		start    = false
 	)

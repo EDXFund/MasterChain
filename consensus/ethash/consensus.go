@@ -181,7 +181,7 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 	//	fmt.Println("")
 		return consensus.ErrUnknownAncestor
 	} else {
-		log.Trace("K，%v %v:%v %v:",index,headers[index].NumberU64(),headers[index].Hash(),headers[index].ParentHash())
+		log.Trace("in find parent:","index:",index,"number:",headers[index].NumberU64(),"hash:",headers[index].Hash(),"parentHash:",headers[index].ParentHash())
 	//	fmt.Println("")
 
 	}
