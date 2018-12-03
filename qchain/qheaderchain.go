@@ -136,6 +136,17 @@ func (hc *QHeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 	}
 	return number
 }
+// GetHeader retrieves a block header from the database by hash and number,
+// caching it if found.
+func (hc *QHeaderChain)SetCacheHeader(header types.HeaderIntf) {
+
+
+
+	// Cache the found header for next time and return
+	hc.headerCache.Add(header.Hash(), header)
+
+}
+
 func (hc *QHeaderChain) loop()  {
 	for {
 		select {

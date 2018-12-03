@@ -104,10 +104,10 @@ func TestHeaderVerification(t *testing.T) {
 			case <-time.After(25 * time.Millisecond):
 			}
 		}
-	    block := blocks[i].(*types.Block)
-		t.Logf("before insert chain %v,%v,%v", block.Hash(),block.Header().Hash(),block.ParentHash())
+	//    block := blocks[i].(*types.Block)
+		//t.Logf("before insert chain %v,%v,%v", block.Hash(),block.Header().Hash(),block.ParentHash())
 		chain.InsertChain(blocks[i : i+1])
-		t.Logf("after insert chain %v,%v,%v", block.Hash(),block.Header().Hash(),block.ParentHash())
+		//t.Logf("after insert chain %v,%v,%v", block.Hash(),block.Header().Hash(),block.ParentHash())
 	}
 }
 
