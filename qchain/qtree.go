@@ -435,7 +435,7 @@ func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderI
 		 t.ReduceTo(head)
 	}else {
 		for key,item := range t.confirmed {
-			if item.Number().Cmp(val.Number()) < 0 {
+			if item.Number().Cmp(val.Number()) <= 0 {
 				delete(t.confirmed,key)
 			}
 		}

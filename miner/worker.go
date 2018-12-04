@@ -479,7 +479,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	for _,pendingShard := range shardInfo {
 		for _, shard := range pendingShard{
 			shards = append(shards,&shard)
-			blocks = append(blocks,rawdb.ReadBlock(w.eth.ChainDb(),shard.Hash(),shard.NumberU64()))
+			blocks = append(blocks,rawdb.ReadBlock(w.eth.ChainDb(),shard.Hash,shard.BlockNumber))
 		}
 
 	}
@@ -517,7 +517,7 @@ func (w *worker) enterResume() {
 	w.timer.Reset(10*time.Millisecond)
 }
 func (w *worker) enterState(newState uint8) {
-	fmt.Println("shardId:",w.shardId, "\tcur state:",w.state," \tnew State:",newState)
+	log.Trace("State Transition","shardId:",w.shardId, "cur state:",w.state," new State:",newState)
 	if w.exitFuncs[w.state] != nil {
 		w.exitFuncs[w.state]()
 	}

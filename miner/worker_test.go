@@ -207,8 +207,20 @@ func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, eng
 		shardBackends[i].channel = make(chan core.ChainHeadEvent)
 		shardBackends[i].backend.chain.SubscribeChainHeadEvent(shardBackends[i].channel)
 
+
 		shardBackends[i] .worker.setEtherbase(testBankAddress)
 		shardBackends[i] .worker.start()
+		go func(chain *core.BlockChain){
+			ch := make(chan core.ChainHeadEvent)
+			master.backend.chain.SubscribeChainHeadEvent(ch)
+			for {
+				select {
+				case value := <- ch:
+
+					chain.InsertChain(types.BlockIntfs{value.Block})
+				}
+			}
+		}(shardBackends[i].backend.chain)
 	}
 	go func(){
 		cases := make([]reflect.SelectCase, shards)

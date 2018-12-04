@@ -168,7 +168,7 @@ func (p *StateProcessor) ProcessMasterBlock(block types.BlockIntf, statedb *stat
 	// Iterate over and process the individual transactions
 	for _, blockInfo := range block.ShardBlocks() {
 		//从数据库中取出所有的分片信息
-		shardBlock := rawdb.ReadBlock(p.bc.db, blockInfo.Hash(),blockInfo.NumberU64())
+		shardBlock := rawdb.ReadBlock(p.bc.db, blockInfo.Hash,blockInfo.BlockNumber)
 		if shardBlock != nil {
 
 			areceipts, aallLogs, ausedGas,aerr := p.ProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg)

@@ -439,11 +439,11 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead types.HeaderIntf){
 			disTxs := []*types.Transaction{}
 			addTxs := []*types.Transaction{}
 			for _,blockInfo := range discarded {
-				block := pool.chain.GetShardBlock(blockInfo.ShardId(),blockInfo.Hash(),blockInfo.NumberU64())
+				block := pool.chain.GetShardBlock(blockInfo.ShardId,blockInfo.Hash,blockInfo.BlockNumber)
 				disTxs = append(disTxs,block.Transactions()...)
 			}
 			for _,blockInfo := range included {
-				block := pool.chain.GetShardBlock(blockInfo.ShardId(),blockInfo.Hash(),blockInfo.NumberU64())
+				block := pool.chain.GetShardBlock(blockInfo.ShardId,blockInfo.Hash,blockInfo.BlockNumber)
 				addTxs = append(addTxs,block.Transactions()...)
 			}
 
@@ -1026,13 +1026,13 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
 }
 func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
 	for _,shard := range shards {
-		shardId := shard.ShardId()
+		shardId := shard.ShardId
 		shardInfos,ok := pool.pendingShards[shardId]
 		if !ok {
 			shardInfos = make(mShardInfo)
 			pool.pendingShards[shardId] = shardInfos
 		}
-		shardInfos[shard.NumberU64()] = shard
+		shardInfos[shard.BlockNumber] = shard
 	}
 	return nil
 }

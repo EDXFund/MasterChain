@@ -41,7 +41,7 @@ func WriteShardBlockEntries(db DatabaseWriter, block types.BlockIntf) {
 			if err != nil {
 				log.Crit("Failed to encode transaction lookup entry", "err", err)
 			}
-			if err := db.Put(txLookupKey(shardBlock.Hash()), data); err != nil {
+			if err := db.Put(txLookupKey(shardBlock.Hash), data); err != nil {
 				log.Crit("Failed to store transaction lookup entry", "err", err)
 			}
 		}

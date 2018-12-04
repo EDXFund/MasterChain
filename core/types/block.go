@@ -248,15 +248,16 @@ func (b *Header) SetShardState(v []ShardState ) {
 
 
 type ShardBlockInfo struct {
-	shardId     uint16
-	blockNumber uint64
-	blockHash   common.Hash
+	ShardId     uint16
+	BlockNumber uint64
+	Hash   common.Hash
+	ParentHash  common.Hash
 
-	parentHash  common.Hash  //for easy check parents hash
-	coinbase    common.Address
-	td  uint64
+	Coinbase    common.Address
+	Td  uint64
 
 }
+/*
 type ShardBlockInfoStruct struct {
 	ShardId     uint16
 	BlockNumber uint64
@@ -284,7 +285,7 @@ func (t *ShardBlockInfo) Hash() common.Hash       { return t.blockHash }
 func (t *ShardBlockInfo) ParentHash() common.Hash { return t.parentHash }
 func (t *ShardBlockInfo) Difficulty() *big.Int    { return new(big.Int).SetUint64(t.td) }
 func (t *ShardBlockInfo) DifficultyU64() uint64   { return t.td }
-func (t *ShardBlockInfo) Coinbase() common.Address   { return t.coinbase }
+func (t *ShardBlockInfo) Coinbase() common.Address   { return t.coinbase }*/
 // Transactions is a Transaction slice type for basic sorting.
 type ShardBlockInfos []*ShardBlockInfo
 
@@ -490,7 +491,7 @@ func (b *Block) Uncles() []HeaderIntf {
 
 func (b *Block) ShardBlock(hash common.Hash) *ShardBlockInfo {
 	for _, transaction := range b.shardBlocks {
-		if transaction.Hash() == hash {
+		if transaction.Hash == hash {
 			return transaction
 		}
 	}

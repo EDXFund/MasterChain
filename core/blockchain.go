@@ -251,9 +251,9 @@ func (bc *BlockChain) SetCacheHeader(header types.HeaderIntf) {
 func (bc *BlockChain) GetMasterChain() *types.ShardBlockInfo {
 	if bc.shardId != types.ShardMaster {
 		header := bc.master_head.CurrentHeader()
-		blockInfo := types.ShardBlockInfo{}
-		blockInfo.FillBy(&types.ShardBlockInfoStruct{types.ShardMaster, header.NumberU64(), header.Hash(), header.ParentHash(), header.Coinbase(), header.Difficulty().Uint64()})
-		return &blockInfo
+
+		return &types.ShardBlockInfo{types.ShardMaster, header.NumberU64(), header.Hash(), header.ParentHash(), header.Coinbase(), header.Difficulty().Uint64()}
+
 	} else {
 		return nil
 	}
@@ -264,10 +264,8 @@ func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo {
 	if !ok {
 		block := bc.Genesis().ToSBlock()
 
-		shardInfoS := new(types.ShardBlockInfo)
-		shardInfoS.FillBy(&types.ShardBlockInfoStruct{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Coinbase(), block.Difficulty().Uint64()})
 
-		return shardInfoS
+		return &types.ShardBlockInfo{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Coinbase(), block.Difficulty().Uint64()}
 	} else {
 		return shard
 	}
@@ -1257,7 +1255,7 @@ func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int, error) 
 	whFunc := func(header types.HeaderIntf) error {
 		return nil
 	}
-	headers := make([]types.HeaderIntf, len(chain))
+	headers := make([]types.HeaderIntf,0, len(chain))
 	for _, item := range chain {
 		headers = append(headers, item.Header())
 	}
@@ -1468,6 +1466,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 	if lastCanon != nil && bc.CurrentBlock().Hash() == lastCanon.Hash() {
 		events = append(events, ChainHeadEvent{lastCanon})
 	}
+
 	return 0, events, coalescedLogs, nil
 }
 
@@ -1663,7 +1662,7 @@ func (bc *BlockChain) reorgShardInfos(newChain types.BlockIntfs, deletedShardBlo
 	// receipts that were created in the fork must also be deleted
 	batch := bc.db.NewBatch()
 	for _, tx := range diff {
-		rawdb.DeleteShardBlockEntry(batch, tx.Hash())
+		rawdb.DeleteShardBlockEntry(batch, tx.Hash)
 	}
 	batch.Write()
 }

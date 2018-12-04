@@ -107,13 +107,13 @@ func ShardBlockDifference(a, b ShardBlockInfos) ShardBlockInfos {
 	keep := make(ShardBlockInfos, 0, len(a))
 
 	remove := make(map[common.Hash]struct{})
-	for _, tx := range b {
-		remove[tx.Hash()] = struct{}{}
+	for _, shard := range b {
+		remove[shard.Hash] = struct{}{}
 	}
 
-	for _, tx := range a {
-		if _, ok := remove[tx.Hash()]; !ok {
-			keep = append(keep, tx)
+	for _, shard := range a {
+		if _, ok := remove[shard.Hash]; !ok {
+			keep = append(keep, shard)
 		}
 	}
 
@@ -258,11 +258,11 @@ func ShardInfoDifference(a, b ShardBlockInfos) ShardBlockInfos {
 
 	remove := make(map[common.Hash]struct{})
 	for _, tx := range b {
-		remove[tx.Hash()] = struct{}{}
+		remove[tx.Hash] = struct{}{}
 	}
 
 	for _, tx := range a {
-		if _, ok := remove[tx.Hash()]; !ok {
+		if _, ok := remove[tx.Hash]; !ok {
 			keep = append(keep, tx)
 		}
 	}

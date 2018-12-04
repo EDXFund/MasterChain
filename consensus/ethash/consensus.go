@@ -736,7 +736,7 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 	}
 	blkInfos := make(map[uint16]types.ShardBlockInfos)
 	for _,blk := range blks {
-		blkInfos[blk.ShardId()] = append(blkInfos[blk.ShardId()],blk)
+		blkInfos[blk.ShardId] = append(blkInfos[blk.ShardId],blk)
 	}
 	result :=make([]types.ShardState,0,shardsCount)
 	for shardId,blkArray := range blkInfos {
@@ -750,16 +750,16 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 		}
 
 		for _,oneBlock := range blkArray {
-			if oneBlock.NumberU64() > blockNo {
-				blockNo = oneBlock.NumberU64()
+			if oneBlock.BlockNumber > blockNo {
+				blockNo = oneBlock.BlockNumber
 			}
-			fmt.Println("award shard coinbase:",oneBlock.Coinbase()," number:",oneBlock.NumberU64(), rewardOfShard);
+			fmt.Println("award shard coinbase:",oneBlock.Coinbase," number:",oneBlock.BlockNumber, rewardOfShard);
 			//reward to master
 			if remains > rewardOfShard  {
 				remains -= rewardOfShard
-				state.AddBalance(oneBlock.Coinbase(), new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(rewardOfShard))))
+				state.AddBalance(oneBlock.Coinbase, new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(rewardOfShard))))
 			}else {
-				state.AddBalance(oneBlock.Coinbase(), new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(remains))))
+				state.AddBalance(oneBlock.Coinbase, new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(remains))))
 				remains = 0
 			}
 
