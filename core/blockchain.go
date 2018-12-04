@@ -1243,7 +1243,7 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 			}
 		}
 	} else {
-		return 0, ErrInvalidBlocks
+		return 0, nil
 	}
 
 }

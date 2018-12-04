@@ -753,7 +753,7 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 			if oneBlock.NumberU64() > blockNo {
 				blockNo = oneBlock.NumberU64()
 			}
-			fmt.Println("award shard coinbase:",oneBlock.Coinbase(),rewardOfShard);
+			fmt.Println("award shard coinbase:",oneBlock.Coinbase()," number:",oneBlock.NumberU64(), rewardOfShard);
 			//reward to master
 			if remains > rewardOfShard  {
 				remains -= rewardOfShard

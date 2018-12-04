@@ -206,6 +206,7 @@ type worker struct {
 	enterFuncs []E_EFuncs
 	timer      *time.Timer
 	txsCache   *lru.Cache							//cache for recent caculated txs
+	recommit   time.Duration
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(types.BlockIntf) bool, shardId uint16) *worker {
@@ -235,6 +236,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
 		state:              ST_IDLE,
 		timer:				time.NewTimer(0),
+		recommit:			10000000,
 
 	}
 	// Subscribe NewTxsEvent for tx pool
@@ -420,11 +422,14 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	w.clearPendingTask(w.chain.CurrentBlock().NumberU64())
 	w.stopEngineSeal()
 
+
 	parent := w.chain.CurrentBlock()
 	timestamp := time.Now().Unix()
+
 	if parent.Time().Cmp(new(big.Int).SetInt64(timestamp)) >= 0 {
 		timestamp = parent.Time().Int64() + 1
 	}
+
 	// this will ensure we're not going off too far in the future
 	if now := time.Now().Unix(); timestamp > now+1 {
 		wait := time.Duration(timestamp-now) * time.Second
@@ -468,6 +473,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 		log.Error("Failed to create get shards ", "err", err)
 		return nil
 	}
+
 	blocks := types.BlockIntfs{}
 	shards := make([]*types.ShardBlockInfo,0,len(shardInfo))
 	for _,pendingShard := range shardInfo {
@@ -480,6 +486,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	interrupt := int32(0)
 	w.newShards = 0
 	w.current.shards = shards
+
 	w.masterProcessShards(blocks,w.coinbase,&interrupt)
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
 	if err != nil {
@@ -491,15 +498,16 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 }
 
 func (w *worker) enterMaster() {
+
 	block := w.masterBuildEnvironment()
-	w.timer.Reset(1*time.Second)
+	w.timer.Reset(w.recommit)
 	w.startEngineSeal(block)
 
 }
 func (w *worker) enterShard() {
 	fmt.Println("build env")
 	block := w.shardBuildEnvironment()
-	w.timer.Reset(1*time.Second)
+	w.timer.Reset(w.recommit)
 	if block != nil {
 		w.startEngineSeal(block)
 	}
@@ -519,6 +527,42 @@ func (w *worker) enterState(newState uint8) {
 	}
 }
 func (w *worker) mainStateLoop() {
+	minRecommit := time.Duration(10*time.Second)
+
+	timer := time.NewTimer(0)
+	<-timer.C // discard the initial tick
+
+	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
+/*	commit := func(noempty bool, s int32) {
+		if interrupt != nil {
+			atomic.StoreInt32(interrupt, s)
+		}
+		interrupt = new(int32)
+		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp}
+		timer.Reset(recommit)
+		atomic.StoreInt32(&w.newTxs, 0)
+	}*/
+	// recalcRecommit recalculates the resubmitting interval upon feedback.
+	recalcRecommit := func(target float64, inc bool) {
+		var (
+			prev = float64(w.recommit.Nanoseconds())
+			next float64
+		)
+		if inc {
+			next = prev*(1-intervalAdjustRatio) + intervalAdjustRatio*(target+intervalAdjustBias)
+			// Recap if interval is larger than the maximum time interval
+			if next > float64(maxRecommitInterval.Nanoseconds()) {
+				next = float64(maxRecommitInterval.Nanoseconds())
+			}
+		} else {
+			next = prev*(1-intervalAdjustRatio) + intervalAdjustRatio*(target-intervalAdjustBias)
+			// Recap if interval is less than the user specified minimum
+			if next < float64(minRecommit.Nanoseconds()) {
+				next = float64(minRecommit.Nanoseconds())
+			}
+		}
+		w.recommit = time.Duration(int64(next))
+	}
 	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
 	if w.chainShardSub != nil{
@@ -556,6 +600,34 @@ func (w *worker) mainStateLoop() {
 			w.handleNewBlock(newBlock)
 		case <- w.exitCh:
 			return
+		case interval := <-w.resubmitIntervalCh:
+			// Adjust resubmit interval explicitly by user.
+			if interval < minRecommitInterval {
+				log.Warn("Sanitizing miner recommit interval", "provided", interval, "updated", minRecommitInterval)
+				interval = minRecommitInterval
+			}
+			log.Info("Miner recommit interval update", "from", minRecommit, "to", interval)
+			minRecommit, w.recommit = interval, interval
+
+			if w.resubmitHook != nil {
+				w.resubmitHook(minRecommit, w.recommit)
+			}
+
+		case adjust := <-w.resubmitAdjustCh:
+			// Adjust resubmit interval by feedback.
+			if adjust.inc {
+				before := w.recommit
+				recalcRecommit(float64(w.recommit.Nanoseconds())/adjust.ratio, true)
+				log.Trace("Increase miner recommit interval", "from", before, "to", w.recommit)
+			} else {
+				before := w.recommit
+				recalcRecommit(float64(minRecommit.Nanoseconds()), false)
+				log.Trace("Decrease miner recommit interval", "from", before, "to", w.recommit)
+			}
+
+			if w.resubmitHook != nil {
+				w.resubmitHook(minRecommit, w.recommit)
+			}
 		}
 	}
 }
@@ -827,7 +899,7 @@ func (w *worker) stopEngineSeal() {
 	}
 }
 func (w *worker) startEngineSeal(block types.BlockIntf) {
-	fmt.Println(" mine....:",len(block.Results()))
+	fmt.Println(" mine:",block.ShardId(),"\twith results:",len(block.Results()))
 	if w.newTaskHook != nil {
 		w.newTaskHook(block)
 	}
@@ -855,6 +927,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	coalescedLogs := make([]*types.Log,0,10)
 	gasUsed := uint64(0);
 	gasUsed = gasUsed + w.current.header.GasUsed()
+
 	for _, block := range blocks {
 		for _, instruction := range block.Results() {
 			if instruction.TxType == core.TT_COMMON  {
@@ -904,8 +977,10 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 			cpy[i] = new(types.Log)
 			*cpy[i] = *l
 		}
+
 		go w.mux.Post(core.PendingLogsEvent{Logs: cpy})
 	}
+
 	// Notify resubmit loop to decrease resubmitting interval if current interval is larger
 	// than the user-specified one.
 	if interrupt != nil {
