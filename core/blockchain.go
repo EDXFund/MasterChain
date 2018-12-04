@@ -244,15 +244,15 @@ func (bc *BlockChain) getShardEnabledState() [32]byte {
 func (bc *BlockChain) GetLatestShards() map[uint16]*types.ShardBlockInfo {
 	return bc.latestShards
 }
-func (bc *BlockChain) SetCacheHeader(header types.HeaderIntf){
-	 bc.hc.SetCacheHeader(header)
+func (bc *BlockChain) SetCacheHeader(header types.HeaderIntf) {
+	bc.hc.SetCacheHeader(header)
 }
 
 func (bc *BlockChain) GetMasterChain() *types.ShardBlockInfo {
 	if bc.shardId != types.ShardMaster {
 		header := bc.master_head.CurrentHeader()
 		blockInfo := types.ShardBlockInfo{}
-		blockInfo.FillBy(&types.ShardBlockInfoStruct{types.ShardMaster, header.NumberU64(), header.Hash(), header.ParentHash(), header.Coinbase(),header.Difficulty().Uint64()})
+		blockInfo.FillBy(&types.ShardBlockInfoStruct{types.ShardMaster, header.NumberU64(), header.Hash(), header.ParentHash(), header.Coinbase(), header.Difficulty().Uint64()})
 		return &blockInfo
 	} else {
 		return nil
@@ -265,7 +265,7 @@ func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo {
 		block := bc.Genesis().ToSBlock()
 
 		shardInfoS := new(types.ShardBlockInfo)
-		shardInfoS.FillBy(&types.ShardBlockInfoStruct{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Coinbase(),block.Difficulty().Uint64()})
+		shardInfoS.FillBy(&types.ShardBlockInfoStruct{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Coinbase(), block.Difficulty().Uint64()})
 
 		return shardInfoS
 	} else {

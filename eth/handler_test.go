@@ -74,7 +74,7 @@ func TestProtocolCompatibility(t *testing.T) {
 	for i, tt := range tests {
 		ProtocolVersions = []uint{tt.version}
 
-		pm, _, err := newTestProtocolManager(tt.mode, 1, nil, nil, tt.shardId)
+		pm, _, err := newTestProtocolManager(tt.mode, 0, nil, nil, tt.shardId)
 		if pm != nil {
 			defer pm.Stop()
 		}
@@ -517,8 +517,6 @@ func init() {
 	log.Root().SetHandler(glogger)
 }
 
-
-
 // Tests that the transaction receipts can be retrieved based on hashes.
 func TestGetReceipt63(t *testing.T)  { testGetReceipt(t, 63, 0) }
 func TestGetReceipt63S(t *testing.T) { testGetReceipt(t, 63, 0) }
@@ -550,12 +548,12 @@ func testGetReceipt(t *testing.T, protocol int, shardId uint16) {
 			//block.SetExtra([]byte("yeehaw"))
 		case 3:
 			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-		/*	b2 := block.PrevBlock(1).Header()
-			b2.SetExtra([]byte("foo"))
-			block.AddUncle(b2)
-			b3 := block.PrevBlock(2).Header()
-			b3.SetExtra([]byte("foo"))
-			block.AddUncle(b3)*/
+			/*	b2 := block.PrevBlock(1).Header()
+				b2.SetExtra([]byte("foo"))
+				block.AddUncle(b2)
+				b3 := block.PrevBlock(2).Header()
+				b3.SetExtra([]byte("foo"))
+				block.AddUncle(b3)*/
 
 		}
 	}
@@ -579,6 +577,7 @@ func testGetReceipt(t *testing.T, protocol int, shardId uint16) {
 	}
 }
 
+/*
 // Tests that post eth protocol handshake, DAO fork-enabled clients also execute
 // a DAO "challenge" verifying each others' DAO fork headers to ensure they're on
 // compatible chains.
@@ -664,7 +663,7 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 		}
 	}
 }
-
+*/
 func TestBroadcastBlock(t *testing.T) {
 	var tests = []struct {
 		totalPeers        int

@@ -277,8 +277,18 @@ func (p *peer) AsyncSendNewBlockHash(block types.BlockIntf) {
 // SendNewBlock propagates an entire block to a remote peer.
 func (p *peer) SendNewBlock(block types.BlockIntf, td *big.Int) error {
 	p.knownBlocks.Add(block.Hash())
+	msg := newBlockData{
+		ShardId: block.ShardId(),
+		TD:      td,
+	}
 
-	return p2p.Send(p.rw, NewBlockMsg, []interface{}{block, td})
+	if msg.ShardId == types.ShardMaster {
+		msg.Data, _ = rlp.EncodeToBytes(block.ToBlock())
+	} else {
+		msg.Data, _ = rlp.EncodeToBytes(block.ToSBlock())
+	}
+
+	return p2p.Send(p.rw, NewBlockMsg, msg)
 }
 
 // AsyncSendNewBlock queues an entire block for propagation to a remote peer. If
@@ -535,6 +545,8 @@ func (ps *peerSet) Register(p *peer) error {
 	if shardPeer, exist := ps.peers[p.shardId]; exist {
 		if _, ok := shardPeer[p.id]; ok {
 			return errAlreadyRegistered
+		} else {
+			shardPeer[p.id] = p
 		}
 	} else {
 		ps.peers[p.shardId] = make(map[string]*peer)
