@@ -152,7 +152,9 @@ func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 		scp.shardBlocks.Add(item.Hash(), item)
 		header = append(header, item.Header())
 	}
+
 	newHeaders := qchain.AddNewHeads(header)
+	log.Debug(" Add Headers:","header count:",len(header),"confirmed:", len(newHeaders))
 	if len(newHeaders) > 0 {
 		newBlocks := types.BlockIntfs{}
 		for _, val := range newHeaders {

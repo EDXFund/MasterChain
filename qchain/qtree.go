@@ -21,6 +21,7 @@ import (
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/types"
+	"github.com/EDXFund/MasterChain/log"
 	"sync"
 
 )
@@ -327,6 +328,11 @@ func (t* HeaderTreeManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
 //add new BLock to tree, if more than 6 blocks has reached, a new block will popup to shard_pool
 //if the node can not be add to  any existing tree, a new tree will be established
 func (t *HeaderTreeManager)AddNewHeads(nodes []types.HeaderIntf)  []types.HeaderIntf {
+	info := make([]uint64,0,len(nodes))
+	for _,val := range nodes {
+		info = append(info,val.NumberU64())
+	}
+	log.Trace("Add New Headers","count:",len(nodes),"value:",info)
 	for _,val := range nodes {
 		t.AddNewHead(val)
 	}
@@ -427,6 +433,16 @@ func (t *HeaderTreeManager)ReduceTo(node types.HeaderIntf) error{
 
 
 func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderIntf{
+	type Info struct {
+		number uint64
+		hash common.Hash
+	}
+	infos := make([]uint64,0,len(t.confirmed))
+	for index,_ := range t.confirmed {
+		infos = append(infos,index)
+	}
+	log.Trace(" current confirmed:","count:",len(t.confirmed),"value:",infos, " to delete of no:",head.NumberU64()," hash:",head.Hash())
+
 	if t.rootHash  == head.Hash() {
 		return nil
 	}
@@ -435,12 +451,18 @@ func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderI
 		 t.ReduceTo(head)
 	}else {
 		for key,item := range t.confirmed {
-			if item.Number().Cmp(val.Number()) <= 0 {
+			if item.Number().Cmp(val.Number()) < 0 {
 				delete(t.confirmed,key)
 			}
 		}
 
 	}
+	uinfos := make([]uint64,0,len(t.confirmed))
+	for index,_ := range t.confirmed {
+		uinfos = append(uinfos,index)
+	}
+	log.Trace(" current confirmed:","count:",len(t.confirmed),"value:",uinfos, " to delete of no:",head.NumberU64()," hash:",head.Hash())
+
 
 
 	//发送事件
