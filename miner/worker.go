@@ -478,13 +478,15 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	shards := make([]*types.ShardBlockInfo,0,len(shardInfo))
 	for _,pendingShard := range shardInfo {
 		for _, shard := range pendingShard{
-			shards = append(shards,&shard)
+			newShard := shard
+			shards = append(shards,&newShard)
 			blocks = append(blocks,rawdb.ReadBlock(w.eth.ChainDb(),shard.Hash,shard.BlockNumber))
 		}
 
 	}
 	interrupt := int32(0)
 	w.newShards = 0
+	log.Trace("Shards:","count:",len(shards))
 	w.current.shards = shards
 
 	w.masterProcessShards(blocks,w.coinbase,&interrupt)
