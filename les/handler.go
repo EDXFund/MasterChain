@@ -92,7 +92,7 @@ type txPool interface {
 
 type ProtocolManager struct {
 	lightSync   bool
-	txpool      txPool
+	txpool      core.TxPoolIntf
 	txrelay     *LesTxRelay
 	networkId   uint64
 	chainConfig *params.ChainConfig
@@ -126,7 +126,7 @@ type ProtocolManager struct {
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
-func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, lightSync bool, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool txPool, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup) (*ProtocolManager, error) {
+func NewProtocolManager(chainConfig *params.ChainConfig, indexerConfig *light.IndexerConfig, lightSync bool, networkId uint64, mux *event.TypeMux, engine consensus.Engine, peers *peerSet, blockchain BlockChain, txpool core.TxPoolIntf, chainDb ethdb.Database, odr *LesOdr, txrelay *LesTxRelay, serverPool *serverPool, quitSync chan struct{}, wg *sync.WaitGroup) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		lightSync:   lightSync,
@@ -1169,18 +1169,18 @@ func (pm *ProtocolManager) getHelperTrieAuxData(req HelperTrieReq, shardId uint1
 
 func (pm *ProtocolManager) txStatus(hashes []common.Hash) []txStatus {
 	stats := make([]txStatus, len(hashes))
-	for i, stat := range pm.txpool.Status(hashes) {
-		// Save the status we've got from the transaction pool
-		stats[i].Status = stat
-
-		// If the transaction is unknown to the pool, try looking it up locally
-		if stat == core.TxStatusUnknown {
-			if shardId, block, number, index := rawdb.ReadTxLookupEntry(pm.chainDb, hashes[i]); block != (common.Hash{}) {
-				stats[i].Status = core.TxStatusIncluded
-				stats[i].Lookup = &rawdb.TxLookupEntry{ShardId: shardId, BlockHash: block, BlockIndex: number, Index: index}
-			}
-		}
-	}
+	//for i, stat := range pm.txpool.Status(hashes) {
+	//	// Save the status we've got from the transaction pool
+	//	stats[i].Status = stat
+	//
+	//	// If the transaction is unknown to the pool, try looking it up locally
+	//	if stat == core.TxStatusUnknown {
+	//		if shardId, block, number, index := rawdb.ReadTxLookupEntry(pm.chainDb, hashes[i]); block != (common.Hash{}) {
+	//			stats[i].Status = core.TxStatusIncluded
+	//			stats[i].Lookup = &rawdb.TxLookupEntry{ShardId: shardId, BlockHash: block, BlockIndex: number, Index: index}
+	//		}
+	//	}
+	//}
 	return stats
 }
 

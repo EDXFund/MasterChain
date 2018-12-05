@@ -7,6 +7,7 @@ import (
 	"github.com/EDXFund/MasterChain/cmd/utils"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/hexutil"
+	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/crypto"
@@ -14,7 +15,6 @@ import (
 	"github.com/EDXFund/MasterChain/ethclient"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
-	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"io"
@@ -62,13 +62,17 @@ func main() {
 
 	var stacks [2]*node.Node
 	add, _ := hexutil.Decode("0xEa3a1E0735507dBd305555A48411457D03AD4e88")
-	genesis := core.DeveloperGenesisBlock(15, common.BytesToAddress(add))
+	addr := common.BytesToAddress(add)
+	genesis := core.DeveloperGenesisBlock(0, addr)
+	genesis.Config.Clique = nil
 
 	for i, cfg := range cfgs {
 
 		add := i + 1
+		cfg.Eth.Ethash.PowMode = ethash.ModeTest
 		cfg.Eth.NetworkId = genesis.Config.ChainID.Uint64()
 		cfg.Eth.Genesis = genesis
+		//cfg.Eth.Etherbase = addr
 		cfg.Eth.Ethash.CacheDir = "ethash" + strconv.Itoa(add)
 		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(add)
 		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(add)
@@ -80,17 +84,21 @@ func main() {
 	for i, cfg := range cfgs {
 
 		if i == 1 {
-			cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
-			server := stacks[0].Server()
-			publicKey := server.PrivateKey.Public()
-			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
-			//bootString := stacks[0].Server().NodeInfo().Enode
-			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@127.0.0.1" + cfgs[0].Node.P2P.ListenAddr
-			node, err := enode.ParseV4(bootString)
-			if err == nil {
-				cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
-			}
 
+			cfg.Eth.ShardId = 0
+			//cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
+			//server := stacks[0].Server()
+			//publicKey := server.PrivateKey.Public()
+			//publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+			////bootString := stacks[0].Server().NodeInfo().Enode
+			//bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@127.0.0.1" + cfgs[0].Node.P2P.ListenAddr
+			//node, err := enode.ParseV4(bootString)
+			//if err == nil {
+			//	cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
+			//}
+
+		} else {
+			continue
 		}
 
 		stack, err := node.New(&cfg.Node)
@@ -118,16 +126,16 @@ func main() {
 			log.Crit("Ethereum service not running: %v", err)
 		}
 		// Set the gas price to the limits from the CLI and start mining
-	/*	gasprice := utils.GlobalBig(ctx, utils.MinerLegacyGasPriceFlag.Name)
-		if ctx.IsSet(utils.MinerGasPriceFlag.Name) {
-			gasprice = utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
-		}
-		ethereum.TxPool().SetGasPrice(gasprice)
+		/*	gasprice := utils.GlobalBig(ctx, utils.MinerLegacyGasPriceFlag.Name)
+			if ctx.IsSet(utils.MinerGasPriceFlag.Name) {
+				gasprice = utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
+			}
+			ethereum.TxPool().SetGasPrice(gasprice)
 
-		threads := ctx.GlobalInt(utils.MinerLegacyThreadsFlag.Name)
-		if ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
-			threads = ctx.GlobalInt(utils.MinerThreadsFlag.Name)
-		}*/
+			threads := ctx.GlobalInt(utils.MinerLegacyThreadsFlag.Name)
+			if ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
+				threads = ctx.GlobalInt(utils.MinerThreadsFlag.Name)
+			}*/
 		if err := ethereum.StartMining(1); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
@@ -141,16 +149,16 @@ func main() {
 
 	time.Sleep(time.Second * 10)
 
-	rpcClient, err := stacks[0].Attach()
-	if err != nil {
-		log.Error("rpcClient error")
-	}
+	//rpcClient, err := stacks[0].Attach()
+	//if err != nil {
+	//	log.Error("rpcClient error")
+	//}
 
-	client := ethclient.NewClient(rpcClient)
+	//client := ethclient.NewClient(rpcClient)
 
-	sendTx(client)
+	//sendTx(client)
 
-	stacks[0].Wait()
+	stacks[1].Wait()
 
 }
 

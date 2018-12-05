@@ -174,9 +174,8 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		if shardId == types.ShardMaster {
 			return blockchain.CurrentBlock().NumberU64()
 		} else {
-			return blockchain.GetLatestShard(shardId).DifficultyU64()
+			return blockchain.GetLatestShard(shardId).Td
 		}
-
 	}
 	inserter := func(blocks types.BlockIntfs) (int, error) {
 		// If fast sync is running, deny importing weird blocks

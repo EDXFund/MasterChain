@@ -53,7 +53,7 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block types.BlockIntf, r
 	if ethash.config.PowMode == ModeFake || ethash.config.PowMode == ModeFullFake {
 		header := block.Header()
 		header.SetNonce(types.BlockNonce{})
-		header.SetMixDigest ( common.Hash{})
+		header.SetMixDigest(common.Hash{})
 
 		select {
 		case results <- block.WithSeal(header):
@@ -135,7 +135,7 @@ func (ethash *Ethash) mine(block types.BlockIntf, id int, seed uint64, abort cha
 	// Extract some data from the header
 	var (
 		header  = block.Header()
-		hash    = ethash.SealHash(header.ToHeader()).Bytes()
+		hash    = ethash.SealHash(header).Bytes()
 		target  = new(big.Int).Div(two256, header.Difficulty())
 		number  = header.NumberU64()
 		dataset = ethash.dataset(number, false)
@@ -168,8 +168,8 @@ search:
 			if new(big.Int).SetBytes(result).Cmp(target) <= 0 {
 				// Correct nonce found, create a new header with it
 				header = types.CopyHeader(header.ToHeader())
-				header.SetNonce (types.EncodeNonce(nonce))
-				header.SetMixDigest (common.BytesToHash(digest))
+				header.SetNonce(types.EncodeNonce(nonce))
+				header.SetMixDigest(common.BytesToHash(digest))
 
 				// Seal and return a block (if still needed)
 				select {
@@ -238,7 +238,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 	//   result[1], 32 bytes hex encoded seed hash used for DAG
 	//   result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
 	makeWork := func(block types.BlockIntf) {
-		hash := ethash.SealHash(block.Header().ToHeader())
+		hash := ethash.SealHash(block.Header())
 
 		currentWork[0] = hash.Hex()
 		currentWork[1] = common.BytesToHash(SeedHash(block.NumberU64())).Hex()
@@ -252,20 +252,20 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 	// whether the solution was accepted or not (not can be both a bad pow as well as
 	// any other error, like no pending work or stale mining result).
 	submitWork := func(nonce types.BlockNonce, mixDigest common.Hash, sealhash common.Hash) bool {
-		if currentBlock == nil  || reflect.ValueOf(currentBlock).IsNil()  {
+		if currentBlock == nil || reflect.ValueOf(currentBlock).IsNil() {
 			log.Error("Pending work without block", "sealhash", sealhash)
 			return false
 		}
 		// Make sure the work submitted is present
 		block := works[sealhash]
-		if block == nil  || reflect.ValueOf(block).IsNil()  {
+		if block == nil || reflect.ValueOf(block).IsNil() {
 			log.Warn("Work submitted but none pending", "sealhash", sealhash, "curnumber", currentBlock.NumberU64())
 			return false
 		}
 		// Verify the correctness of submitted result.
 		header := block.Header()
-		header.SetNonce  (nonce)
-		header.SetMixDigest (mixDigest)
+		header.SetNonce(nonce)
+		header.SetMixDigest(mixDigest)
 
 		start := time.Now()
 		if !noverify {
@@ -275,7 +275,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 			}
 		}
 		// Make sure the result channel is assigned.
-		if results == nil  || reflect.ValueOf(results).IsNil()  {
+		if results == nil || reflect.ValueOf(results).IsNil() {
 			log.Warn("Ethash result channel is empty, submitted mining result is rejected")
 			return false
 		}
@@ -317,7 +317,7 @@ func (ethash *Ethash) remote(notify []string, noverify bool) {
 
 		case work := <-ethash.fetchWorkCh:
 			// Return current mining work to remote miner.
-			if currentBlock == nil  || reflect.ValueOf(currentBlock).IsNil()  {
+			if currentBlock == nil || reflect.ValueOf(currentBlock).IsNil() {
 				work.errc <- errNoMiningWork
 			} else {
 				work.res <- currentWork

@@ -442,9 +442,9 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 	if shardId == types.ShardMaster {
 		for _, shard := range rawdb.ReadLastShardInfo(blockChain.DB()) {
 			sInfo = append(sInfo, &types.SInfo{
-				ShardId:  shard.ShardId(),
-				Td:       shard.Difficulty(),
-				HeadHash: shard.Hash(),
+				ShardId:  shard.ShardId,
+				Td:       new(big.Int).SetUint64(shard.Td),
+				HeadHash: shard.Hash,
 			})
 		}
 	}
