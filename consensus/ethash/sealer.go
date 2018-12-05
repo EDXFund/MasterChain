@@ -169,7 +169,7 @@ search:
 				// Correct nonce found, create a new header with it
 				if header.ShardId() == types.ShardMaster {
 					header = types.CopyHeader(header.ToHeader())
-				}else {
+				} else {
 					header = types.CopySHeader(header.ToSHeader())
 				}
 
@@ -178,7 +178,7 @@ search:
 
 				// Seal and return a block (if still needed)
 				select {
-				case found <- block.WithSeal(header).ToBlock():
+				case found <- block.WithSeal(header):
 					logger.Trace("Ethash nonce found and reported", "attempts", nonce-seed, "nonce", nonce)
 				case <-abort:
 					logger.Trace("Ethash nonce found but discarded", "attempts", nonce-seed, "nonce", nonce)
