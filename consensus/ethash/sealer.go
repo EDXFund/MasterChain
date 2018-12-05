@@ -167,7 +167,12 @@ search:
 			digest, result := hashimotoFull(dataset.dataset, hash, nonce)
 			if new(big.Int).SetBytes(result).Cmp(target) <= 0 {
 				// Correct nonce found, create a new header with it
-				header = types.CopyHeader(header.ToHeader())
+				if header.ShardId() == types.ShardMaster {
+					header = types.CopyHeader(header.ToHeader())
+				}else {
+					header = types.CopySHeader(header.ToSHeader())
+				}
+
 				header.SetNonce(types.EncodeNonce(nonce))
 				header.SetMixDigest(common.BytesToHash(digest))
 
