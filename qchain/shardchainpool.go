@@ -175,7 +175,9 @@ func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 	defer scp.mu.Unlock()
 	results := make(map[uint16]PendingShard)
 	for shardId, shards := range scp.shards {
+
 		pendings := shards.Pending()
+		log.Trace(" Shards Pending:","shardId:",shardId," len:",len(pendings))
 		if len(pendings) > 0 {
 			results[shardId] = make(PendingShard)
 			for _, head := range pendings {
@@ -184,6 +186,7 @@ func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 			}
 		}
 	}
+	log.Trace("Pending:"," len:",len(results))
 	return results, nil
 }
 

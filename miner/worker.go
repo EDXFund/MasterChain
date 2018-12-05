@@ -474,6 +474,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 		return nil
 	}
 
+	log.Trace("Shards Before:","count:",len(shardInfo))
 	blocks := types.BlockIntfs{}
 	shards := make([]*types.ShardBlockInfo,0,len(shardInfo))
 	for _,pendingShard := range shardInfo {
@@ -680,6 +681,7 @@ func(w *worker) handleNewHead(block types.BlockIntf){
 }
 
 func (w *worker)handleShardChain(blocks types.BlockIntfs){
+	w.mux.Post(core.NewMinedBlockEvent{Block: blocks[0]})
 	switch w.state {
 	case ST_IDLE:
 		if w.shardId== types.ShardMaster {
@@ -713,6 +715,7 @@ func (w *worker)handleNewTxs(txs types.Transactions){
 }
 func (w *worker)handleNewBlock(block types.BlockIntf){
 	w.chain.InsertChain(types.BlockIntfs{block})
+	w.mux.Post(core.NewMinedBlockEvent{Block: block})
 	w.enterState(ST_RESETING)
 }
 
