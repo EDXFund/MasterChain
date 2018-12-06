@@ -78,8 +78,7 @@ type peerConnection struct {
 
 // LightPeer encapsulates the methods required to synchronise with a remote light peer.
 type LightPeer interface {
-	Head() (common.Hash, *big.Int)
-	SHead(shardId uint16) (common.Hash, *big.Int)
+	Head(uint16) (common.Hash, *big.Int)
 	RequestHeadersByHash(common.Hash, int, int, bool) error
 	RequestHeadersByNumber(uint64, int, int, bool, uint16) error
 }
@@ -97,8 +96,8 @@ type lightPeerWrapper struct {
 	peer LightPeer
 }
 
-func (w *lightPeerWrapper) Head() (common.Hash, *big.Int)                { return w.peer.Head() }
-func (w *lightPeerWrapper) SHead(shardId uint16) (common.Hash, *big.Int) { return w.peer.SHead(shardId) }
+func (w *lightPeerWrapper) Head(shardId uint16) (common.Hash, *big.Int) { return w.peer.Head(shardId) }
+
 func (w *lightPeerWrapper) RequestHeadersByHash(h common.Hash, amount int, skip int, reverse bool) error {
 	return w.peer.RequestHeadersByHash(h, amount, skip, reverse)
 }

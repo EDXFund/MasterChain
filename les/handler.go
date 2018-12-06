@@ -1192,11 +1192,7 @@ type peerConnection struct {
 	peer    *peer
 }
 
-func (pc *peerConnection) Head() (common.Hash, *big.Int) {
-	return pc.peer.HeadAndTd()
-}
-
-func (pc *peerConnection) SHead(shardId uint16) (common.Hash, *big.Int) {
+func (pc *peerConnection) Head(shardId uint16) (common.Hash, *big.Int) {
 	return pc.peer.HeadAndTd()
 }
 

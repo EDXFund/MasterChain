@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/EDXFund/MasterChain/core/rawdb"
+	"github.com/EDXFund/MasterChain/qchain"
 	"math"
 	"math/big"
 	"reflect"
@@ -76,6 +77,7 @@ type ProtocolManager struct {
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
 	txpool      txPool
+	shardpool   *qchain.ShardChainPool
 	blockchain  *core.BlockChain
 	chainconfig *params.ChainConfig
 	maxPeers    int
@@ -104,12 +106,13 @@ type ProtocolManager struct {
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
-func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*ProtocolManager, error) {
+func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, shardpool *qchain.ShardChainPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
 		eventMux:    mux,
 		txpool:      txpool,
+		shardpool:   shardpool,
 		blockchain:  blockchain,
 		chainconfig: config,
 		peers:       newPeerSet(),
@@ -171,11 +174,16 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		return engine.VerifyHeader(blockchain, header, true)
 	}
 	heighter := func(shardId uint16) uint64 {
-		if shardId == types.ShardMaster {
-			return blockchain.CurrentBlock().NumberU64()
+		if blockchain.ShardId() == types.ShardMaster {
+			if shardId == types.ShardMaster {
+				return blockchain.CurrentBlock().NumberU64()
+			} else {
+				return shardpool.GetMaxTds()[shardId].BlockNumber
+			}
 		} else {
-			return blockchain.GetLatestShard(shardId).Td
+			return blockchain.CurrentBlock().NumberU64()
 		}
+
 	}
 	inserter := func(blocks types.BlockIntfs) (int, error) {
 		// If fast sync is running, deny importing weird blocks
@@ -266,13 +274,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
 
 	// Execute the Ethereum handshake
-	var (
-		head   = pm.blockchain.CurrentHeader()
-		hash   = head.Hash()
-		number = head.NumberU64()
-		td     = pm.blockchain.GetTd(hash, number)
-	)
-	if err := p.Handshake(pm.networkID, td, hash, pm.blockchain); err != nil {
+
+	if err := p.Handshake(pm.networkID, pm.blockchain, pm.shardpool); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		return err
 	}
@@ -490,25 +493,25 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
-		if len(headers) == 0 && p.forkDrop != nil {
-			// Possibly an empty reply to the fork header checks, sanity check TDs
-			verifyDAO := true
-
-			// If we already have a DAO header, we can check the peer's TD against it. If
-			// the peer's ahead of this, it too must have a reply to the DAO check
-			if daoHeader := pm.blockchain.GetHeaderByNumber(pm.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
-				if _, td := p.Head(); td.Cmp(pm.blockchain.GetTd(daoHeader.Hash(), daoHeader.NumberU64())) >= 0 {
-					verifyDAO = false
-				}
-			}
-			// If we're seemingly on the same chain, disable the drop timer
-			if verifyDAO {
-				p.Log().Debug("Seems to be on the same side of the DAO fork")
-				p.forkDrop.Stop()
-				p.forkDrop = nil
-				return nil
-			}
-		}
+		//if len(headers) == 0 && p.forkDrop != nil {
+		//	// Possibly an empty reply to the fork header checks, sanity check TDs
+		//	verifyDAO := true
+		//
+		//	// If we already have a DAO header, we can check the peer's TD against it. If
+		//	// the peer's ahead of this, it too must have a reply to the DAO check
+		//	if daoHeader := pm.blockchain.GetHeaderByNumber(pm.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
+		//		if _, td := p.Head(); td.Cmp(pm.blockchain.GetTd(daoHeader.Hash(), daoHeader.NumberU64())) >= 0 {
+		//			verifyDAO = false
+		//		}
+		//	}
+		//	// If we're seemingly on the same chain, disable the drop timer
+		//	if verifyDAO {
+		//		p.Log().Debug("Seems to be on the same side of the DAO fork")
+		//		p.forkDrop.Stop()
+		//		p.forkDrop = nil
+		//		return nil
+		//	}
+		//}
 		// Filter out any explicitly requested headers, deliver the rest to the downloader
 		filter := len(headers) == 1
 		if filter {
@@ -752,6 +755,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+
+		if p.shardId != types.ShardMaster && p.shardId != request.ShardId {
+			return errResp(ErrDecode, "%v: %v", msg, fmt.Errorf("error shardId data"))
+		}
+
+		dataInchain, err := pm.defineShardId(request.ShardId)
+
+		if err != nil {
+			return errResp(ErrDecode, "%v: %v", request, err)
+		}
+
 		block, err := ExtractBlockIntf(request)
 		if err != nil {
 			return errResp(ErrDecode, "%v: %v", request, err)
@@ -770,15 +784,23 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			trueHead = block.ParentHash()
 			trueTD   = new(big.Int).Sub(request.TD, block.Difficulty())
 		)
+
 		// Update the peers total difficulty if better than the previous
-		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
-			p.SetHead(trueHead, trueTD)
+		if _, td := p.Head(request.ShardId); trueTD.Cmp(td) > 0 {
+			p.SetHead(trueHead, trueTD, request.ShardId)
 
 			// Schedule a sync if above ours. Note, this will not fire a sync for a gap of
 			// a singe block (as the true TD is below the propagated block), however this
 			// scenario should easily be covered by the fetcher.
-			currentBlock := pm.blockchain.CurrentBlock()
-			if trueTD.Cmp(pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
+			var blockTd *big.Int
+			if dataInchain {
+				currentBlock := pm.blockchain.CurrentBlock()
+				blockTd = pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
+			} else {
+				blockTd = new(big.Int).SetUint64(pm.shardpool.GetMaxTds()[request.ShardId].Td)
+			}
+
+			if trueTD.Cmp(blockTd) > 0 {
 				go pm.synchronise(p)
 			}
 		}
@@ -818,7 +840,7 @@ func (pm *ProtocolManager) defineShardId(shardId uint16) (bool, error) {
 		}
 	} else {
 		if shardId != selfShardId {
-			return dataInChain, fmt.Errorf("no shardId data")
+			return dataInChain, fmt.Errorf("error shardId data")
 		}
 	}
 	return dataInChain, nil

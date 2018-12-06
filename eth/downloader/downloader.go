@@ -559,12 +559,7 @@ func (d *Downloader) fetchHeight(p *peerConnection, shardId uint16) (types.Heade
 	log.Debug("Retrieving remote chain height")
 
 	// Request the advertised remote head block and wait for the response
-	var head common.Hash
-	if shardId == types.ShardMaster {
-		head, _ = p.peer.Head()
-	} else {
-		head, _ = p.peer.SHead(shardId)
-	}
+	head, _ := p.peer.Head(shardId)
 
 	go p.peer.RequestHeadersByHash(head, 1, 0, false)
 

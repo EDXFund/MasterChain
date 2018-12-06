@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/EDXFund/MasterChain/core"
-	"github.com/EDXFund/MasterChain/core/rawdb"
+	"github.com/EDXFund/MasterChain/qchain"
 	"github.com/EDXFund/MasterChain/rlp"
 	"math/big"
 	"sync"
@@ -154,7 +154,7 @@ func (p *peer) close() {
 
 // Info gathers and returns a collection of metadata known about a peer.
 func (p *peer) Info() *PeerInfo {
-	hash, td := p.Head()
+	hash, td := p.Head(p.shardId)
 
 	return &PeerInfo{
 		ShardId:    p.shardId,
@@ -166,36 +166,50 @@ func (p *peer) Info() *PeerInfo {
 
 // Head retrieves a copy of the current head hash and total difficulty of the
 // peer.
-func (p *peer) Head() (hash common.Hash, td *big.Int) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
-
-	copy(hash[:], p.head[:])
-	return hash, new(big.Int).Set(p.td)
-}
+//func (p *peer) Head() (hash common.Hash, td *big.Int) {
+//	p.lock.RLock()
+//	defer p.lock.RUnlock()
+//
+//	copy(hash[:], p.head[:])
+//	return hash, new(big.Int).Set(p.td)
+//}
 
 // Head retrieves a copy of the current shard head hash and total difficulty of the
 // peer.
-func (p *peer) SHead(shardId uint16) (hash common.Hash, td *big.Int) {
+func (p *peer) Head(shardId uint16) (hash common.Hash, td *big.Int) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
 	for _, shard := range p.shardInfo {
 		if shard.ShardId == shardId {
-			return shard.HeadHash, shard.Td
+			copy(hash[:], shard.HeadHash[:])
+			return hash, new(big.Int).Set(shard.Td)
 		}
 	}
 	return common.Hash{}, nil
 
 }
 
-// SetHead updates the head hash and total difficulty of the peer.
-func (p *peer) SetHead(hash common.Hash, td *big.Int) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+//// SetHead updates the head hash and total difficulty of the peer.
+//func (p *peer) SetHead(hash common.Hash, td *big.Int) {
+//	p.lock.Lock()
+//	defer p.lock.Unlock()
+//
+//	copy(p.head[:], hash[:])
+//	p.td.Set(td)
+//	//p.shardId = shardId
+//}
 
-	copy(p.head[:], hash[:])
-	p.td.Set(td)
+func (p *peer) SetHead(hash common.Hash, td *big.Int, shardId uint16) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	for _, shard := range p.shardInfo {
+		if shard.ShardId == shardId {
+			shard.HeadHash = hash
+			shard.Td = td
+		}
+	}
 	//p.shardId = shardId
 }
 
@@ -429,20 +443,34 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 
 // Handshake executes the eth protocol handshake, negotiating version number,
 // network IDs, difficulties, head and genesis blocks.
-func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockChain *core.BlockChain) error {
+func (p *peer) Handshake(network uint64, blockChain *core.BlockChain, shardPool *qchain.ShardChainPool) error {
 	// Send out own handshake in a new thread
 	errc := make(chan error, 2)
+
+	var (
+		head   = blockChain.CurrentHeader()
+		hash   = head.Hash()
+		number = head.NumberU64()
+		td     = blockChain.GetTd(hash, number)
+	)
+
 	var status statusData // safe to read after two values have been received from errc
 	genesis := blockChain.Genesis()
 	shardId := genesis.ShardId()
 	genesisBlock := blockChain.GenesisHashOf(shardId)
 
-	sInfo := []*types.SInfo{}
+	sInfo := []*types.SInfo{
+		{
+			ShardId:  shardId,
+			Td:       td,
+			HeadHash: hash,
+		},
+	}
 
 	if shardId == types.ShardMaster {
-		for _, shard := range rawdb.ReadLastShardInfo(blockChain.DB()) {
+		for shardId, shard := range shardPool.GetMaxTds() {
 			sInfo = append(sInfo, &types.SInfo{
-				ShardId:  shard.ShardId,
+				ShardId:  shardId,
 				Td:       new(big.Int).SetUint64(shard.Td),
 				HeadHash: shard.Hash,
 			})
@@ -454,8 +482,6 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 			ProtocolVersion: uint32(p.version),
 			NetworkId:       network,
 			ShardId:         shardId,
-			TD:              td,
-			CurrentBlock:    head,
 			GenesisBlock:    genesisBlock,
 			ShardInfo:       sInfo,
 		})
@@ -475,7 +501,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, blockCha
 			return p2p.DiscReadTimeout
 		}
 	}
-	p.td, p.head, p.shardInfo = status.TD, status.CurrentBlock, status.ShardInfo
+	p.shardInfo, p.shardId = status.ShardInfo, status.ShardId
 	return nil
 }
 
@@ -682,7 +708,7 @@ func (ps *peerSet) BestPeer() *peer {
 	)
 	if peers, ok := ps.peers[common.ShardMaster]; ok {
 		for _, p := range peers {
-			if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
+			if _, td := p.Head(common.ShardMaster); bestPeer == nil || td.Cmp(bestTd) > 0 {
 				bestPeer, bestTd = p, td
 			}
 		}
@@ -705,7 +731,7 @@ func (ps *peerSet) BestPeerOfShard(shardId uint16) *peer {
 	)
 	if shardPeers, ok := ps.peers[shardId]; ok {
 		for _, p := range shardPeers {
-			if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
+			if _, td := p.Head(shardId); bestPeer == nil || td.Cmp(bestTd) > 0 {
 				bestPeer, bestTd = p, td
 			}
 		}

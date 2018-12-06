@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"math/big"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -175,7 +176,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 			currentBlock := pm.blockchain.CurrentBlock()
 			td := pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
 
-			pHead, pTd := peer.Head()
+			pHead, pTd := peer.Head(peer.shardId)
 			if pTd.Cmp(td) > 0 {
 				shards = append(shards, &types.SInfo{
 					ShardId:  0xffff,
@@ -187,7 +188,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 			for id, sh := range pm.blockchain.GetLatestShards() {
 
 				td := pm.blockchain.GetTd(sh.Hash, sh.BlockNumber)
-				pHead, pTd := peer.SHead(id)
+				pHead, pTd := peer.Head(id)
 
 				if pTd.Cmp(td) > 0 {
 					shards = append(shards, &types.SInfo{
@@ -199,10 +200,9 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 			}
 		} else {
 
-			currentBlock := pm.blockchain.GetLatestShard(peer.shardId)
-			td := pm.blockchain.GetTd(currentBlock.Hash, currentBlock.BlockNumber)
+			td := new(big.Int).SetUint64(pm.shardpool.GetMaxTds()[peer.shardId].Td)
 
-			pHead, pTd := peer.Head()
+			pHead, pTd := peer.Head(peer.shardId)
 			if pTd.Cmp(td) > 0 {
 				shards = append(shards, &types.SInfo{
 					ShardId:  peer.shardId,
