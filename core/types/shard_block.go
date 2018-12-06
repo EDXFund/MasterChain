@@ -214,7 +214,7 @@ func (b *SHeader) SetExtra(v []byte) {
 }
 func (b *SHeader) SetTime(v *big.Int)           { b.time = v; b.setHashDirty(true) }
 func (b *SHeader) SetCoinbase(v common.Address) { b.coinbase = v; b.setHashDirty(true) }
-func (b *SHeader) SetRoot(v common.Hash)        { /*b.root = v; b.setHashDirty(true) */}
+func (b *SHeader) SetRoot(v common.Hash)        { /*b.root = v; b.setHashDirty(true) */ }
 func (b *SHeader) SetBloom(v Bloom)             { b.bloom = v; b.setHashDirty(true) }
 func (b *SHeader) SetDifficulty(v *big.Int) {
 	b.difficulty = new(big.Int).SetUint64(v.Uint64())
@@ -237,7 +237,7 @@ type SBody struct {
 type SBlock struct {
 	header *SHeader
 
-	transactions 	     Transactions
+	transactions Transactions
 	results      ContractResults
 
 	// caches
@@ -301,7 +301,7 @@ type StorageSBlock SBlock
 
 // "external" block encoding. used for eth protocol, etc.
 type sextblock struct {
-	Header   *SHeader
+	Header   *SHeaderStruct
 	Txs      []*Transaction
 	Receipts []*ContractResult
 }
@@ -322,8 +322,8 @@ type sstorageblock struct {
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs, uncles
 // and receipts.
-func NewSBlock(header HeaderIntf,  results []*ContractResult) BlockIntf {
-	b := &SBlock{header: CopySHeader(header.ToSHeader()), td: new(big.Int),results:make(ContractResults,len(results))}
+func NewSBlock(header HeaderIntf, results []*ContractResult) BlockIntf {
+	b := &SBlock{header: CopySHeader(header.ToSHeader()), td: new(big.Int), results: make(ContractResults, len(results))}
 
 	// TODO: panic if len(txs) != len(receipts)
 	b.header.txHash = EmptyRootHash
@@ -373,7 +373,9 @@ func (b *SBlock) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.results = eb.Header, eb.Txs, eb.Receipts
+	b.header = new(SHeader)
+	b.header.FillBy(eb.Header)
+	b.transactions, b.results = eb.Txs, eb.Receipts
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -381,7 +383,7 @@ func (b *SBlock) DecodeRLP(s *rlp.Stream) error {
 // EncodeRLP serializes b into the Ethereum RLP block format.
 func (b *SBlock) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, sextblock{
-		Header:   b.header,
+		Header:   b.header.ToStruct(),
 		Txs:      b.transactions,
 		Receipts: b.results,
 	})

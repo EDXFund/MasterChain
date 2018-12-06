@@ -32,57 +32,59 @@ import (
 	//"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/rlp"
 )
+
 type ShardState struct {
-	ShardId  	 uint16
-	BlockNumber  uint64
+	ShardId       uint16
+	BlockNumber   uint64
 	RewardRemains uint32
 }
+
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go1
 
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
-	parentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
-	uncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
-	coinbase       common.Address `json:"miner"            gencodec:"required"`
-	shardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
-	shardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
-	root           common.Hash    `json:"stateRoot"        gencodec:"required"`
-	shardTxsHash   common.Hash    `json:"transactionsRoot" gencodec:"required"`
-	receiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
-	bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
-	bloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
-	difficulty     *big.Int       `json:"difficulty"       gencodec:"required"`
-	number         *big.Int       `json:"number"           gencodec:"required"`
-	gasLimit       uint64         `json:"gasLimit"         gencodec:"required"`
-	gasUsed        uint64         `json:"gasUsed"          gencodec:"required"`
-	time           *big.Int       `json:"timestamp"        gencodec:"required"`
-	extra          []byte         `json:"extraData"        gencodec:"required"`
-	shardState  	[]ShardState    	  `json:"rewardRemains"        gencodec:"required"`
-	mixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
-	nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
-	dirty          bool
+	parentHash   common.Hash    `json:"parentHash"       gencodec:"required"`
+	uncleHash    common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+	coinbase     common.Address `json:"miner"            gencodec:"required"`
+	shardMaskEp  uint16         `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
+	shardEnabled [32]byte       `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
+	root         common.Hash    `json:"stateRoot"        gencodec:"required"`
+	shardTxsHash common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	receiptHash  common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+	bloom        Bloom          `json:"logsBloom"        gencodec:"required"`
+	bloomReject  Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
+	difficulty   *big.Int       `json:"difficulty"       gencodec:"required"`
+	number       *big.Int       `json:"number"           gencodec:"required"`
+	gasLimit     uint64         `json:"gasLimit"         gencodec:"required"`
+	gasUsed      uint64         `json:"gasUsed"          gencodec:"required"`
+	time         *big.Int       `json:"timestamp"        gencodec:"required"`
+	extra        []byte         `json:"extraData"        gencodec:"required"`
+	shardState   []ShardState   `json:"rewardRemains"        gencodec:"required"`
+	mixDigest    common.Hash    `json:"mixHash"          gencodec:"required"`
+	nonce        BlockNonce     `json:"nonce"            gencodec:"required"`
+	dirty        bool
 }
 
 type HeaderStruct struct {
-	ParentHash     common.Hash    `json:"parentHash"       gencodec:"required"`
-	UncleHash      common.Hash    `json:"sha3Uncles"       gencodec:"required"`
-	Coinbase       common.Address `json:"miner"            gencodec:"required"`
-	ShardMaskEp    uint16          `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
-	ShardEnabled   [32]byte         `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
-	Root           common.Hash    `json:"stateRoot"        gencodec:"required"`
-	ShardTxsHash   common.Hash    `json:"transactionsRoot" gencodec:"required"` //hash of all included shardinfo
-	ReceiptHash    common.Hash    `json:"receiptsRoot"     gencodec:"required"`
-	Bloom          Bloom          `json:"logsBloom"        gencodec:"required"`
-	BloomReject    Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
-	Difficulty     *big.Int       `json:"difficulty"       gencodec:"required"`
-	Number         *big.Int       `json:"number"           gencodec:"required"`
-	GasLimit       uint64         `json:"gasLimit"         gencodec:"required"`
-	GasUsed        uint64         `json:"gasUsed"          gencodec:"required"`
-	Time           *big.Int       `json:"timestamp"        gencodec:"required"`
-	Extra          []byte         `json:"extraData"        gencodec:"required"`
-	MixDigest      common.Hash    `json:"mixHash"          gencodec:"required"`
-	ShardState  	[]ShardState   `json:"rewardRemains"        gencodec:"required"`
-	Nonce          BlockNonce     `json:"nonce"            gencodec:"required"`
+	ParentHash   common.Hash    `json:"parentHash"       gencodec:"required"`
+	UncleHash    common.Hash    `json:"sha3Uncles"       gencodec:"required"`
+	Coinbase     common.Address `json:"miner"            gencodec:"required"`
+	ShardMaskEp  uint16         `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
+	ShardEnabled [32]byte       `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
+	Root         common.Hash    `json:"stateRoot"        gencodec:"required"`
+	ShardTxsHash common.Hash    `json:"transactionsRoot" gencodec:"required"` //hash of all included shardinfo
+	ReceiptHash  common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+	Bloom        Bloom          `json:"logsBloom"        gencodec:"required"`
+	BloomReject  Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
+	Difficulty   *big.Int       `json:"difficulty"       gencodec:"required"`
+	Number       *big.Int       `json:"number"           gencodec:"required"`
+	GasLimit     uint64         `json:"gasLimit"         gencodec:"required"`
+	GasUsed      uint64         `json:"gasUsed"          gencodec:"required"`
+	Time         *big.Int       `json:"timestamp"        gencodec:"required"`
+	Extra        []byte         `json:"extraData"        gencodec:"required"`
+	MixDigest    common.Hash    `json:"mixHash"          gencodec:"required"`
+	ShardState   []ShardState   `json:"rewardRemains"        gencodec:"required"`
+	Nonce        BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
 func (h *Header) FillBy(h2 *HeaderStruct) {
@@ -113,27 +115,26 @@ func (h *Header) FillBy(h2 *HeaderStruct) {
 func (h *Header) ToHeaderStruct() *HeaderStruct {
 	return &HeaderStruct{
 
-		ParentHash:h.parentHash,
-		UncleHash:h.uncleHash,
-		Coinbase:h.coinbase,
-		Root:h.root,
+		ParentHash: h.parentHash,
+		UncleHash:  h.uncleHash,
+		Coinbase:   h.coinbase,
+		Root:       h.root,
 
-		ShardState:h.shardState,
-		ShardTxsHash:h.shardTxsHash,
-		ShardMaskEp:h.shardMaskEp,
-		ShardEnabled:h.shardEnabled,
-		ReceiptHash:h.receiptHash,
-		Bloom:h.bloom,
-		BloomReject:h.bloomReject,
-		Difficulty:h.difficulty,
-		Number:h.number,
-		GasUsed:h.gasUsed,
-		GasLimit:h.gasLimit,
-		Time:h.time,
-		Extra:h.extra,
-		MixDigest:h.mixDigest,
-		Nonce:h.nonce,
-
+		ShardState:   h.shardState,
+		ShardTxsHash: h.shardTxsHash,
+		ShardMaskEp:  h.shardMaskEp,
+		ShardEnabled: h.shardEnabled,
+		ReceiptHash:  h.receiptHash,
+		Bloom:        h.bloom,
+		BloomReject:  h.bloomReject,
+		Difficulty:   h.difficulty,
+		Number:       h.number,
+		GasUsed:      h.gasUsed,
+		GasLimit:     h.gasLimit,
+		Time:         h.time,
+		Extra:        h.extra,
+		MixDigest:    h.mixDigest,
+		Nonce:        h.nonce,
 	}
 }
 func (h *Header) ShardId() uint16 {
@@ -206,8 +207,7 @@ func (b *Header) ResultHash() common.Hash      { return EmptyRootHash }
 func (b *Header) UncleHash() common.Hash       { return b.uncleHash }
 func (b *Header) Extra() []byte                { return common.CopyBytes(b.extra) }
 func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
-func (b *Header) ShardState() []ShardState {return b.shardState}
-
+func (b *Header) ShardState() []ShardState     { return b.shardState }
 
 func (b *Header) ShardExp() uint16       { return b.shardMaskEp }
 func (b *Header) ShardEnabled() [32]byte { return b.shardEnabled }
@@ -222,7 +222,7 @@ func (b *Header) SetReceiptHash(v common.Hash) { b.receiptHash = v; b.setHashDir
 func (b *Header) SetTxHash(v common.Hash)      { ; b.setHashDirty(true) }
 func (b *Header) SetShardTxHash(v common.Hash) { b.shardTxsHash = v; b.setHashDirty(true) }
 func (b *Header) SetExtra(v []byte)            { b.extra = common.CopyBytes(v); b.setHashDirty(true) }
-func (b *Header) SetTime(v *big.Int)           { b.time = v ; b.setHashDirty(true)}
+func (b *Header) SetTime(v *big.Int)           { b.time = v; b.setHashDirty(true) }
 func (b *Header) SetCoinbase(v common.Address) {
 	b.coinbase = v
 	b.setHashDirty(true)
@@ -236,27 +236,26 @@ func (b *Header) SetDifficulty(v *big.Int) {
 func (b *Header) SetGasLimit(v uint64) { b.gasLimit = v; b.setHashDirty(true) }
 func (b *Header) SetGasUsed(v uint64) {
 
-	b.gasUsed = v; b.setHashDirty(true)
-	}
-func (b *Header) SetMixDigest(v common.Hash){b.mixDigest = v; b.setHashDirty(true)}
-func (b *Header) SetNonce(v BlockNonce) {b.nonce = v; b.setHashDirty(true)}
-func (b *Header) SetShardState(v []ShardState ) {
-	b.shardState = v ;
+	b.gasUsed = v
 	b.setHashDirty(true)
-	}
-
-
+}
+func (b *Header) SetMixDigest(v common.Hash) { b.mixDigest = v; b.setHashDirty(true) }
+func (b *Header) SetNonce(v BlockNonce)      { b.nonce = v; b.setHashDirty(true) }
+func (b *Header) SetShardState(v []ShardState) {
+	b.shardState = v
+	b.setHashDirty(true)
+}
 
 type ShardBlockInfo struct {
 	ShardId     uint16
 	BlockNumber uint64
-	Hash   common.Hash
+	Hash        common.Hash
 	ParentHash  common.Hash
 
-	Coinbase    common.Address
-	Td  uint64
-
+	Coinbase common.Address
+	Td       uint64
 }
+
 /*
 type ShardBlockInfoStruct struct {
 	ShardId     uint16
@@ -356,7 +355,7 @@ type StorageBlock Block
 
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
-	Header *Header
+	Header *HeaderStruct
 	Blks   []*ShardBlockInfo
 	Uncles []*Header
 }
@@ -457,7 +456,9 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.uncles, b.shardBlocks = eb.Header, eb.Uncles, eb.Blks
+	b.header = new(Header)
+	b.header.FillBy(eb.Header)
+	b.uncles, b.shardBlocks = eb.Uncles, eb.Blks
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -465,7 +466,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 // EncodeRLP serializes b into the Ethereum RLP block format.
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
-		Header: b.header,
+		Header: b.header.ToHeaderStruct(),
 		Blks:   b.shardBlocks,
 		Uncles: b.uncles,
 	})

@@ -15,6 +15,7 @@ import (
 	"github.com/EDXFund/MasterChain/ethclient"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
+	"github.com/EDXFund/MasterChain/p2p/enode"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"io"
@@ -86,19 +87,17 @@ func main() {
 		if i == 1 {
 
 			cfg.Eth.ShardId = 0
-			//cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
-			//server := stacks[0].Server()
-			//publicKey := server.PrivateKey.Public()
-			//publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
-			////bootString := stacks[0].Server().NodeInfo().Enode
-			//bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@127.0.0.1" + cfgs[0].Node.P2P.ListenAddr
-			//node, err := enode.ParseV4(bootString)
-			//if err == nil {
-			//	cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
-			//}
+			cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
+			server := stacks[0].Server()
+			publicKey := server.PrivateKey.Public()
+			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+			//bootString := stacks[0].Server().NodeInfo().Enode
+			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@192.168.31.9" + cfgs[0].Node.P2P.ListenAddr
+			node, err := enode.ParseV4(bootString)
+			if err == nil {
+				cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
+			}
 
-		} else {
-			continue
 		}
 
 		stack, err := node.New(&cfg.Node)
@@ -121,10 +120,7 @@ func main() {
 		}
 
 		err = stack.Start()
-		var ethereum *eth.Ethereum
-		if err := stack.Service(&ethereum); err != nil {
-			log.Crit("Ethereum service not running: %v", err)
-		}
+
 		// Set the gas price to the limits from the CLI and start mining
 		/*	gasprice := utils.GlobalBig(ctx, utils.MinerLegacyGasPriceFlag.Name)
 			if ctx.IsSet(utils.MinerGasPriceFlag.Name) {
@@ -136,9 +132,7 @@ func main() {
 			if ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
 				threads = ctx.GlobalInt(utils.MinerThreadsFlag.Name)
 			}*/
-		if err := ethereum.StartMining(1); err != nil {
-			utils.Fatalf("Failed to start mining: %v", err)
-		}
+
 		if err != nil {
 			fmt.Errorf("start node error :%d", i)
 		}
@@ -147,7 +141,17 @@ func main() {
 
 	}
 
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 3)
+
+	for _, node := range stacks {
+		var ethereum *eth.Ethereum
+		if err := node.Service(&ethereum); err != nil {
+			log.Crit("Ethereum service not running: %v", err)
+		}
+		if err := ethereum.StartMining(1); err != nil {
+			utils.Fatalf("Failed to start mining: %v", err)
+		}
+	}
 
 	//rpcClient, err := stacks[0].Attach()
 	//if err != nil {
@@ -158,7 +162,7 @@ func main() {
 
 	//sendTx(client)
 
-	stacks[1].Wait()
+	stacks[0].Wait()
 
 }
 
