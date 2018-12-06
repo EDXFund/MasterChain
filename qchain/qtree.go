@@ -23,7 +23,6 @@ import (
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/log"
 	"sync"
-
 )
 
 
@@ -310,7 +309,7 @@ type  HeaderTreeManager struct{
 	trees map[common.Hash]*HeaderTree
 	rootHash common.Hash
 	confirmed   map[uint64]types.HeaderIntf
-
+	confirmedHash common.Hash
 }
 
 func NewHeaderTreeManager(shardId uint16) *HeaderTreeManager {
@@ -319,6 +318,7 @@ func NewHeaderTreeManager(shardId uint16) *HeaderTreeManager {
 		trees:make(map[common.Hash]*HeaderTree),
 		rootHash:common.Hash{},
 		confirmed:make(map[uint64]types.HeaderIntf),
+		confirmedHash:common.Hash{},
 	}
 
 }
@@ -446,17 +446,19 @@ func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderI
 	if t.rootHash  == head.Hash() {
 		return nil
 	}
-	val,ok := t.confirmed[head.NumberU64()]
-	if !ok { //不在confirmed队列中，应该在树中，删除所有不是该节点的子孙的旁支
-		 t.ReduceTo(head)
-	}else {
-		for key,item := range t.confirmed {
-			if item.Number().Cmp(val.Number()) < 0 {
-				delete(t.confirmed,key)
-			}
-		}
+	val,_ := t.confirmed[head.NumberU64()]
 
+	t.ReduceTo(head)
+
+	for key,item := range t.confirmed {
+		if item.Number().Cmp(val.Number()) < 0 {
+			delete(t.confirmed,key)
+		}
 	}
+
+
+
+
 	uinfos := make([]uint64,0,len(t.confirmed))
 	for index,_ := range t.confirmed {
 		uinfos = append(uinfos,index)
@@ -464,7 +466,7 @@ func (t *HeaderTreeManager) SetConfirmed (head types.HeaderIntf) []types.HeaderI
 	log.Trace(" current confirmed:","count:",len(t.confirmed),"value:",uinfos, " to delete of no:",head.NumberU64()," hash:",head.Hash())
 
 
-
+	t.confirmedHash = head.Hash()
 	//发送事件
 	return t.Pending()
 
@@ -474,7 +476,7 @@ func (t *HeaderTreeManager) Pending() []types.HeaderIntf {
 	if len(t.confirmed) > 0 {
 		result := make([]types.HeaderIntf,0,len(t.confirmed))
 		for _,val := range t.confirmed {
-			if  val.Hash() != t.rootHash  {
+			if  val.Hash() != t.rootHash && val.Hash() != t.confirmedHash  {
 				result = append(result,val)
 			}
 

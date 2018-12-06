@@ -709,7 +709,7 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 			}
 		}
 	}
-	rewardOfShard := uint32(10000/shardsCount)
+	rewardOfShard := uint32(10000/shardsCount) * uint32(multiple)
 
 	rewardInHeader := []types.ShardState{}
 	if parent != nil {
