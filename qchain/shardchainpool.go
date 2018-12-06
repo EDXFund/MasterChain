@@ -283,6 +283,7 @@ func (scp *ShardChainPool) reset(oldHead, newHead types.BlockIntf) {
 		if !ok {
 			log.Crit("qchain does not exist of:", shardId)
 		} else {
+			log.Trace(" confirm most recent:","block number:",mostRecent.NumberU64())
 			qchain.SetConfirmed(mostRecent.Header())
 		}
 	}
