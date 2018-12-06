@@ -49,6 +49,8 @@ var (
 	headerHashSuffix   = []byte("n") // headerPrefix + num (uint64 big endian) + headerHashSuffix -> hash
 	headerNumberPrefix = []byte("H") // headerNumberPrefix + hash -> num (uint64 big endian)
 
+
+
 	blockBodyPrefix     = []byte("b") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
 	blockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
 
@@ -169,7 +171,9 @@ func configKey(hash common.Hash) []byte {
 }
 
 // configKey = configPrefix + hash
-func latestShardKey(shardId uint16, hash common.Hash) []byte {
+func latestShardsKey(shardId uint16) []byte {
+
 	val,_ :=  rlp.EncodeToBytes(shardId)
-	return append(shardHeadBlockKey,append(val, hash.Bytes()...)...)
+	return append(preimagePrefix, val...)
 }
+

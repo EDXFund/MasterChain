@@ -104,7 +104,7 @@ func NewQHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine 
 
 	}
 
-	hc.headerManager = NewHeaderTreeManager(shardId)
+	hc.headerManager = NewHeaderTreeManager(shardId,hc.chainDb)
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
 	if  hc.genesisHeader == nil  || reflect.ValueOf(hc.genesisHeader).IsNil() {

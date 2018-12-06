@@ -144,7 +144,7 @@ func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 	shardId := blocks[0].ShardId()
 	qchain, ok := scp.shards[shardId]
 	if !ok {
-		qchain = NewHeaderTreeManager(shardId)
+		qchain = NewHeaderTreeManager(shardId,scp.db)
 		scp.shards[shardId] = qchain
 	}
 	header := []types.HeaderIntf{}
@@ -168,6 +168,7 @@ func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 	}
 	return nil;
 }
+
 /**
 return all max Tds block info of shard
  */

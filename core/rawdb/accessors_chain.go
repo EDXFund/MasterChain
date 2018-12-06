@@ -143,17 +143,7 @@ func HasHeader(db DatabaseReader,  hash common.Hash, number uint64) bool {
 	return true
 }
 
-func ReadLastShardInfo(db DatabaseReader) []*types.ShardBlockInfo{
-	key := shardHeadBlockKey
-	data, err := db.Get(key)
-	result := []*types.ShardBlockInfo{}
-	if err == nil {
-		rlp.DecodeBytes(data,result)
-		return result
-	} else {
-		return nil
-	}
-}
+
 // ReadHeader retrieves the block header corresponding to the hash.
 func ReadHeader(db DatabaseReader, hash common.Hash, number uint64) types.HeaderIntf {
 	data := ReadHeaderRLP(db, hash, number)
@@ -459,4 +449,42 @@ func FindCommonAncestor(db DatabaseReader, a, b types.HeaderIntf) types.HeaderIn
 		}
 	}
 	return a
+}
+
+type ShardStoreInfo struct {
+	confirmedHash common.Hash
+	confirmedNumber uint64
+	maxTdHash    common.Hash
+	maxTdNumber     uint64
+}
+// WriteLatestShardInfo stores a block header into the database and also stores the hash-
+// to-number mapping.
+func WriteLatestShardInfo(db DatabaseWriter, shardConfirmed types.HeaderIntf, shardMax types.HeaderIntf) {
+	// Write the hash -> number mapping
+	info := &ShardStoreInfo{shardConfirmed.Hash(),shardConfirmed.NumberU64(),shardMax.Hash(),shardMax.NumberU64()}
+	result,err := rlp.EncodeToBytes(info)
+	if err != nil {
+		log.Crit("write shard Info error ","error:",err)
+	}else {
+		db.Put(latestShardsKey(shardMax.ShardId()),result)
+	}
+
+}
+// Get latest informations of specified shard
+// returns: result.confirmedHash,result.confirmedNumber,result.maxTdHash,result.maxTdNumber
+func ReadLatestShardInfo(db DatabaseReader,shardId uint16) (common.Hash,uint64,common.Hash,uint64){
+	data,err := db.Get(latestShardsKey(shardId))
+	if err != nil {
+		log.Error("Read shard Info error ","error:",err)
+		return common.Hash{},0,common.Hash{},0
+	}else {
+		result := ShardStoreInfo{}
+		err = rlp.DecodeBytes(data,result)
+		if err != nil {
+			log.Crit("write shard Info error ","error:",err)
+			return common.Hash{},0,common.Hash{},0
+		}else {
+			return result.confirmedHash,result.confirmedNumber,result.maxTdHash,result.maxTdNumber
+		}
+	}
 }
