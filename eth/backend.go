@@ -47,9 +47,9 @@ import (
 	"github.com/EDXFund/MasterChain/node"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/params"
+	"github.com/EDXFund/MasterChain/qchain"
 	"github.com/EDXFund/MasterChain/rlp"
 	"github.com/EDXFund/MasterChain/rpc"
-	"github.com/EDXFund/MasterChain/qchain"
 )
 
 type LesServer interface {
@@ -120,7 +120,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlock(chainDb, config.Genesis,config.ShardId)
+	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlock(chainDb, config.Genesis, config.ShardId)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
@@ -158,7 +158,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		}
 		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieNodeLimit: config.TrieCache, TrieTimeLimit: config.TrieTimeout}
 	)
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig, eth.shouldPreserve,shardId)
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, eth.chainConfig, eth.engine, vmConfig, eth.shouldPreserve, shardId)
 	if err != nil {
 		return nil, err
 	}
@@ -173,16 +173,14 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
-	if shardId == types.ShardMaster{
-		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain,shardId)
-		eth.shardPool = qchain.NewShardChainPool(eth.blockchain,eth.chainDb);
-	}else{
-		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain,shardId)
+	if shardId == types.ShardMaster {
+		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain, shardId)
+		eth.shardPool = qchain.NewShardChainPool(eth.blockchain, eth.chainDb)
+	} else {
+		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain, shardId)
 	}
 
-
-
-	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.shardPool, eth.engine, eth.blockchain, chainDb); err != nil {
 		return nil, err
 	}
 
@@ -319,7 +317,7 @@ func (s *Ethereum) APIs() []rpc.API {
 func (s *Ethereum) ResetWithGenesisBlock(gb types.BlockIntf) {
 	s.blockchain.ResetWithGenesisBlock(gb)
 }
-func (s *Ethereum) ShardPool() *qchain.ShardChainPool{
+func (s *Ethereum) ShardPool() *qchain.ShardChainPool {
 	return s.shardPool
 }
 func (s *Ethereum) Etherbase() (eb common.Address, err error) {
@@ -473,7 +471,7 @@ func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
 func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
 func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
-func (s *Ethereum) TxPool() core.TxPoolIntf               { return s.txPool }
+func (s *Ethereum) TxPool() core.TxPoolIntf            { return s.txPool }
 func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
