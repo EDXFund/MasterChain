@@ -19,7 +19,6 @@ package rawdb
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 	"reflect"
 
@@ -388,18 +387,21 @@ func ReadBlock(db DatabaseReader,hash common.Hash, number uint64) types.BlockInt
 		_number := ReadHeaderNumber(db,  hash)
 		if _number != nil {
 			number = *_number
+		}else{
+			log.Debug("error in ReadBlock")
+
 		}
+
 	}
-	if number == 0 {
-		return nil
-	}
+
 	header := ReadHeader(db, hash, number)
 
 	if header == nil || reflect.ValueOf(header).IsNil() {
+		log.Debug("error in ReadBlock head is nil")
 		return nil
 	}
 	if header.Hash() != hash {
-		fmt.Println("error hash:")
+		log.Debug("error in ReadBlock hash")
 	}
 	body := ReadBody(db, hash, number)
 	if body == nil {

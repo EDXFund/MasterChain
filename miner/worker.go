@@ -716,6 +716,7 @@ func (w *worker)handleNewTxs(txs types.Transactions){
 func (w *worker)handleNewBlock(block types.BlockIntf){
 	w.chain.InsertChain(types.BlockIntfs{block})
 	w.mux.Post(core.NewMinedBlockEvent{Block: block})
+	w.updateSnapshot()
 	w.enterState(ST_RESETING)
 }
 
