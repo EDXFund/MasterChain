@@ -54,8 +54,8 @@ func (ethash *Ethash) Seal(chain consensus.ChainReader, block types.BlockIntf, r
 		header := block.Header()
 		header.SetNonce(types.BlockNonce{})
 		header.SetMixDigest(common.Hash{})
-	//	timer := time.NewTimer(2*time.Second)
-	//	<-timer.C // discard th
+		timer := time.NewTimer(2*time.Second)
+		<-timer.C // discard th
 		select {
 		case results <- block.WithSeal(header):
 		default:
