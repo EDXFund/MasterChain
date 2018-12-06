@@ -22,6 +22,7 @@ import (
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/log"
+	"github.com/pkg/errors"
 	"sync"
 )
 
@@ -356,6 +357,21 @@ func (t *HeaderTreeManager)AddNewHeads(nodes []types.HeaderIntf)  []types.Header
 	}
 
 	return toPopup
+}
+
+func (t *HeaderTreeManager)GetMaxTd() (*types.ShardBlockInfo,error) {
+	if(t.rootHash != common.Hash{}) {
+		headTree := t.trees[t.rootHash].GetMaxTdPath(nil)
+		if headTree != nil {
+			head := headTree.self
+			return  &types.ShardBlockInfo{head.ShardId(),head.NumberU64(),head.Hash(),head.ParentHash(),head.Coinbase(),head.Difficulty().Uint64()},nil
+		}else {
+			return nil,errors.New("no max td node found")
+		}
+	}else{
+		return nil,errors.New("no tree node found")
+	}
+
 }
 func (t *HeaderTreeManager)AddNewHead(node types.HeaderIntf) {
 

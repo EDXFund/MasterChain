@@ -168,7 +168,22 @@ func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 	}
 	return nil;
 }
+/**
+return all max Tds block info of shard
+ */
+func (scp *ShardChainPool) GetMaxTds() (map[uint16]types.ShardBlockInfo) {
+	scp.mu.Lock()
+	defer scp.mu.Unlock()
+	results := make(map[uint16]types.ShardBlockInfo)
+	for shardId, shard := range scp.shards {
+		shardInfo,err := shard.GetMaxTd()
+		if err == nil {
+			results[shardId] = *shardInfo
+		}
 
+	}
+	return results
+}
 //miner's worker uses Pending to retrieve shardblockInfos which could be packed into master block
 func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 	scp.mu.Lock()
