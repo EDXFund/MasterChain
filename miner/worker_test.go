@@ -258,9 +258,9 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 
 	testRecvKey2, _  := crypto.GenerateKey()
 	testRecvAddress2 := crypto.PubkeyToAddress(testRecvKey2.PublicKey)
-	tx2, _ := types.SignTx(types.NewTransaction(0, testRecvAddress, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
-	tx3, _ := types.SignTx(types.NewTransaction(2, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
-	tx4, _ := types.SignTx(types.NewTransaction(4, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
+	tx2, _ := types.SignTx(types.NewTransaction(0, testRecvAddress2, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
+	tx3, _ := types.SignTx(types.NewTransaction(1, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
+	tx4, _ := types.SignTx(types.NewTransaction(2, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
 
 	fmt.Printf(" transfer %v from %v to %v\r\n",big.NewInt(1000),testAddress.Bytes(),testRecvAddress.Bytes());
 

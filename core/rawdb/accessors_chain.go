@@ -384,6 +384,15 @@ func DeleteReceipts(db DatabaseDeleter, shardId uint16,hash common.Hash, number 
 // Note, due to concurrent download of header and block body the header and thus
 // canonical hash can be stored in the database but the body data not (yet).
 func ReadBlock(db DatabaseReader,hash common.Hash, number uint64) types.BlockIntf {
+	if number == 0 {
+		_number := ReadHeaderNumber(db,  hash)
+		if _number != nil {
+			number = *_number
+		}
+	}
+	if number == 0 {
+		return nil
+	}
 	header := ReadHeader(db, hash, number)
 
 	if header == nil || reflect.ValueOf(header).IsNil() {
