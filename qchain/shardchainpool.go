@@ -128,12 +128,31 @@ func (scp *ShardChainPool) InsertChain(blocks types.BlockIntfs) error {
 func (scp *ShardChainPool) SubscribeChainShardsEvent(newShardCh chan *core.ChainsShardEvent) event.Subscription {
 	return scp.newShardFeed.Subscribe(newShardCh)
 }
+func (scp *ShardChainPool) GetBlockByHash(hash common.Hash,shardId uint16) *types.SBlock {
+	block := scp.GetBlock(hash,0)
+	if block == nil {
+		geneBlock := scp.bc.GenesisOfShard(shardId)
+		if geneBlock.Hash() == hash {
+			return geneBlock.ToSBlock()
+		}else {
+			return nil
+		}
+	}else {
+		return block
+	}
+}
 func (scp *ShardChainPool) GetBlock(hash common.Hash, number uint64) *types.SBlock {
 	if block, ok := scp.shardBlocks.Get(hash); ok {
 		result := (block).(*types.SBlock)
 		return result
 	}
-	return rawdb.ReadBlock(scp.db, hash, number).ToSBlock()
+	block := rawdb.ReadBlock(scp.db, hash, number)
+	if block != nil   {
+		return block.ToSBlock()
+	}else {
+		return nil
+	}
+
 }
 
 /**
