@@ -288,6 +288,7 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		master.backend.txPool.AddLocals([]*types.Transaction{tx3})
 		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
 
+
 	}()
 
 	go func(){
