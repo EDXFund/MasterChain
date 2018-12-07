@@ -53,6 +53,7 @@ var (
 
 	ErrNoGenesis     = errors.New("Genesis not found in chain")
 	ErrInvalidBlocks = errors.New("no blocks")
+	ErrNoTxPool     = errors.New("Tx Pool must be set on master")
 )
 
 type ShardPoolManagerIntf interface {
@@ -152,7 +153,7 @@ type BlockChain struct {
 	latestShards map[uint16]*types.ShardBlockInfo
 	//当这个是子链时，会有与主链同步的信息
 	master_head *HeaderChain
-
+	genesis        *Genesis
 	badBlocks      *lru.Cache                 // Bad block cache
 	shouldPreserve func(types.BlockIntf) bool // Function used to determine whether should preserve the given block.
 }
@@ -194,7 +195,9 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	}
 
 	bc.SetValidator(NewBlockValidator(chainConfig, bc, engine))
-	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine))
+	if shardId != types.ShardMaster {
+		bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine,nil))
+	}
 
 	var err error
 	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt, shardId)
@@ -229,6 +232,9 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	// Take ownership of this particular state
 	go bc.update()
 	return bc, nil
+}
+func (bc *BlockChain) SetupProcessor (chainConfig *params.ChainConfig, engine consensus.Engine,pool TxPoolIntf){
+	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine,pool))
 }
 func (bc *BlockChain) ShardId() uint16    { return bc.shardId }
 func (bc *BlockChain) DB() ethdb.Database { return bc.db }
@@ -1454,51 +1460,60 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}
+		if(parent.ShardId() == types.ShardMaster) {
+			log.Trace(" Trace root before:","number:",parent.NumberU64(),"Root:",parent.Root())
+
+		}
 
 		// Process block using the parent state as reference point.
-		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
-		if err != nil {
-			bc.reportBlock(block, receipts, err)
-			return i, events, coalescedLogs, err
-		}
-		// Validate the state using the default validator
-		err = bc.Validator().ValidateState(block, parent, state, receipts, usedGas)
-		if err != nil {
-			bc.reportBlock(block, receipts, err)
-			return i, events, coalescedLogs, err
-		}
-		proctime := time.Since(bstart)
+			receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
+			log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
 
-		// Write the block to the chain and get the status.
-		status, err := bc.WriteBlockWithState(block, receipts, state)
-		if err != nil {
-			return i, events, coalescedLogs, err
-		}
-		switch status {
-		case CanonStatTy:
-			log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(), "uncles", len(block.Uncles()),
-				"txs", len(block.Transactions()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
 
-			coalescedLogs = append(coalescedLogs, logs...)
-			blockInsertTimer.UpdateSince(bstart)
-			events = append(events, ChainEvent{block, block.Hash(), logs})
-			lastCanon = block
+			if err != nil {
+				bc.reportBlock(block, receipts, err)
+				return i, events, coalescedLogs, err
+			}
+			// Validate the state using the default validator
+			err = bc.Validator().ValidateState(block, parent, state, receipts, usedGas)
+			if err != nil {
+				bc.reportBlock(block, receipts, err)
+				return i, events, coalescedLogs, err
+			}
+			proctime := time.Since(bstart)
 
-			// Only count canonical blocks for GC processing time
-			bc.gcproc += proctime
+			// Write the block to the chain and get the status.
+			status, err := bc.WriteBlockWithState(block, receipts, state)
+			if err != nil {
+				return i, events, coalescedLogs, err
+			}
+			switch status {
+			case CanonStatTy:
+				log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(), "uncles", len(block.Uncles()),
+					"txs", len(block.Transactions()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
 
-		case SideStatTy:
-			log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(), "diff", block.Difficulty(), "elapsed",
-				common.PrettyDuration(time.Since(bstart)), "txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()))
+				coalescedLogs = append(coalescedLogs, logs...)
+				blockInsertTimer.UpdateSince(bstart)
+				events = append(events, ChainEvent{block, block.Hash(), logs})
+				lastCanon = block
 
-			blockInsertTimer.UpdateSince(bstart)
-			events = append(events, ChainSideEvent{block})
-		}
-		stats.processed++
-		stats.usedGas += usedGas
+				// Only count canonical blocks for GC processing time
+				bc.gcproc += proctime
 
-		cache, _ := bc.stateCache.TrieDB().Size()
-		stats.report(chain, i, cache)
+			case SideStatTy:
+				log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(), "diff", block.Difficulty(), "elapsed",
+					common.PrettyDuration(time.Since(bstart)), "txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()))
+
+				blockInsertTimer.UpdateSince(bstart)
+				events = append(events, ChainSideEvent{block})
+			}
+			stats.processed++
+			stats.usedGas += usedGas
+
+			cache, _ := bc.stateCache.TrieDB().Size()
+			stats.report(chain, i, cache)
+
+
 	}
 	// Append a single chain head event if we've progressed the chain
 	if lastCanon != nil && bc.CurrentBlock().Hash() == lastCanon.Hash() {
@@ -1768,7 +1783,7 @@ func (bc *BlockChain) reportBlock(block types.BlockIntf, receipts types.Receipts
 	log.Error(fmt.Sprintf(`
 ########## BAD BLOCK #########
 Chain config: %v
-
+ShardId:%v 
 Number: %v
 Hash: 0x%x
 Parent:0x%x
@@ -1776,7 +1791,7 @@ Parent:0x%x
 
 Error: %v
 ##############################
-`, bc.chainConfig, block.Number(), block.Hash(), block.ParentHash(), receiptString, err))
+`, bc.chainConfig, block.ShardId(), block.Number(), block.Hash(), block.ParentHash(), receiptString, err))
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local

@@ -124,7 +124,7 @@ func newTestWorkerBackendWithAccount(t *testing.T, db ethdb.Database, chainConfi
 		txpool = core.NewTxPoolShard(*testTxPoolConfig.ToShardConfig(), chainConfig, chain, shardId)
 	}
 
-
+	chain.SetupProcessor(gspec.Config,engine,txpool)
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
 		blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {

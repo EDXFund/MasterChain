@@ -424,6 +424,8 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 
 
 	parent := w.chain.CurrentBlock()
+
+	fmt.Println(" parent number:",parent.NumberU64(),"Root:",parent.Root())
 	timestamp := time.Now().Unix()
 
 	if parent.Time().Cmp(new(big.Int).SetInt64(timestamp)) >= 0 {
@@ -490,7 +492,9 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	log.Trace("Shards:","count:",len(shards))
 	w.current.shards = shards
 
+	//statedb transition
 	w.masterProcessShards(blocks,w.coinbase,&interrupt)
+	//ask for seal
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
 	if err != nil {
 		return nil
@@ -599,7 +603,7 @@ func (w *worker) mainStateLoop() {
 			fmt.Println("evt_newtx:",w.shardId)
 			w.handleNewTxs(newTxs.Txs)
 		case newBlock := <- w.resultCh:
-			fmt.Println("evt_newblock:",w.shardId)
+			fmt.Println("evt_newblock:",w.shardId," stateRoot:",newBlock.Root())
 			w.handleNewBlock(newBlock)
 		case <- w.exitCh:
 			return
@@ -905,7 +909,7 @@ func (w *worker) stopEngineSeal() {
 	}
 }
 func (w *worker) startEngineSeal(block types.BlockIntf) {
-	fmt.Println(" mine:",block.ShardId(),"\twith results:",len(block.Results()))
+	fmt.Println(" mine:",block.ShardId(),"\twith results:",len(block.Results()),"\t with root",block.Root())
 	if w.newTaskHook != nil {
 		w.newTaskHook(block)
 	}
@@ -968,8 +972,9 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 			}
 
 		}
-	}
 
+	}
+	w.current.header.SetGasUsed(gasUsed)
 	if !w.isRunning() && len(coalescedLogs) > 0 {
 		// We don't push the pendingLogsEvent while we are mining. The reason is that
 		// when we are mining, the worker will regenerate a mining block every 3 seconds.
@@ -1018,7 +1023,7 @@ func (w *worker) commit(interval func(), update bool, start time.Time) (types.Bl
 
 	s := w.current.state.Copy()
 	fmt.Println("do transaction:", w.current.results)
-	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.shards, w.current.results, nil, nil)
+	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.shards, w.current.results, nil, w.current.receipts)
 	if err != nil {
 		return nil,err
 	}

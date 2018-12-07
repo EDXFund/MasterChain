@@ -232,7 +232,7 @@ func (g *Genesis) Hashof(shardId uint16) common.Hash {
 
 }
 
-// ToBlock creates the genesis b lock and writes state of a genesis specification
+// ToBlock creates the genesis block and writes state of a genesis specification
 // to the given database (or discards it if nil).
 func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	if db == nil {
