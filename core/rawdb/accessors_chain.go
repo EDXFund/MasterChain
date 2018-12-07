@@ -499,3 +499,4 @@ func ReadLatestShardInfo(db DatabaseReader,shardId uint16) (common.Hash,uint64,c
 		}
 	}
 }
+

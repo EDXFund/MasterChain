@@ -32,6 +32,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/EDXFund/MasterChain/core/rawdb"
 	"math"
 	"math/big"
 	"reflect"
@@ -159,6 +160,7 @@ func NewTxPoolShard(config TxPoolShardConfig, chainconfig *params.ChainConfig, c
 	// Subscribe events from blockchain
 	pool.chainHeadSub = pool.chain.SubscribeChainHeadEvent(pool.chainHeadCh)
 
+
 	// Start the event loop and return
 	pool.wg.Add(1)
 	go pool.loop()
@@ -192,8 +194,19 @@ func (pool *TxPoolShard) loop() {
 	evict := time.NewTicker(evictionInterval)
 	defer evict.Stop()
 
+	//reload pending txs
+	hashes,err := rawdb.ReadPendingTransactions(pool.chain.DB())
+	txs := make([]*types.Transaction,0,len(hashes))
+	if err != nil && hashes != nil {
+		for _,hash := range hashes {
+			tx,err := rawdb.ReadRawTransaction(pool.chain.DB(),*hash)
+			if err != nil {
+				txs = append(txs,tx)
+			}
+		}
+	}
 
-
+	pool.addTxs(txs,false)
 	// Track the previous head headers for transaction reorgs
 	head := pool.chain.CurrentBlock()
 
@@ -533,7 +546,14 @@ func (pool *TxPoolShard) AddTx(tx *types.Transaction, local bool) error {
 	defer pool.mu.Unlock()
 
 	// Try to inject the transaction and update any state
-	pool.all.Add(tx);
+	_tx,err := rawdb.ReadRawTransaction(pool.chain.DB(),tx.Hash())
+	if _tx == nil || err != nil {
+		rawdb.WriteRawTransaction(pool.chain.DB(), tx.Hash(), tx)
+		pool.all.Add(tx);
+
+	}else {
+		log.Debug("Try to add duplicated tx:","hash:",tx.Hash())
+	}
 	return nil
 
 }
@@ -552,9 +572,21 @@ func (pool *TxPoolShard) addTxsLocked(txs []*types.Transaction, local bool) []er
 	// Add the batch of transaction, tracking the accepted ones
 
 	for _, tx := range txs {
-		 pool.all.Add(tx)
-	}
+		 _tx,err := rawdb.ReadRawTransaction(pool.chain.DB(),tx.Hash())
+		 if _tx == nil || err != nil {
+			 rawdb.WriteRawTransaction(pool.chain.DB(),tx.Hash(),tx)
+			 pool.all.Add(tx)
+		 }else {
+			 log.Debug("Try to add duplicated tx:","hash:",tx.Hash())
+		 }
 
+	}
+	keys := make([]*common.Hash,0,pool.all.Count())
+	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
+		keys = append(keys,&hash)
+		return true
+	})
+	rawdb.WritePendingTransactions(pool.chain.DB(),keys)
 	return nil
 }
 
@@ -578,7 +610,6 @@ func (pool *TxPoolShard) Get(hash common.Hash) *types.Transaction {
 // transactions back to the future queue.
 func (pool *TxPoolShard) removeTx(hash common.Hash, outofbound bool) {
 	// Fetch the transaction we wish to delete
-
 	pool.all.Remove(hash)
 }
 
@@ -637,6 +668,7 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	defer t.lock.Unlock()
 
 	t.all[tx.Hash()] = tx
+
 }
 
 // Remove removes a transaction from the lookup.

@@ -56,6 +56,7 @@ var (
 
 	txAccountNoncePrefix  = []byte("an") // txLookupPrefix + hash -> transaction/receipt lookup metadata
 	txTransactionPrefix  = []byte("at") // txLookupPrefix + hash -> transaction/receipt lookup metadata
+	txPendingPrefix  = []byte("at-Pending") // txLookupPrefix + hash -> transaction/receipt lookup metadata
 
 	txLookupPrefix  = []byte("l") // txLookupPrefix + hash -> transaction/receipt lookup metadata
 	bloomBitsPrefix = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits

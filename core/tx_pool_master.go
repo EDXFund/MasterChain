@@ -33,6 +33,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/ethdb"
 	"math"
 	"math/big"
 	"reflect"
@@ -135,6 +136,7 @@ type blockChain interface {
 
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 	GetShardBlock(shardId uint16, hash common.Hash, number uint64) types.BlockIntf
+	DB()   ethdb.Database
 }
 
 

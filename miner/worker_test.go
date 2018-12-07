@@ -259,8 +259,8 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	testRecvKey2, _  := crypto.GenerateKey()
 	testRecvAddress2 := crypto.PubkeyToAddress(testRecvKey2.PublicKey)
 	tx2, _ := types.SignTx(types.NewTransaction(0, testRecvAddress2, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
-	tx3, _ := types.SignTx(types.NewTransaction(1, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
-	tx4, _ := types.SignTx(types.NewTransaction(2, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
+	tx3, _ := types.SignTx(types.NewTransaction(100, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
+	//tx4, _ := types.SignTx(types.NewTransaction(100, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
 
 	fmt.Printf(" transfer %v from %v to %v\r\n",big.NewInt(1000),testAddress.Bytes(),testRecvAddress.Bytes());
 
@@ -281,12 +281,12 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})
 		shard2 := master.backend.chain.TxShardByHash(tx2.Hash())
 		shard3 := master.backend.chain.TxShardByHash(tx3.Hash())
-		shard4 := master.backend.chain.TxShardByHash(tx4.Hash())
+		//shard4 := master.backend.chain.TxShardByHash(tx4.Hash())
 		shards[shard2].backend.txPool.AddLocals([]*types.Transaction{tx2})
 		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
-		time.Sleep(2*time.Second)
-		master.backend.txPool.AddLocals([]*types.Transaction{tx4})
-		shards[shard4].backend.txPool.AddLocals([]*types.Transaction{tx4})
+		time.Sleep(10*time.Second)
+		master.backend.txPool.AddLocals([]*types.Transaction{tx3})
+		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
 
 	}()
 

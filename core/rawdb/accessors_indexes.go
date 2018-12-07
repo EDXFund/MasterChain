@@ -116,7 +116,34 @@ func WriteTxOfAccountNonce(db DatabaseWriter, account common.Address,nonce uint6
 	}
 	return err
 }
-func WriteTransactoin(db DatabaseWriter, hash common.Hash, tx *types.Transaction) error{
+func WritePendingTransactions(db DatabaseWriter, txHashes []*common.Hash) error{
+	data,err := rlp.EncodeToBytes(txHashes)
+	if err != nil {
+		log.Error("error in writing pending transactions:","err is :",err)
+		return err
+	}
+	db.Put(txPendingPrefix,data)
+	if err != nil {
+		log.Error("error in saving pending transactions:","err is :",err)
+
+	}
+	return err
+}
+func ReadPendingTransactions(db DatabaseReader) ([]*common.Hash,error) {
+	data,err := db.Get(txPendingPrefix)
+	if err != nil {
+		log.Error("error in reading pending transactions:","err is :",err)
+		return nil,err
+	}
+	hashes := []*common.Hash{}
+	err = rlp.DecodeBytes(data,hashes)
+	if err != nil {
+		log.Error("error in saving pending transactions:","err is :",err)
+
+	}
+	return hashes,err
+}
+func WriteRawTransaction(db DatabaseWriter, hash common.Hash, tx *types.Transaction) error{
 	data,err := rlp.EncodeToBytes(tx)
 	if err != nil {
 		log.Crit("error in encode transaction",err)
@@ -128,7 +155,20 @@ func WriteTransactoin(db DatabaseWriter, hash common.Hash, tx *types.Transaction
 	}
 	return err
 }
+func ReadRawTransaction(db DatabaseReader, hash common.Hash) ( *types.Transaction,error){
 
+	data,err := db.Get(txKey(hash))
+	if err != nil {
+		log.Error("error in read raw transaction","err:",err)
+		return nil,err
+	}
+	tx := new(types.Transaction)
+	err = rlp.DecodeBytes(data,tx)
+	if err != nil {
+		log.Error("error in get transaction","err:",err)
+	}
+	return tx,err
+}
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
