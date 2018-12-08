@@ -164,6 +164,10 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 		} else {
 			log.Info("Writing custom genesis block")
 		}
+		data, _ := json.Marshal(genesis)
+
+		db.Put([]byte("genesis"), data)
+
 		block, err := genesis.Commit(db, shardId)
 		return genesis.Config, block.Hash(), err
 	}
@@ -199,7 +203,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
-	height := rawdb.ReadHeaderNumber(db,  rawdb.ReadHeadHeaderHash(db, shardId))
+	height := rawdb.ReadHeaderNumber(db, rawdb.ReadHeadHeaderHash(db, shardId))
 	if height == nil {
 		return newcfg, stored, fmt.Errorf("missing block number for head header hash")
 	}
@@ -319,7 +323,7 @@ func (g *Genesis) ToSBlock(db ethdb.Database, shardId uint16) types.BlockIntf {
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true)
 
-	return types.NewSBlock(head,  nil)
+	return types.NewSBlock(head, nil)
 }
 
 // Commit writes the block and state of a genesis specification to the database.
