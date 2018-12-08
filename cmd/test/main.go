@@ -70,7 +70,7 @@ func main() {
 	for i, cfg := range cfgs {
 
 		add := i + 1
-		cfg.Eth.Ethash.PowMode = ethash.ModeTest
+		cfg.Eth.Ethash.PowMode = ethash.ModeFake
 		cfg.Eth.NetworkId = genesis.Config.ChainID.Uint64()
 		cfg.Eth.Genesis = genesis
 		//cfg.Eth.Etherbase = addr
@@ -141,9 +141,13 @@ func main() {
 
 	}
 
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 2)
 
-	for _, node := range stacks {
+	for id, node := range stacks {
+
+		if id == 0 {
+
+		}
 		var ethereum *eth.Ethereum
 		if err := node.Service(&ethereum); err != nil {
 			log.Crit("Ethereum service not running: %v", err)

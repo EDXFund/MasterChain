@@ -54,7 +54,7 @@ var (
 
 	ErrNoGenesis     = errors.New("Genesis not found in chain")
 	ErrInvalidBlocks = errors.New("no blocks")
-	ErrNoTxPool     = errors.New("Tx Pool must be set on master")
+	ErrNoTxPool      = errors.New("Tx Pool must be set on master")
 )
 
 type ShardPoolManagerIntf interface {
@@ -153,7 +153,7 @@ type BlockChain struct {
 	vmConfig     vm.Config
 	latestShards map[uint16]*types.ShardBlockInfo
 	//当这个是子链时，会有与主链同步的信息
-	master_head *HeaderChain
+	master_head    *HeaderChain
 	genesis        *Genesis
 	badBlocks      *lru.Cache                 // Bad block cache
 	shouldPreserve func(types.BlockIntf) bool // Function used to determine whether should preserve the given block.
@@ -197,7 +197,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 
 	bc.SetValidator(NewBlockValidator(chainConfig, bc, engine))
 	if shardId != types.ShardMaster {
-		bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine,nil))
+		bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine, nil))
 	}
 
 	var err error
@@ -234,8 +234,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	go bc.update()
 	return bc, nil
 }
-func (bc *BlockChain) SetupProcessor (chainConfig *params.ChainConfig, engine consensus.Engine,pool TxPoolIntf){
-	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine,pool))
+func (bc *BlockChain) SetupProcessor(chainConfig *params.ChainConfig, engine consensus.Engine, pool TxPoolIntf) {
+	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine, pool))
 }
 func (bc *BlockChain) ShardId() uint16    { return bc.shardId }
 func (bc *BlockChain) DB() ethdb.Database { return bc.db }
@@ -806,19 +806,21 @@ func (bc *BlockChain) GetShardBlock(shardId uint16, hash common.Hash, number uin
 	bc.blockCache.Add(block.Hash(), block)
 	return block
 }
+
 /**
 returns hightest block number of specified shardId
 if shardId is 0xFFFF，it returns height of master chain
- */
-func (bc *BlockChain)GetHeight(shardId uint16) uint64{
+*/
+func (bc *BlockChain) GetHeight(shardId uint16) uint64 {
 	if bc.shardId == shardId {
 		return bc.CurrentHeader().NumberU64()
-	}else if shardId == types.ShardMaster {
+	} else if shardId == types.ShardMaster {
 		return bc.master_head.CurrentHeader().NumberU64()
-	}else {
+	} else {
 		return uint64(0)
 	}
 }
+
 // GetBlock retrieves a block from the database by hash and number,
 // caching it if found.
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf {
@@ -842,8 +844,8 @@ func (bc *BlockChain) GetBlockByHash(hash common.Hash) types.BlockIntf {
 	if number == nil {
 		number = bc.master_head.GetBlockNumber(hash)
 		if number != nil {
-			return bc.GetBlock(hash,*number)
-		}else {
+			return bc.GetBlock(hash, *number)
+		} else {
 			return nil
 		}
 
@@ -1334,21 +1336,20 @@ func (bc *BlockChain) insertIntoShard(chain types.BlockIntfs) (int, error) {
 	bc.chainShardFeed.Send(&ChainsShardEvent{Block: chain})
 	return len(chain), nil
 }
-func (bc *BlockChain) switchTo(hash common.Hash,number uint64){
+func (bc *BlockChain) switchTo(hash common.Hash, number uint64) {
 
-	header:= bc.CurrentHeader()
-	newBlock := rawdb.ReadBlock(bc.db,hash,number)
-	if  number >header.NumberU64()  { //bigger than us, call reorg
+	header := bc.CurrentHeader()
+	newBlock := rawdb.ReadBlock(bc.db, hash, number)
+	if number > header.NumberU64() { //bigger than us, call reorg
 
 		if newBlock != nil {
-			bc.reorg(bc.CurrentBlock(),newBlock)
+			bc.reorg(bc.CurrentBlock(), newBlock)
 		} //else  error block ignore
 	} else if number < header.NumberU64() {
-			block := bc.GetBlockByNumber(number)
-			if block.Hash() != hash  { //in different fork
-				bc.reorg(bc.CurrentBlock(),newBlock)
-			} // else in same fork continue working
-
+		block := bc.GetBlockByNumber(number)
+		if block.Hash() != hash { //in different fork
+			bc.reorg(bc.CurrentBlock(), newBlock)
+		} // else in same fork continue working
 
 	}
 
@@ -1362,27 +1363,27 @@ func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int, error) 
 		headers = append(headers, item.Header())
 	}
 	//更新跟踪的主链区块头,是否需要同步本子链的
-	cnt,err := bc.master_head.InsertHeaderChain(headers, whFunc, time.Now())
+	cnt, err := bc.master_head.InsertHeaderChain(headers, whFunc, time.Now())
 	if err == nil {
 		var targetShardInfo *types.ShardBlockInfo
-		for _,block := range chain {
+		for _, block := range chain {
 			shardInfos := block.ShardBlocks()
-			for _,shardInfo := range shardInfos {
+			for _, shardInfo := range shardInfos {
 				if shardInfo.ShardId == bc.shardId {
 					if targetShardInfo == nil {
 						targetShardInfo = shardInfo
-					}else if shardInfo.BlockNumber > targetShardInfo.BlockNumber {
+					} else if shardInfo.BlockNumber > targetShardInfo.BlockNumber {
 						targetShardInfo = shardInfo
 					}
 				}
 			}
 		}
 		if targetShardInfo != nil {
-			bc.switchTo(targetShardInfo.Hash,targetShardInfo.BlockNumber)
+			bc.switchTo(targetShardInfo.Hash, targetShardInfo.BlockNumber)
 		}
 	}
 
-	return cnt,err
+	return cnt, err
 
 }
 
@@ -1538,59 +1539,57 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}
-		if(parent.ShardId() == types.ShardMaster) {
-			log.Trace(" Trace root before:","number:",parent.NumberU64(),"Root:",parent.Root())
+		if parent.ShardId() == types.ShardMaster {
+			log.Trace(" Trace root before:", "number:", parent.NumberU64(), "Root:", parent.Root())
 
 		}
 
 		// Process block using the parent state as reference point.
-			receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
-			log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
+		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
+		log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
 
+		if err != nil {
+			bc.reportBlock(block, receipts, err)
+			return i, events, coalescedLogs, err
+		}
+		// Validate the state using the default validator
+		err = bc.Validator().ValidateState(block, parent, state, receipts, usedGas)
+		if err != nil {
+			bc.reportBlock(block, receipts, err)
+			return i, events, coalescedLogs, err
+		}
+		proctime := time.Since(bstart)
 
-			if err != nil {
-				bc.reportBlock(block, receipts, err)
-				return i, events, coalescedLogs, err
-			}
-			// Validate the state using the default validator
-			err = bc.Validator().ValidateState(block, parent, state, receipts, usedGas)
-			if err != nil {
-				bc.reportBlock(block, receipts, err)
-				return i, events, coalescedLogs, err
-			}
-			proctime := time.Since(bstart)
+		// Write the block to the chain and get the status.
+		status, err := bc.WriteBlockWithState(block, receipts, state)
+		if err != nil {
+			return i, events, coalescedLogs, err
+		}
+		switch status {
+		case CanonStatTy:
+			log.Debug("Inserted new block", "number", block.Number(), "shardId ", block.ShardId(), "hash", block.Hash(), "uncles", len(block.Uncles()),
+				"txs", len(block.Transactions()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
 
-			// Write the block to the chain and get the status.
-			status, err := bc.WriteBlockWithState(block, receipts, state)
-			if err != nil {
-				return i, events, coalescedLogs, err
-			}
-			switch status {
-			case CanonStatTy:
-				log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(), "uncles", len(block.Uncles()),
-					"txs", len(block.Transactions()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
+			coalescedLogs = append(coalescedLogs, logs...)
+			blockInsertTimer.UpdateSince(bstart)
+			events = append(events, ChainEvent{block, block.Hash(), logs})
+			lastCanon = block
 
-				coalescedLogs = append(coalescedLogs, logs...)
-				blockInsertTimer.UpdateSince(bstart)
-				events = append(events, ChainEvent{block, block.Hash(), logs})
-				lastCanon = block
+			// Only count canonical blocks for GC processing time
+			bc.gcproc += proctime
 
-				// Only count canonical blocks for GC processing time
-				bc.gcproc += proctime
+		case SideStatTy:
+			log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(), "diff", block.Difficulty(), "elapsed",
+				common.PrettyDuration(time.Since(bstart)), "txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()))
 
-			case SideStatTy:
-				log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(), "diff", block.Difficulty(), "elapsed",
-					common.PrettyDuration(time.Since(bstart)), "txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()))
+			blockInsertTimer.UpdateSince(bstart)
+			events = append(events, ChainSideEvent{block})
+		}
+		stats.processed++
+		stats.usedGas += usedGas
 
-				blockInsertTimer.UpdateSince(bstart)
-				events = append(events, ChainSideEvent{block})
-			}
-			stats.processed++
-			stats.usedGas += usedGas
-
-			cache, _ := bc.stateCache.TrieDB().Size()
-			stats.report(chain, i, cache)
-
+		cache, _ := bc.stateCache.TrieDB().Size()
+		stats.report(chain, i, cache)
 
 	}
 	// Append a single chain head event if we've progressed the chain
