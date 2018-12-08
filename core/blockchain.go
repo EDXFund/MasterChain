@@ -784,7 +784,19 @@ func (bc *BlockChain) GetShardBlock(shardId uint16, hash common.Hash, number uin
 	bc.blockCache.Add(block.Hash(), block)
 	return block
 }
-
+/**
+returns hightest block number of specified shardId
+if shardId is 0xFFFF，it returns height of master chain
+ */
+func (bc *BlockChain)GetHeight(shardId uint16) uint64{
+	if bc.shardId == shardId {
+		return bc.CurrentHeader().NumberU64()
+	}else if shardId == types.ShardMaster {
+		return bc.master_head.CurrentHeader().NumberU64()
+	}else {
+		return uint64(0)
+	}
+}
 // GetBlock retrieves a block from the database by hash and number,
 // caching it if found.
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf {
@@ -806,7 +818,13 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf 
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) types.BlockIntf {
 	number := bc.hc.GetBlockNumber(hash)
 	if number == nil {
-		return nil
+		number = bc.master_head.GetBlockNumber(hash)
+		if number != nil {
+			return bc.GetBlock(hash,*number)
+		}else {
+			return nil
+		}
+
 	}
 	return bc.GetBlock(hash, *number)
 }

@@ -241,7 +241,14 @@ func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, eng
 	return &master,shardBackends
 }
 func TestSingleTransaction(t *testing.T) {
-	testSingleTransaction(t, ethashChainConfig, ethash.NewFaker())
+	cfg := ethash.Config{
+		CacheDir:       "ethash",
+		CachesInMem:    2,
+		CachesOnDisk:   3,
+		DatasetsInMem:  1,
+		DatasetsOnDisk: 2,
+	}
+	testSingleTransaction(t, ethashChainConfig, ethash.New(cfg,nil,false))
 }
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
