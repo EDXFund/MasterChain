@@ -1334,7 +1334,25 @@ func (bc *BlockChain) insertIntoShard(chain types.BlockIntfs) (int, error) {
 	bc.chainShardFeed.Send(&ChainsShardEvent{Block: chain})
 	return len(chain), nil
 }
+func (bc *BlockChain) switchTo(hash common.Hash,number uint64){
 
+	header:= bc.CurrentHeader()
+	newBlock := rawdb.ReadBlock(bc.db,hash,number)
+	if  number >header.NumberU64()  { //bigger than us, call reorg
+
+		if newBlock != nil {
+			bc.reorg(bc.CurrentBlock(),newBlock)
+		} //else  error block ignore
+	} else if number < header.NumberU64() {
+			block := bc.GetBlockByNumber(number)
+			if block.Hash() != hash  { //in different fork
+				bc.reorg(bc.CurrentBlock(),newBlock)
+			} // else in same fork continue working
+
+
+	}
+
+}
 func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int, error) {
 	whFunc := func(header types.HeaderIntf) error {
 		return nil
@@ -1344,7 +1362,27 @@ func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int, error) 
 		headers = append(headers, item.Header())
 	}
 	//更新跟踪的主链区块头,是否需要同步本子链的
-	return bc.master_head.InsertHeaderChain(headers, whFunc, time.Now())
+	cnt,err := bc.master_head.InsertHeaderChain(headers, whFunc, time.Now())
+	if err == nil {
+		var targetShardInfo *types.ShardBlockInfo
+		for _,block := range chain {
+			shardInfos := block.ShardBlocks()
+			for _,shardInfo := range shardInfos {
+				if shardInfo.ShardId == bc.shardId {
+					if targetShardInfo == nil {
+						targetShardInfo = shardInfo
+					}else if shardInfo.BlockNumber > targetShardInfo.BlockNumber {
+						targetShardInfo = shardInfo
+					}
+				}
+			}
+		}
+		if targetShardInfo != nil {
+			bc.switchTo(targetShardInfo.Hash,targetShardInfo.BlockNumber)
+		}
+	}
+
+	return cnt,err
 
 }
 
