@@ -213,5 +213,5 @@ type blockBodiesData blockBody
 
 type blockHeaderMsgData struct {
 	ShardId uint16
-	data    []byte
+	Data    []byte
 }

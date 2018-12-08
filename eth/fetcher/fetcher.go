@@ -46,7 +46,7 @@ var (
 )
 
 // blockRetrievalFn is a callback type for retrieving a block from the local chain.
-type blockRetrievalFn func(common.Hash) types.BlockIntf
+type blockRetrievalFn func(common.Hash, uint16) types.BlockIntf
 
 // headerRequesterFn is a callback type for sending a header retrieval request.
 type headerRequesterFn func(common.Hash, uint16) error
@@ -116,6 +116,7 @@ type requsetHash struct {
 // Fetcher is responsible for accumulating block announcements from various peers
 // and scheduling them for retrieval.
 type Fetcher struct {
+
 	// Various event channels
 	notify chan *announce
 	inject chan *inject
@@ -358,7 +359,9 @@ func (f *Fetcher) loop() {
 				break
 			}
 			// Otherwise if fresh and still unknown, try and import
-			if number+maxUncleDist < height || f.getBlock(hash) != nil {
+			un := f.getBlock(hash, op.block.ShardId())
+			bool := number < height || !reflect.ValueOf(un).IsNil()
+			if bool {
 				f.forgetBlock(hash)
 				continue
 			}
@@ -425,7 +428,7 @@ func (f *Fetcher) loop() {
 					f.forgetHash(hash)
 
 					// If the block still didn't arrive, queue for fetching
-					nBlock := f.getBlock(hash)
+					nBlock := f.getBlock(hash, announce.shardId)
 					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
 						request[announce.origin] = append(request[announce.origin], requsetHash{hash, announce.shardId})
 						f.fetching[hash] = announce
@@ -467,7 +470,7 @@ func (f *Fetcher) loop() {
 				f.forgetHash(hash)
 
 				// If the block still didn't arrive, queue for completion
-				if f.getBlock(hash) == nil {
+				if f.getBlock(hash, announce.shardId) == nil {
 
 					if request[announce.origin] == nil {
 						request[announce.origin] = map[uint16][]common.Hash{}
@@ -522,7 +525,7 @@ func (f *Fetcher) loop() {
 						continue
 					}
 					// Only keep if not imported by other means
-					nBlock := f.getBlock(hash)
+					nBlock := f.getBlock(hash, announce.shardId)
 					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
 						announce.header = header
 						announce.time = task.time
@@ -637,7 +640,7 @@ func procMasterBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
 
-					nBlock := f.getBlock(hash)
+					nBlock := f.getBlock(hash, announce.shardId)
 					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
 						block := types.NewBlockWithHeader(announce.header).WithBody(task.shardBlocks[i], nil, nil, nil)
 						block.SetReceivedAt(task.time)
@@ -679,7 +682,7 @@ func procShardBodies(task *bodyFilterTask, f *Fetcher) []types.BlockIntf {
 				if txnHash == announce.header.TxHash() && resultHash == announce.header.ResultHash() && announce.origin == task.peer {
 					// Mark the body matched, reassemble if still unknown
 					matched = true
-					nBlock := f.getBlock(hash)
+					nBlock := f.getBlock(hash, announce.shardId)
 					if nBlock == nil || reflect.ValueOf(nBlock).IsNil() {
 						block := types.NewSBlockWithHeader(announce.header).WithBody(nil, nil, task.transactions[i], task.contractResults[i])
 						block.SetReceivedAt(task.time)
@@ -784,11 +787,13 @@ func (f *Fetcher) insert(peer string, block types.BlockIntf) {
 		defer func() { f.done <- hash }()
 
 		// If the parent's unknown, abort insertion
-		parent := f.getBlock(block.ParentHash())
+		parent := f.getBlock(block.ParentHash(), block.ShardId())
+
 		if parent == nil || reflect.ValueOf(parent).IsNil() {
 			fmt.Println("Unknown parent of propagated block", "peer", peer, "number", block.Number(), "hash", hash, "parent", block.ParentHash())
 			return
 		}
+
 		// Quickly validate the header and propagate the block if it passes
 		switch err := f.verifyHeader(block.Header()); err {
 		case nil:

@@ -19,6 +19,7 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -264,7 +265,6 @@ func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo {
 	if !ok {
 		block := bc.Genesis().ToSBlock()
 
-
 		return &types.ShardBlockInfo{shardId, block.NumberU64(), block.Hash(), common.Hash{}, block.Coinbase(), block.Difficulty().Uint64()}
 	} else {
 		return shard
@@ -320,44 +320,66 @@ func (bc *BlockChain) SetupShardBlockInfos(shardInfos map[uint16]*types.ShardBlo
 }
 */
 func (bc *BlockChain) GenesisOfShard(shardId uint16) types.BlockIntf {
-	if shardId == types.ShardMaster {
-		head_ := &types.HeaderStruct{
-			Number:     bc.genesisBlock.Number(),
-			Nonce:      bc.genesisBlock.Nonce(),
-			Time:       bc.genesisBlock.Time(),
-			ParentHash: bc.genesisBlock.ParentHash(),
-			Extra:      bc.genesisBlock.Extra(),
-			GasLimit:   bc.genesisBlock.GasLimit(),
-			GasUsed:    bc.genesisBlock.GasUsed(),
-			Difficulty: bc.genesisBlock.Difficulty(),
-			MixDigest:  bc.genesisBlock.MixDigest(),
-			Coinbase:   bc.genesisBlock.Coinbase(),
-			Root:       bc.genesisBlock.Root(),
+	data, _ := bc.DB().Get([]byte("genesis"))
+	genesis := new(Genesis)
+	json.Unmarshal(data, genesis)
+	if genesis != nil {
+		block, err := genesis.Commit(bc.db, shardId)
+
+		if err != nil {
+			return nil
 		}
-		head := types.Header{}
-		head.FillBy(head_)
-		return types.NewBlockWithHeader(&head)
-	} else {
-		head_ := &types.SHeaderStruct{
-			ShardId:    shardId,
-			Number:     bc.genesisBlock.Number(),
-			Nonce:      bc.genesisBlock.Nonce(),
-			Time:       bc.genesisBlock.Time(),
-			ParentHash: bc.genesisBlock.ParentHash(),
-			Extra:      bc.genesisBlock.Extra(),
-			GasLimit:   bc.genesisBlock.GasLimit(),
-			GasUsed:    bc.genesisBlock.GasUsed(),
-			Difficulty: bc.genesisBlock.Difficulty(),
-			MixDigest:  bc.genesisBlock.MixDigest(),
-			Coinbase:   bc.genesisBlock.Coinbase(),
-			Root:       bc.genesisBlock.Root(),
-		}
-		head := types.SHeader{}
-		head.FillBy(head_)
-		return types.NewSBlockWithHeader(&head)
+
+		return block
 	}
+
+	return nil
+
+	//if shardId == types.ShardMaster {
+	//	head_ := &types.HeaderStruct{
+	//		Number:     bc.genesisBlock.Number(),
+	//		Nonce:      bc.genesisBlock.Nonce(),
+	//		Time:       bc.genesisBlock.Time(),
+	//		ParentHash: bc.genesisBlock.ParentHash(),
+	//		Extra:      bc.genesisBlock.Extra(),
+	//		GasLimit:   bc.genesisBlock.GasLimit(),
+	//		GasUsed:    bc.genesisBlock.GasUsed(),
+	//		Difficulty: bc.genesisBlock.Difficulty(),
+	//		MixDigest:  bc.genesisBlock.MixDigest(),
+	//		Coinbase:   bc.genesisBlock.Coinbase(),
+	//		Root:       bc.genesisBlock.Root(),
+	//	}
+	//	head := types.Header{}
+	//	head.FillBy(head_)
+	//	return types.NewBlockWithHeader(&head)
+	//} else {
+	//	head_ := &types.SHeaderStruct{
+	//		ShardId:    shardId,
+	//		Number:     bc.genesisBlock.Number(),
+	//		Nonce:      bc.genesisBlock.Nonce(),
+	//		Time:       bc.genesisBlock.Time(),
+	//		ParentHash: bc.genesisBlock.ParentHash(),
+	//		Extra:      bc.genesisBlock.Extra(),
+	//		GasLimit:   bc.genesisBlock.GasLimit(),
+	//		GasUsed:    bc.genesisBlock.GasUsed(),
+	//		Difficulty: bc.genesisBlock.Difficulty(),
+	//		MixDigest:  bc.genesisBlock.MixDigest(),
+	//		Coinbase:   bc.genesisBlock.Coinbase(),
+	//		Root:       bc.genesisBlock.Root(),
+	//	}
+	//	head := types.SHeader{}
+	//	head.FillBy(head_)
+	//	return types.NewSBlockWithHeader(&head)
+	//}
 }
 func (bc *BlockChain) GenesisHashOf(shardId uint16) common.Hash {
+
+	block := bc.GenesisOfShard(shardId)
+	if block != nil {
+		return block.Hash()
+	}
+	return common.Hash{}
+
 	if shardId == types.ShardMaster {
 		head_ := &types.HeaderStruct{
 			Number:     bc.genesisBlock.Number(),
@@ -1293,7 +1315,7 @@ func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int, error) 
 	whFunc := func(header types.HeaderIntf) error {
 		return nil
 	}
-	headers := make([]types.HeaderIntf,0, len(chain))
+	headers := make([]types.HeaderIntf, 0, len(chain))
 	for _, item := range chain {
 		headers = append(headers, item.Header())
 	}

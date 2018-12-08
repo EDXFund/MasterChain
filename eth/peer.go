@@ -339,7 +339,7 @@ func (p *peer) SendBlockHeaders(headers []types.HeaderIntf, shardId uint16) erro
 		data, _ = rlp.EncodeToBytes(hs)
 	}
 
-	msg := blockHeaderMsgData{ShardId: shardId, data: data}
+	msg := blockHeaderMsgData{ShardId: shardId, Data: data}
 	return p2p.Send(p.rw, BlockHeadersMsg, msg)
 }
 

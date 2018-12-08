@@ -194,7 +194,14 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		return manager.blockchain.InsertChain(blocks)
 	}
-	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
+	getblockByHash := func(hash common.Hash, shardId uint16) types.BlockIntf {
+		if blockchain.ShardId() == types.ShardMaster && shardId != types.ShardMaster {
+			return shardpool.GetBlockByHash(hash, shardId)
+		} else {
+			return blockchain.GetBlockByHash(hash)
+		}
+	}
+	manager.fetcher = fetcher.New(getblockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
 
 	return manager, nil
 }
@@ -473,7 +480,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		var headers = []types.HeaderIntf{}
 		if bhmd.ShardId == types.ShardMaster {
 			var headerst []*types.HeaderStruct
-			rlp.DecodeBytes(bhmd.data, &headerst)
+			rlp.DecodeBytes(bhmd.Data, &headerst)
 
 			for _, head_bak := range headerst {
 				head := types.Header{}
@@ -483,7 +490,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 		} else {
 			var headerst []*types.SHeaderStruct
-			rlp.DecodeBytes(bhmd.data, &headerst)
+			rlp.DecodeBytes(bhmd.Data, &headerst)
 			for _, head_bak := range headerst {
 				head := types.SHeader{}
 				head.FillBy(head_bak)
@@ -839,7 +846,7 @@ func (pm *ProtocolManager) defineShardId(shardId uint16) (bool, error) {
 			dataInChain = false
 		}
 	} else {
-		if shardId != selfShardId {
+		if shardId != selfShardId && shardId != types.ShardMaster {
 			return dataInChain, fmt.Errorf("error shardId data")
 		}
 	}
@@ -981,7 +988,7 @@ func (pm *ProtocolManager) minedBroadcastLoop() {
 	// automatically stops if unsubscribe
 	for obj := range pm.minedBlockSub.Chan() {
 		if ev, ok := obj.Data.(core.NewMinedBlockEvent); ok {
-			pm.BroadcastBlock(ev.Block, true)  // First propagate block to peers
+			//pm.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			pm.BroadcastBlock(ev.Block, false) // Only then announce to the rest
 		}
 	}
