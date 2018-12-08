@@ -176,10 +176,11 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if shardId == types.ShardMaster {
 		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain, shardId)
 		eth.shardPool = qchain.NewShardChainPool(eth.blockchain, eth.chainDb)
+
 	} else {
 		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain, shardId)
 	}
-
+	eth.blockchain.SetupProcessor(eth.chainConfig,eth.engine,eth.txPool)
 	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.shardPool, eth.engine, eth.blockchain, chainDb); err != nil {
 		return nil, err
 	}

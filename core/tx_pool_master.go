@@ -33,6 +33,8 @@ package core
 import (
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/core/rawdb"
+	"github.com/EDXFund/MasterChain/ethdb"
 	"math"
 	"math/big"
 	"reflect"
@@ -135,6 +137,7 @@ type blockChain interface {
 
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 	GetShardBlock(shardId uint16, hash common.Hash, number uint64) types.BlockIntf
+	DB()   ethdb.Database
 }
 
 
@@ -821,6 +824,11 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	// If the transaction is already known, discard it
 	hash := tx.Hash()
+	_tx,err := rawdb.ReadRawTransaction(pool.chain.DB(),tx.Hash())
+	if _tx != nil {
+		log.Trace("Discarding already known transaction", "hash", hash)
+		return false, fmt.Errorf("known transaction: %x", hash)
+	}
 	if pool.all.Get(hash) != nil {
 		log.Trace("Discarding already known transaction", "hash", hash)
 		return false, fmt.Errorf("known transaction: %x", hash)
