@@ -96,7 +96,7 @@ func (ethash *Ethash) VerifyHeader(chain consensus.ChainReader, header types.Hea
 	}
 	parent := chain.GetHeader(header.ParentHash(), number-1)
 	if parent == nil  ||  reflect.ValueOf(parent).IsNil()  {
-		fmt.Println("1")
+
 		return consensus.ErrUnknownAncestor
 	}
 	// Sanity checks passed, do a proper verification
@@ -559,8 +559,7 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 	}
 	// Verify the calculated values against the ones provided in the header
 	digestHeader := header.MixDigest();
-	fmt.Println("digest:",digest)
-	fmt.Println("header:",digestHeader)
+
 	if !bytes.Equal(digestHeader[:], digest) {
 		return errInvalidMixDigest
 	}
@@ -576,7 +575,6 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 func (ethash *Ethash) Prepare(chain consensus.ChainReader, header types.HeaderIntf) error {
 	parent := chain.GetHeader(header.ParentHash(), header.NumberU64()-1)
 	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
-		fmt.Println("4")
 		return consensus.ErrUnknownAncestor
 	}
 	header.SetDifficulty (ethash.CalcDifficulty(chain, header.Time().Uint64(), parent))
@@ -610,6 +608,11 @@ func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.He
 	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 
 	// Header seems complete, assemble into a block and return
+	out := make( []types.ShardBlockInfo,len(blks))
+	for i,val := range blks {
+		out[i] = *val
+	}
+	//fmt.Println(" shard blocks:",out)
 	return types.NewBlock(header, blks, nil, receipts), nil
 }
 // SealHash returns the hash of a block prior to it being sealed.
@@ -693,7 +696,7 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 	}
 
 	blockReward := new(big.Int).Mul(blockRewardBase,big.NewInt(multiple));
-	fmt.Println("award master coinbase:",header.Coinbase(),blockReward," of:",header.NumberU64());
+	log.Trace("award master ","coinbase:",header.Coinbase()," number:",header.NumberU64(),"amount",blockReward);
 	//reward to master
 	state.AddBalance(header.Coinbase(), blockReward)
 
@@ -753,7 +756,7 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 			if oneBlock.BlockNumber > blockNo {
 				blockNo = oneBlock.BlockNumber
 			}
-			fmt.Println("award shard coinbase:",oneBlock.Coinbase," number:",oneBlock.BlockNumber, rewardOfShard);
+			log.Trace("award shard ","coinbase:",oneBlock.Coinbase," number:",oneBlock.BlockNumber, "amount",rewardOfShard);
 			//reward to master
 			if remains > rewardOfShard  {
 				remains -= rewardOfShard

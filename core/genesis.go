@@ -270,7 +270,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	head.FillBy(head_)
 
 	if g.GasLimit == 0 {
-		head.SetGasLimit(params.GenesisGasLimit)
+		head.SetGasLimit(params.GenesisGasLimit*1000)
 	}
 	if g.Difficulty == nil {
 		head.SetDifficulty(params.GenesisDifficulty)

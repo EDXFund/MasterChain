@@ -31,7 +31,6 @@
 package core
 
 import (
-	"fmt"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"math"
 	"math/big"
@@ -215,7 +214,7 @@ func (pool *TxPoolShard) loop() {
 		select {
 		// Handle ChainHeadEvent
 		case ev := <-pool.chainHeadCh:
-			fmt.Println("new Header shard")
+		//	fmt.Println("new Header shard")
 			if ev.Block != nil {
 				pool.mu.Lock()
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
@@ -314,7 +313,7 @@ func (pool *TxPoolShard) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 			for rem.NumberU64() > add.NumberU64() {
 
 				for _,item := range rem.Results() {
-					discarded = append(discarded, pool.all.Get(item.TxHash))
+					discarded = append(discarded, pool.Get(item.TxHash))
 				}
 
 				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
@@ -324,7 +323,7 @@ func (pool *TxPoolShard) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 			}
 			for add.NumberU64() > rem.NumberU64() {
 				for _,item := range add.Results() {
-					included = append(included, pool.all.Get(item.TxHash))
+					included = append(included, pool.Get(item.TxHash))
 				}
 				included = append(included, add.Transactions()...)
 				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
@@ -336,14 +335,14 @@ func (pool *TxPoolShard) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 			for rem.Hash() != add.Hash() {
 
 				for _,item := range rem.Results() {
-					discarded = append(discarded, pool.all.Get(item.TxHash))
+					discarded = append(discarded, pool.Get(item.TxHash))
 				}
 				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 				for _,item := range add.Results() {
-					included = append(included, pool.all.Get(item.TxHash))
+					included = append(included, pool.Get(item.TxHash))
 				}
 				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
@@ -480,7 +479,7 @@ func (pool *TxPoolShard) Pending() (map[common.Address]types.Transactions, error
 
 
 	result := make(map[common.Address]types.Transactions)
-	fmt.Println(" all txs:",pool.all.Count())
+
     var errs error
 	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
 		msg,err := tx.AsMessage(pool.signer)
@@ -603,7 +602,16 @@ func (pool *TxPoolShard) Status(hashes []common.Hash) []TxStatus {
 // Get returns a transaction if it is contained in the pool
 // and nil otherwise.
 func (pool *TxPoolShard) Get(hash common.Hash) *types.Transaction {
-	return pool.all.Get(hash)
+	tx := pool.all.Get(hash)
+	if tx == nil {
+		tx2,err := rawdb.ReadRawTransaction(pool.chain.DB(),hash)
+		if err != nil {
+			log.Error("Error read tx:","hash",hash)
+		}else {
+			tx = tx2
+		}
+	}
+	return tx
 }
 
 // removeTx removes a single transaction from the queue, moving all subsequent
@@ -650,8 +658,9 @@ func (t *txLookup) Range(f func(hash common.Hash, tx *types.Transaction) bool) {
 func (t *txLookup) Get(hash common.Hash) *types.Transaction {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
+	tx := t.all[hash]
 
-	return t.all[hash]
+	return  tx
 }
 
 // Count returns the current number of items in the lookup.

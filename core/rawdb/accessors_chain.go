@@ -486,7 +486,7 @@ func WriteLatestShardInfo(db DatabaseWriter, shardConfirmed types.HeaderIntf, sh
 func ReadLatestShardInfo(db DatabaseReader,shardId uint16) (common.Hash,uint64,common.Hash,uint64){
 	data,err := db.Get(latestShardsKey(shardId))
 	if err != nil {
-		log.Error("Read shard Info error ","error:",err)
+
 		return common.Hash{},0,common.Hash{},0
 	}else {
 		result := ShardStoreInfo{}

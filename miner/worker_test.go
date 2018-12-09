@@ -17,6 +17,7 @@
 package miner
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/qchain"
@@ -25,6 +26,7 @@ import (
 	"io"
 	"math"
 	"math/big"
+	"math/rand"
 	"os"
 	"reflect"
 	"testing"
@@ -241,38 +243,63 @@ func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, eng
 	return &master,shardBackends
 }
 func TestSingleTransaction(t *testing.T) {
-	cfg := ethash.Config{
+	/*cfg := ethash.Config{
 		CacheDir:       "ethash",
 		CachesInMem:    2,
 		CachesOnDisk:   3,
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
-	}
-	testSingleTransaction(t, ethashChainConfig, ethash.New(cfg,nil,false))
+	}*/
+	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(2*time.Second))//ethash.New(cfg,nil,false))
+}
+type Account struct {
+	pvKey *ecdsa.PrivateKey
+	addr  common.Address
+	fund  *big.Int
+	txs   []*types.Transaction
 }
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
+
+	len_accounts := 100
 
 	defer engine.Close()
 
 	state := make(chan  struct{})
 
-	testKey, _  := crypto.GenerateKey()
-	testAddress := crypto.PubkeyToAddress(testKey.PublicKey)
-	testFunds   := big.NewInt(1000000000000000000)
+	sender := make([]Account,len_accounts,len_accounts)
+	receiver  := make([]Account,len_accounts,len_accounts)
+	for i := 0; i < len_accounts; i ++ {
+		testKey, _  := crypto.GenerateKey()
+		testAddress := crypto.PubkeyToAddress(testKey.PublicKey)
+		sender[i].pvKey = testKey
+		sender[i].addr = testAddress
+		sender[i].fund = big.NewInt(1000000000000000000)
+		sender[i].txs = make([]*types.Transaction,len_accounts)
+		testKey2, _  := crypto.GenerateKey()
+		testAddress2 := crypto.PubkeyToAddress(testKey2.PublicKey)
+		receiver[i].pvKey = testKey2
+		receiver[i].addr = testAddress2
+		receiver[i].fund = big.NewInt(0)
+	}
 
-	testRecvKey, _  := crypto.GenerateKey()
-	testRecvAddress := crypto.PubkeyToAddress(testRecvKey.PublicKey)
+	last := rand.NewSource(time.Now().UnixNano())
+	//create transactions
+	for i := 0; i < len_accounts; i++ {
+		for j := 0; j < len_accounts; j++ {
+			nonce := rand.New(last)
+			value := rand.New(nonce).Int31n(10000)
+			tx, _ := types.SignTx( types.NewTransaction(uint64(time.Now().UnixNano()) + uint64(nonce.Int31n(1000000000)) , receiver[j].addr, big.NewInt(int64(value)), params.TxGas, nil, nil,0), types.HomesteadSigner{}, sender[i].pvKey)
 
-	testRecvKey2, _  := crypto.GenerateKey()
-	testRecvAddress2 := crypto.PubkeyToAddress(testRecvKey2.PublicKey)
-	tx2, _ := types.SignTx(types.NewTransaction(0, testRecvAddress2, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
-	tx3, _ := types.SignTx(types.NewTransaction(100, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
-	//tx4, _ := types.SignTx(types.NewTransaction(100, testRecvAddress2, big.NewInt(3000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testKey)
+			sender[i].txs[j] = tx
+		}
 
-	fmt.Printf(" transfer %v from %v to %v\r\n",big.NewInt(1000),testAddress.Bytes(),testRecvAddress.Bytes());
+	}
 
-	fmt.Printf(" transfer %v from %v to %v\r\n",big.NewInt(3000),testAddress.Bytes(),testRecvAddress2.Bytes());
-	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,0,core.GenesisAlloc{testAddress:{Balance:testFunds}})
+	allocs := make(core.GenesisAlloc)
+	for i := 0; i < len_accounts; i++ {
+		allocs[sender[i].addr] = core.GenesisAccount{Balance:sender[i].fund}
+	}
+	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,0,allocs)
 	defer func(){
 		master.worker.close();
 		for _,shard := range shards {
@@ -284,22 +311,30 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	go func() {
 		time.Sleep(1400 * time.Millisecond)
 		//create a new send Txs
-		fmt.Println("create txs")
+		for i := 0; i < len_accounts; i++ {
+			for j:= 0; j <len_accounts; j++ {
+				tx := sender[i].txs[j]
+				master.backend.txPool.AddLocals([]*types.Transaction{tx})
+				shard := master.backend.chain.TxShardByHash(tx.Hash())
+				shards[shard].backend.txPool.AddLocals([]*types.Transaction{tx})
+			}
+		}
+		/*
 		master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})
 		shard2 := master.backend.chain.TxShardByHash(tx2.Hash())
 		shard3 := master.backend.chain.TxShardByHash(tx3.Hash())
 		//shard4 := master.backend.chain.TxShardByHash(tx4.Hash())
 		shards[shard2].backend.txPool.AddLocals([]*types.Transaction{tx2})
 		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
+
 		time.Sleep(10*time.Second)
 		master.backend.txPool.AddLocals([]*types.Transaction{tx3})
 		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
-
+*/
 
 	}()
 
 	go func(){
-		fmt.Println("waiting for master block")
 		// Ensure the new tx events has been processed
 
 		ch := make(chan core.ChainHeadEvent)
@@ -419,7 +454,7 @@ func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consen
 	}*/
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
-		fmt.Println("add tx")
+
 		b.txPool.AddLocals(newTxs)
 	}()
 
@@ -427,7 +462,7 @@ func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consen
 
 
 	go func(){
-		fmt.Println("waiting")
+
 		// Ensure the new tx events has been processed
 		time.Sleep(60000 * time.Millisecond)
 		block:= w.pendingBlock()

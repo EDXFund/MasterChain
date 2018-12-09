@@ -22,6 +22,7 @@ package miner
 import (
 	"fmt"
 	"github.com/EDXFund/MasterChain/core/rawdb"
+	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/hashicorp/golang-lru"
 
 	//"github.com/golang/dep/gps"
@@ -35,7 +36,6 @@ import (
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/state"
 	"github.com/EDXFund/MasterChain/core/types"
-	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/EDXFund/MasterChain/event"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/params"
@@ -101,6 +101,7 @@ type environment struct {
 	results      []*types.ContractResult
 	receipts     []*types.Receipt
 	prevSealHash common.Hash
+	prevTxsHash  common.Hash
 	stopEngineCh chan struct{}
 }
 
@@ -132,6 +133,7 @@ const (
 	ST_MASTER   = 1
 	ST_SHARD    = 2
 	ST_RESETING = 3
+	ST_INSERTING = 4
 )
 
 // intervalAdjust represents a resubmitting interval adjustment.
@@ -207,6 +209,7 @@ type worker struct {
 	timer      *time.Timer
 	txsCache   *lru.Cache							//cache for recent caculated txs
 	recommit   time.Duration
+	timedelay  time.Duration
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(types.BlockIntf) bool, shardId uint16) *worker {
@@ -237,6 +240,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		state:              ST_IDLE,
 		timer:				time.NewTimer(0),
 		recommit:			10000000,
+		timedelay:          10000000,
 
 	}
 	// Subscribe NewTxsEvent for tx pool
@@ -253,8 +257,8 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
 		recommit = minRecommitInterval
 	}
-	worker.exitFuncs = []E_EFuncs{nil,worker.stopEngineSeal,worker.stopEngineSeal,nil}
-	worker.enterFuncs = []E_EFuncs{nil,worker.enterMaster,worker.enterShard,worker.enterResume}
+	worker.exitFuncs = []E_EFuncs{nil,worker.stopEngineSeal,worker.stopEngineSeal,nil,nil}
+	worker.enterFuncs = []E_EFuncs{nil,worker.enterMaster,worker.enterShard,worker.enterResume,worker.enterInserting}
 	/*go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
 	go worker.resultLoop()
@@ -341,9 +345,12 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 
 	w.mu.RLock()
 	defer w.mu.RUnlock()
+
+
+
 	w.clearPendingTask(w.chain.CurrentBlock().NumberU64())
 	w.stopEngineSeal()
-	fmt.Print("1")
+
 	parent := w.chain.CurrentBlock()
 	timestamp := time.Now().Unix()
 	if parent.Time().Cmp(new(big.Int).SetInt64(timestamp)) >= 0 {
@@ -355,7 +362,7 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 		log.Info("Mining too far in the future", "wait", common.PrettyDuration(wait))
 		time.Sleep(wait)
 	}
-	fmt.Print("2")
+
 	num := parent.Number()
 	var header types.HeaderIntf
 	sheader := new(types.SHeader)
@@ -368,7 +375,8 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 		Time:       big.NewInt(timestamp),
 	})
 	header = sheader
-	fmt.Print("3")
+	fmt.Println("mining shard after:","number",parent.NumberU64())
+	pending, err := w.eth.TxPool().Pending()
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
 		if w.coinbase == (common.Address{}) {
@@ -381,16 +389,16 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 		log.Error("Failed to prepare header for mining", "err", err)
 		return nil
 	}
-	fmt.Print("4")
+
 	// Could potentially happen if starting to mine in an odd state.
-	err := w.makeCurrent(parent, header)
+	err = w.makeCurrent(parent, header)
 	if err != nil {
 		log.Error( "Failed to create mining context", "err", err)
 		return  nil
 	}
 	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
-	fmt.Printf("5:%v,",len(pending))
+
+
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
 		return  nil
@@ -399,18 +407,18 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 	if len(pending) != 0 {
 
 		// Split the pending transactions into locals and remotes
-		fmt.Print("5A")
+
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, pending)
 		interrupt := int32(0)
 		w.newTxs = 0
 		if w.shardCommitTransactions(txs, w.coinbase, &interrupt) {
-			fmt.Print("5B")
+
 			return nil
 		}
 	}
-	fmt.Print("6")
+
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
-	fmt.Print("7")
+
 	if err != nil {
 		return nil
 	}else {
@@ -419,13 +427,17 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 }
 
 func (w *worker)masterBuildEnvironment() types.BlockIntf{
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	fmt.Println("master build env")
 	w.clearPendingTask(w.chain.CurrentBlock().NumberU64())
 	w.stopEngineSeal()
 
 
 	parent := w.chain.CurrentBlock()
 
-	fmt.Println(" parent number:",parent.NumberU64(),"Root:",parent.Root())
+
 	timestamp := time.Now().Unix()
 
 	if parent.Time().Cmp(new(big.Int).SetInt64(timestamp)) >= 0 {
@@ -435,7 +447,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	// this will ensure we're not going off too far in the future
 	if now := time.Now().Unix(); timestamp > now+1 {
 		wait := time.Duration(timestamp-now) * time.Second
-		log.Info("Mining too far in the future", "wait", common.PrettyDuration(wait))
+		log.Debug("Mining too far in the future", "wait", common.PrettyDuration(wait))
 		time.Sleep(wait)
 	}
 
@@ -451,6 +463,20 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	})
 	header = header_
 
+	type SHARD struct {
+		shardId uint16
+		number  uint64
+	}
+	shardInfo,err := w.eth.ShardPool().Pending()
+
+	sshards := make([]SHARD,0,len(shardInfo))
+	for shardId,infosOfShard := range shardInfo {
+		for _,shard := range infosOfShard {
+			sshards = append(sshards,SHARD{shardId,shard.BlockNumber})
+		}
+
+	}
+	fmt.Println(" mining after","number:",parent.NumberU64()," included:",sshards)
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
 		if w.coinbase == (common.Address{}) {
@@ -465,12 +491,12 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	}
 
 	// Could potentially happen if starting to mine in an odd state.
-	err := w.makeCurrent(parent, header)
+	err = w.makeCurrent(parent, header)
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return nil
 	}
-	shardInfo,err := w.eth.ShardPool().Pending()
+
 	if err != nil{
 		log.Error("Failed to create get shards ", "err", err)
 		return nil
@@ -493,9 +519,11 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	w.current.shards = shards
 
 	//statedb transition
+
 	w.masterProcessShards(blocks,w.coinbase,&interrupt)
 	//ask for seal
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
+
 	if err != nil {
 		return nil
 	}else {
@@ -505,14 +533,14 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 }
 
 func (w *worker) enterMaster() {
-
+	w.timer.Reset(1000*time.Second)
 	block := w.masterBuildEnvironment()
 	w.timer.Reset(w.recommit)
 	w.startEngineSeal(block)
 
 }
 func (w *worker) enterShard() {
-	fmt.Println("build env")
+	w.timer.Reset(1000*time.Second)
 	block := w.shardBuildEnvironment()
 	w.timer.Reset(w.recommit)
 	if block != nil {
@@ -520,11 +548,18 @@ func (w *worker) enterShard() {
 	}
 
 }
+func (w *worker) enterInserting() {
+	w.stopEngineSeal()
+	w.timer.Reset(100*time.Second)
+}
 func (w *worker) enterResume() {
+
+	w.stopEngineSeal()
 	w.timer.Reset(10*time.Millisecond)
+	//w.timedelay  = 10*time.Millisecond
 }
 func (w *worker) enterState(newState uint8) {
-	log.Trace("State Transition","shardId:",w.shardId, "cur state:",w.state," new State:",newState)
+	fmt.Println("State Transition","shardId:",w.shardId, "cur state:",w.state," new State:",newState)
 	if w.exitFuncs[w.state] != nil {
 		w.exitFuncs[w.state]()
 	}
@@ -581,7 +616,7 @@ func (w *worker) mainStateLoop() {
 	for {
 		select {
 		case <-w.startCh:
-			fmt.Println("evt_start:",w.shardId)
+			fmt.Println("Event Transition","evt_start:",w.shardId)
 			if w.state == ST_IDLE{
 				if w.shardId == types.ShardMaster {
 					w.enterState(ST_MASTER)
@@ -591,19 +626,19 @@ func (w *worker) mainStateLoop() {
 			}
 
 		case <- w.timer.C:
-			fmt.Println("evt_timer:",w.shardId)
+			fmt.Println("Event Transition","evt_timer:",w.shardId)
 			w.handleTimer(w.timer)
 		case newHead := <- w.chainHeadCh:
-			fmt.Println("evt_newChain:",w.shardId)
+			fmt.Println("Event Transition","evt_newChain:",w.shardId, "block shard:",newHead.Block.ShardId()," number:",newHead.Block.NumberU64()," hash:",newHead.Block.Hash())
 			w.handleNewHead(newHead.Block)
 		case newShards := <- w.chainShardCh:
-			fmt.Println("evt_shard:",w.shardId)
+			fmt.Println("Event Transition","evt_shard:",w.shardId, "block shard:",newShards.Block[0].ShardId()," number:",newShards.Block[0].NumberU64()," hash:",newShards.Block[0].Hash())
 			w.handleShardChain(newShards.Block)
 		case newTxs := <- w.txsCh:
-			fmt.Println("evt_newtx:",w.shardId)
+			fmt.Println("Event Transition","evt_newtx:",w.shardId)
 			w.handleNewTxs(newTxs.Txs)
 		case newBlock := <- w.resultCh:
-			fmt.Println("evt_newblock:",w.shardId," stateRoot:",newBlock.Root())
+			fmt.Println("Event Transition","evt_newblock:",w.shardId,"number:",newBlock.NumberU64(),"hash",newBlock.Hash()," stateRoot:",newBlock.Root())
 			w.handleNewBlock(newBlock)
 		case <- w.exitCh:
 			return
@@ -613,7 +648,7 @@ func (w *worker) mainStateLoop() {
 				log.Warn("Sanitizing miner recommit interval", "provided", interval, "updated", minRecommitInterval)
 				interval = minRecommitInterval
 			}
-			log.Info("Miner recommit interval update", "from", minRecommit, "to", interval)
+			fmt.Println("Miner recommit interval update", "from", minRecommit, "to", interval)
 			minRecommit, w.recommit = interval, interval
 
 			if w.resubmitHook != nil {
@@ -671,16 +706,39 @@ func (w *worker)handleTimer(timer *time.Timer){
 
 func(w *worker) handleNewHead(block types.BlockIntf){
 	switch w.state {
+
 	case ST_IDLE:
 		if w.shardId== types.ShardMaster {
 			w.masterBuildEnvironment()
 		}else {
 			w.shardBuildEnvironment()
 		}
+	case ST_INSERTING:
+		fallthrough
+	case ST_RESETING:
+		if block.ShardId() == w.shardId {
+			if w.shardId== types.ShardMaster {
+				w.enterState(ST_MASTER)
+			}else {
+				w.enterState(ST_SHARD)
+			}
+		}
+
+
+
 	case ST_MASTER:
-		w.enterState(ST_RESETING)
+		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
+
+				w.enterState(ST_RESETING)
+		}
+
 	case ST_SHARD:
-		w.enterState(ST_RESETING)
+		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
+
+			w.enterState(ST_RESETING)
+		}
+
+
 	}
 }
 
@@ -718,10 +776,22 @@ func (w *worker)handleNewTxs(txs types.Transactions){
 	}
 }
 func (w *worker)handleNewBlock(block types.BlockIntf){
+
+	w.enterState(ST_INSERTING)
 	w.chain.InsertChain(types.BlockIntfs{block})
 	w.mux.Post(core.NewMinedBlockEvent{Block: block})
-	w.updateSnapshot()
-	w.enterState(ST_RESETING)
+	//w.updateSnapshot()
+	if w.state == ST_INSERTING {
+		if w.shardId == types.ShardMaster {
+			w.enterState(ST_MASTER)
+		}else {
+			w.enterState(ST_SHARD)
+		}
+	} //else new block insert  ok
+
+
+	//w.enterState(ST_RESETING)
+	//insert chain will trigger newHeadEvent normally
 }
 
 
@@ -749,10 +819,15 @@ func (w *worker) makeCurrent(parent types.BlockIntf, header types.HeaderIntf) er
 
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
+	env.receipts = nil
+
+
 	w.current = env
+	//fmt.Printf("current :%v",w.current.header.NumberU64(),w.current.txs,w.current.receipts,w.current.gasPool,w.current.)
+	fmt.Println("")
 	return nil
 }
-
+/*
 // updateSnapshot updates pending snapshot block and state.
 // Note this function assumes the current variable is thread safe.
 func (w *worker) updateSnapshot() {
@@ -776,15 +851,16 @@ func (w *worker) updateSnapshot() {
 	for _,result := range w.snapshotBlock.Results() {
 		resultHashes = append(resultHashes,result.TxHash)
 	}
-	fmt.Println(" results:", resultHashes)
+
 	w.snapshotState = w.current.state.Copy()
 }
-func (w *worker) shardCommitTransaction(tx *types.Transaction, coinbase common.Address) (*types.ContractResult, uint64, error) {
+*/
+func (w *worker) shardCommitTransaction(tx *types.Transaction, coinbase common.Address,gasPool *core.GasPool,gasUsed *uint64) (*types.ContractResult, error) {
 
-	result, gasUsed, err := core.ApplyToInstruction(w.config, w.current.header, tx)
+	result, err := core.ApplyToInstruction(w.config, w.current.header,tx, gasPool,gasUsed)
 	if err != nil {
 
-		return nil, 0, err
+		return nil, err
 	}
 	//	w.current.txs = append(w.current.txs, tx)
 	if w.current.results == nil {
@@ -792,7 +868,7 @@ func (w *worker) shardCommitTransaction(tx *types.Transaction, coinbase common.A
 	}
 	w.current.results = append(w.current.results, result)
 
-	return result, gasUsed, nil
+	return result, nil
 }
 
 func (w *worker) shardCommitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
@@ -804,7 +880,7 @@ func (w *worker) shardCommitTransactions(txs *types.TransactionsByPriceAndNonce,
 	if w.current.gasPool == nil {
 		w.current.gasPool = new(core.GasPool).AddGas(w.current.header.GasLimit())
 	}
-
+	gasUsed := uint64(0)
 	var coalescedResults []*types.ContractResult
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
@@ -858,7 +934,7 @@ func (w *worker) shardCommitTransactions(txs *types.TransactionsByPriceAndNonce,
 			// Start executing the transaction
 			w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-			logs, _, err := w.shardCommitTransaction(tx, coinbase)
+			logs,  err := w.shardCommitTransaction(tx, coinbase,w.current.gasPool,&gasUsed)
 			switch err {
 			case core.ErrGasLimitReached:
 				// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -891,7 +967,7 @@ func (w *worker) shardCommitTransactions(txs *types.TransactionsByPriceAndNonce,
 		}
 
 	}
-
+	w.current.header.SetGasUsed(gasUsed)
 	// Notify resubmit loop to decrease resubmitting interval if current interval is larger
 	// than the user-specified one.
 	if interrupt != nil {
@@ -909,7 +985,7 @@ func (w *worker) stopEngineSeal() {
 	}
 }
 func (w *worker) startEngineSeal(block types.BlockIntf) {
-	fmt.Println(" mine:",block.ShardId(),"\twith results:",len(block.Results()),"\t with root",block.Root())
+	log.Trace("start Seal"," mine:",block.ShardId(),"\twith results:",len(block.Results()),"\t with root",block.Root())
 	if w.newTaskHook != nil {
 		w.newTaskHook(block)
 	}
@@ -936,11 +1012,15 @@ func (w *worker) startEngineSeal(block types.BlockIntf) {
 func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Address, interrupt *int32) bool {
 	coalescedLogs := make([]*types.Log,0,10)
 	gasUsed := uint64(0);
-	gasUsed = gasUsed + w.current.header.GasUsed()
-
+	//gasUsed = gasUsed;// + w.current.header.GasUsed()
+	txs_proc := 0
+	//log.Trace("Process shard blocks:"," count:",blocks)
 	for _, block := range blocks {
+	//   if len(blocks) > 0 {
 		for _, instruction := range block.Results() {
+
 			if instruction.TxType == core.TT_COMMON  {
+
 				tx := w.eth.TxPool().Get(instruction.TxHash)
 				w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 				shardBase := block.Coinbase()
@@ -969,6 +1049,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 					log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 
 				}
+				txs_proc++
 			}
 
 		}
@@ -997,6 +1078,8 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	if interrupt != nil {
 		w.resubmitAdjustCh <- &intervalAdjust{inc: false}
 	}
+
+	fmt.Println(" Transactions processed:", txs_proc, " from :",len(blocks))
 	return false
 }
 
@@ -1022,14 +1105,12 @@ func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.
 func (w *worker) commit(interval func(), update bool, start time.Time) (types.BlockIntf,error) {
 
 	s := w.current.state.Copy()
-	fmt.Println("do transaction:", w.current.results)
+
 	block, err := w.engine.Finalize(w.chain, w.current.header, s, w.current.shards, w.current.results, nil, w.current.receipts)
 	if err != nil {
 		return nil,err
 	}
 
-	if update {
-		w.updateSnapshot()
-	}
+
 	return block,nil
 }

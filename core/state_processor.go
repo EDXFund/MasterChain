@@ -115,13 +115,13 @@ func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, 
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config, gasLimited uint64) (types.Receipts, []*types.Log, uint64, error) {
 	var (
 		receipts types.Receipts
 		usedGas  = new(uint64)
 		header   = block.Header()
 		allLogs  []*types.Log
-		gp       = new(GasPool).AddGas(block.GasLimit())
+		gp       = new(GasPool).AddGas(gasLimited)
 	)
 
 	if block.ShardId() == types.ShardMaster {
@@ -225,8 +225,7 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 		//从数据库中取出所有的分片信息
 		shardBlock := rawdb.ReadBlock(p.bc.db, blockInfo.Hash,blockInfo.BlockNumber)
 		if shardBlock != nil {
-
-			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg)
+			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit())
 			if aerr == nil {
 				receipts = append(receipts, areceipts...)
 				allLogs = append(allLogs, aallLogs...)
@@ -291,11 +290,11 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyToInstruction(config *params.ChainConfig, header types.HeaderIntf, tx *types.Transaction) (*types.ContractResult,uint64, error) {
+func ApplyToInstruction(config *params.ChainConfig, header types.HeaderIntf, tx *types.Transaction,gasPool *GasPool,gasUsed *uint64) (*types.ContractResult, error) {
 	//check signiture
 	_, err := tx.AsMessage(types.MakeSigner(config, header.Number()))
 	if err != nil {
-		return nil,0,  err
+		return nil,  err
 	}
 
 	/*result := InstructCommon{msg.From(),*msg.To(),msg.TokenId(),msg.Value().Uint64()}
@@ -303,9 +302,10 @@ func ApplyToInstruction(config *params.ChainConfig, header types.HeaderIntf, tx 
 	if err != nil {
 		return nil,  err
 	}*/
-
+	gasPool.SubGas( uint64(21000))
+	*gasUsed += uint64(21000)
 	//it only normal call now, contract data
-	return &types.ContractResult{TT_COMMON,tx.Hash(),tx.GasPrice().Uint64(),nil,nil},0,nil
+	return &types.ContractResult{TT_COMMON,tx.Hash(),tx.GasPrice().Uint64(),nil,nil},nil
 
 }
 

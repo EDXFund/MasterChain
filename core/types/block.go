@@ -20,6 +20,7 @@ package types
 import (
 	//"encoding/binary"
 
+	"fmt"
 	"io"
 	"math/big"
 	"sort"
@@ -391,7 +392,27 @@ func NewBlock(header HeaderIntf, blks []*ShardBlockInfo, uncles []HeaderIntf, re
 	if len(receipts) == 0 {
 		b.header.receiptHash = EmptyRootHash
 	} else {
-		b.header.receiptHash = DeriveSha(Receipts(receipts))
+
+		shardid,number := header.ShardId(),header.NumberU64()
+		if shardid ==uint16(0xFFFF) && number == 11 {
+			fmt.Println("here")
+		}
+		receiptRoot := DeriveSha(Receipts(receipts))
+
+		/*testhash := make([]common.Hash,len(receipts)/100)
+		for i := 0; i < len(testhash); i++ {
+			testhash[i] = receipts[i*100].TxHash
+		}
+		data,_ := rlp.EncodeToBytes(testhash)
+		out := make( []ShardBlockInfo,len(blks))
+		for i,val := range blks {
+			out[i] = *val
+		}
+		/*fmt.Println("New block shardId:",header.ShardId(),"\t number:",header.NumberU64(),"\t receipt root:",receiptRoot,"\ttxs:",crypto.Keccak256Hash(data))
+		fmt.Println("\t shardInfo:",out)
+		fmt.Println("receipt cnt:",len(receipts),"receipt hashes:",testhash)
+		*/
+		b.header.receiptHash = receiptRoot
 		b.header.bloom = CreateBloom(receipts)
 	}
 

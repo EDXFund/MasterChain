@@ -18,6 +18,8 @@ package core
 
 import (
 	"fmt"
+	"github.com/EDXFund/MasterChain/crypto"
+	"github.com/EDXFund/MasterChain/rlp"
 
 	"github.com/EDXFund/MasterChain/consensus"
 	"github.com/EDXFund/MasterChain/core/state"
@@ -151,6 +153,12 @@ func (v *BlockValidator) validateState(block, parent *types.Block, statedb *stat
 	}
 	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, R1]]))
 	receiptSha := types.DeriveSha(receipts)
+	testhash := make([]*types.Receipt,len(receipts)/100)
+	for i := 0; i < len(testhash); i++ {
+		testhash[i] = receipts[i*100]
+	}
+	data,_ := rlp.EncodeToBytes(testhash)
+	fmt.Println("validate shardId:",header.ShardId(),"\t number:",header.NumberU64(),"\t receipt root:",receiptSha,"\ttxs:",crypto.Keccak256Hash(data))
 	if receiptSha != header.ReceiptHash() {
 		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash(), receiptSha)
 	}

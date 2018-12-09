@@ -117,22 +117,27 @@ func WriteTxOfAccountNonce(db DatabaseWriter, account common.Address,nonce uint6
 	return err
 }
 func WritePendingTransactions(db DatabaseWriter, txHashes []*common.Hash) error{
-	data,err := rlp.EncodeToBytes(txHashes)
-	if err != nil {
-		log.Error("error in writing pending transactions:","err is :",err)
-		return err
-	}
-	db.Put(txPendingPrefix,data)
-	if err != nil {
-		log.Error("error in saving pending transactions:","err is :",err)
+	if(len(txHashes) > 0){
+		data,err := rlp.EncodeToBytes(txHashes)
+		if err != nil {
+			log.Error("error in writing pending transactions:","err is :",err)
+			return err
+		}
+		db.Put(txPendingPrefix,data)
+		if err != nil {
+			log.Error("error in saving pending transactions:","err is :",err)
 
+		}
+		return err
+	}else {
+		return nil
 	}
-	return err
+
 }
 func ReadPendingTransactions(db DatabaseReader) ([]*common.Hash,error) {
 	data,err := db.Get(txPendingPrefix)
 	if err != nil {
-		log.Error("error in reading pending transactions:","err is :",err)
+	//	log.Error("error in reading pending transactions:","err is :",err)
 		return nil,err
 	}
 	hashes := []*common.Hash{}
@@ -159,7 +164,7 @@ func ReadRawTransaction(db DatabaseReader, hash common.Hash) ( *types.Transactio
 
 	data,err := db.Get(txKey(hash))
 	if err != nil {
-		log.Error("error in read raw transaction","err:",err)
+		//log.Info("error in read raw transaction","err:",err)
 		return nil,err
 	}
 	tx := new(types.Transaction)

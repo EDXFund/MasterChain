@@ -1309,8 +1309,12 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 	if len(chain) > 0 {
 		if bc.shardId == chain[0].ShardId() {
 			n, events, logs, err := bc.insertChain(chain)
+			if len(events) > 0 {
+				bc.PostChainEvents(events, logs)
+			}else {
+				log.Debug("Error in insertchain:","error is",err)
+			}
 
-			bc.PostChainEvents(events, logs)
 
 			return n, err
 		} else {
@@ -1459,6 +1463,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 		err := <-results
 		if err == nil {
+			fmt.Println(" valid body"," shard:",block.ShardId()," number:",block.NumberU64(),"hash:",block.Hash())
 			err = bc.Validator().ValidateBody(block)
 		}
 		switch {
@@ -1738,7 +1743,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 			logFn = log.Warn
 		}
 		logFn("Chain split detected", "number", commonBlock.Number(), "hash", commonBlock.Hash(),
-			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
+			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "number",oldChain[0].NumberU64(),"add", len(newChain), "addfrom", newChain[0].Hash(),"number",newChain[0].NumberU64())
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
@@ -1865,11 +1870,11 @@ ShardId:%v
 Number: %v
 Hash: 0x%x
 Parent:0x%x
-%v
+
 
 Error: %v
 ##############################
-`, bc.chainConfig, block.ShardId(), block.Number(), block.Hash(), block.ParentHash(), receiptString, err))
+`, bc.chainConfig, block.ShardId(), block.Number(), block.Hash(), block.ParentHash(), /*receiptString,*/ err))
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local

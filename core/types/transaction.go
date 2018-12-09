@@ -19,6 +19,7 @@ package types
 import (
 	"container/heap"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"sync/atomic"
@@ -183,6 +184,10 @@ func (tx *Transaction) To() *common.Address {
 // Hash hashes the RLP encoding of tx.
 // It uniquely identifies the transaction.
 func (tx *Transaction) Hash() common.Hash {
+	if(tx == nil ) {
+		fmt.Println("error tx")
+		return common.Hash{}
+	}
 	if hash := tx.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}

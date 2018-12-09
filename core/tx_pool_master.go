@@ -318,7 +318,7 @@ func (pool *TxPool) loop() {
 		select {
 		// Handle ChainHeadEvent
 		case ev := <-pool.chainHeadCh:
-			fmt.Println("new Header master")
+
 			if ev.Block != nil {
 				pool.mu.Lock()
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
@@ -627,7 +627,7 @@ func (pool *TxPool) removeTxs(nonces map[common.Address]uint64) {
 			for _, tx := range list.Forward(nonce+1) {
 				hash := tx.Hash()
 				log.Trace("Removed old pending transaction", "hash", hash)
-				fmt.Println("Removed old pending transaction", "hash", hash)
+
 				pool.all.Remove(hash)
 				pool.priced.Removed()
 			}
@@ -1057,7 +1057,7 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 			from, _ := types.Sender(pool.signer, tx) // already validated
 			dirty[from] = struct{}{}
 		}
-		fmt.Println("add tx:",tx.Hash())
+		//fmt.Println("add tx:",tx.Hash())
 	}
 
 	// Only reprocess the internal state if something was actually added
@@ -1065,7 +1065,7 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 		addrs := make([]common.Address, 0, len(dirty))
 		for addr := range dirty {
 			addrs = append(addrs, addr)
-			fmt.Println(" new account:",addr)
+
 		}
 		pool.promoteExecutables(addrs)
 	}
@@ -1162,7 +1162,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 			continue // Just in case someone calls with a non existing account
 		}
 		// Drop all transactions that are deemed too old (low nonce)
-		fmt.Println("account nonce to delete:",pool.currentState.GetNonce(addr))
+	//	fmt.Println("account nonce to delete:",pool.currentState.GetNonce(addr))
 		for _, tx := range list.Forward(pool.currentState.GetNonce(addr)) {
 			hash := tx.Hash()
 			log.Trace("Removed old queued transaction", "hash", hash)
