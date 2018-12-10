@@ -164,6 +164,11 @@ type worker struct {
 	chainHeadSub  event.Subscription
 	chainShardCh  chan *core.ChainsShardEvent
 	chainShardSub event.Subscription
+	masterHeadProcCh   chan core.ChainHeadEvent
+	masterHeadProcSub  event.Subscription
+
+	chainErrorCh   chan core.ChainHeadEvent
+	chainErrorSub  event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
@@ -229,7 +234,9 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		pendingTasks:       make(map[common.Hash]types.BlockIntf),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
+		masterHeadProcCh:  make(chan core.ChainHeadEvent, chainHeadChanSize),
 		chainShardCh:       make(chan *core.ChainsShardEvent, chainSideChanSize),
+		chainErrorCh:       make(chan core.ChainHeadEvent, chainSideChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		//taskCh:             make(chan *task),
 		resultCh:           make(chan types.BlockIntf, resultQueueSize),
@@ -247,8 +254,10 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
+	worker.chainErrorSub = eth.BlockChain().SubscribeChainInsertErrorEvent(worker.chainErrorCh)
 	if shardId == types.ShardMaster{
 		worker.chainShardSub = eth.ShardPool().SubscribeChainShardsEvent(worker.chainShardCh)
+		worker.masterHeadProcSub = eth.ShardPool().SubscribeMasterHeadProcsEvent(worker.masterHeadProcCh)
 	}
 
 	worker.txsCache,_   =        lru.New(txCacheSize)
@@ -616,7 +625,7 @@ func (w *worker) mainStateLoop() {
 	for {
 		select {
 		case <-w.startCh:
-			fmt.Println("Event Transition","evt_start:",w.shardId)
+			log.Trace("Event Transition","evt_start:",w.shardId)
 			if w.state == ST_IDLE{
 				if w.shardId == types.ShardMaster {
 					w.enterState(ST_MASTER)
@@ -626,19 +635,25 @@ func (w *worker) mainStateLoop() {
 			}
 
 		case <- w.timer.C:
-			fmt.Println("Event Transition","evt_timer:",w.shardId)
+			log.Trace("Event Transition","evt_timer:",w.shardId)
 			w.handleTimer(w.timer)
 		case newHead := <- w.chainHeadCh:
-			fmt.Println("Event Transition","evt_newChain:",w.shardId, "block shard:",newHead.Block.ShardId()," number:",newHead.Block.NumberU64()," hash:",newHead.Block.Hash())
+			log.Trace("Event Transition","evt_newChain:",w.shardId, "block shard:",newHead.Block.ShardId()," number:",newHead.Block.NumberU64()," hash:",newHead.Block.Hash())
 			w.handleNewHead(newHead.Block)
+		case newHead := <- w.masterHeadProcCh:
+			log.Trace("Event Transition","evt_headProc:",w.shardId, "block shard:",newHead.Block.ShardId()," number:",newHead.Block.NumberU64()," blocks:",len(newHead.Block.ShardBlocks()))
+			w.handleMasterHeadProc(newHead.Block)
+		case newHead := <- w.chainErrorCh:
+			log.Trace("Event Transition","evt_InsertError:",w.shardId, "block shard:",newHead.Block.ShardId()," number:",newHead.Block.NumberU64()," blocks:",len(newHead.Block.ShardBlocks()))
+			w.handleInsertErrorProc(newHead.Block)
 		case newShards := <- w.chainShardCh:
 			fmt.Println("Event Transition","evt_shard:",w.shardId, "block shard:",newShards.Block[0].ShardId()," number:",newShards.Block[0].NumberU64()," hash:",newShards.Block[0].Hash())
 			w.handleShardChain(newShards.Block)
 		case newTxs := <- w.txsCh:
-			fmt.Println("Event Transition","evt_newtx:",w.shardId)
+			log.Trace("Event Transition","evt_newtx:",w.shardId)
 			w.handleNewTxs(newTxs.Txs)
 		case newBlock := <- w.resultCh:
-			fmt.Println("Event Transition","evt_newblock:",w.shardId,"number:",newBlock.NumberU64(),"hash",newBlock.Hash()," stateRoot:",newBlock.Root())
+			log.Trace("Event Transition","evt_newblock:",w.shardId,"number:",newBlock.NumberU64(),"hash",newBlock.Hash()," stateRoot:",newBlock.Root())
 			w.handleNewBlock(newBlock)
 		case <- w.exitCh:
 			return
@@ -704,14 +719,15 @@ func (w *worker)handleTimer(timer *time.Timer){
 	}
 }
 
-func(w *worker) handleNewHead(block types.BlockIntf){
+
+func(w *worker) handleInsertErrorProc(block types.BlockIntf){
 	switch w.state {
 
 	case ST_IDLE:
 		if w.shardId== types.ShardMaster {
 			w.masterBuildEnvironment()
 		}else {
-			w.shardBuildEnvironment()
+			//w.shardBuildEnvironment()
 		}
 	case ST_INSERTING:
 		fallthrough
@@ -729,7 +745,82 @@ func(w *worker) handleNewHead(block types.BlockIntf){
 	case ST_MASTER:
 		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
 
-				w.enterState(ST_RESETING)
+			w.enterState(ST_RESETING)
+		}
+
+	case ST_SHARD:
+		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
+
+			w.enterState(ST_RESETING)
+		}
+
+
+	}
+}
+func(w *worker) handleMasterHeadProc(block types.BlockIntf){
+	switch w.state {
+
+	case ST_IDLE:
+		if w.shardId== types.ShardMaster {
+			w.masterBuildEnvironment()
+		}else {
+			//w.shardBuildEnvironment()
+		}
+	case ST_INSERTING:
+		fallthrough
+	case ST_RESETING:
+		if block.ShardId() == w.shardId {
+			if w.shardId== types.ShardMaster {
+				w.enterState(ST_MASTER)
+			}else {
+				w.enterState(ST_SHARD)
+			}
+		}
+
+
+
+	case ST_MASTER:
+		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
+
+			w.enterState(ST_RESETING)
+		}
+
+	case ST_SHARD:
+		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
+
+			w.enterState(ST_RESETING)
+		}
+
+
+	}
+}
+
+func(w *worker) handleNewHead(block types.BlockIntf){
+	switch w.state {
+
+	case ST_IDLE:
+		if w.shardId== types.ShardMaster {
+			//w.masterBuildEnvironment()
+		}else {
+			w.shardBuildEnvironment()
+		}
+	case ST_INSERTING:
+		fallthrough
+	case ST_RESETING:
+		if block.ShardId() == w.shardId {
+			if w.shardId== types.ShardMaster {
+			//	w.enterState(ST_MASTER)
+			}else {
+				w.enterState(ST_SHARD)
+			}
+		}
+
+
+
+	case ST_MASTER:
+		if w.current == nil  || w.chain.CurrentHeader().Hash() != w.current.header.ParentHash() {
+
+			//	w.enterState(ST_RESETING)
 		}
 
 	case ST_SHARD:
@@ -781,14 +872,14 @@ func (w *worker)handleNewBlock(block types.BlockIntf){
 	w.chain.InsertChain(types.BlockIntfs{block})
 	w.mux.Post(core.NewMinedBlockEvent{Block: block})
 	//w.updateSnapshot()
-	if w.state == ST_INSERTING {
+	/*if w.state == ST_INSERTING {
 		if w.shardId == types.ShardMaster {
 			w.enterState(ST_MASTER)
 		}else {
 			w.enterState(ST_SHARD)
 		}
 	} //else new block insert  ok
-
+*/
 
 	//w.enterState(ST_RESETING)
 	//insert chain will trigger newHeadEvent normally
@@ -1017,6 +1108,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	//log.Trace("Process shard blocks:"," count:",blocks)
 	for _, block := range blocks {
 	//   if len(blocks) > 0 {
+		fmt.Println("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
 		for _, instruction := range block.Results() {
 
 			if instruction.TxType == core.TT_COMMON  {

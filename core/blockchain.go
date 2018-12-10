@@ -122,6 +122,7 @@ type BlockChain struct {
 
 	chainHeadFeed event.Feed
 	logsFeed      event.Feed
+	chainErrorFeed event.Feed
 	scope         event.SubscriptionScope
 	genesisBlock  types.BlockIntf
 
@@ -1312,6 +1313,7 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 			if len(events) > 0 {
 				bc.PostChainEvents(events, logs)
 			}else {
+				bc.chainErrorFeed.Send(ChainHeadEvent{Block:chain[0]})
 				log.Debug("Error in insertchain:","error is",err)
 			}
 
@@ -2019,3 +2021,9 @@ func (bc *BlockChain) SubscribeChainShardsEvent(ch chan<- *ChainsShardEvent) eve
 func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	return bc.scope.Track(bc.logsFeed.Subscribe(ch))
 }
+
+// SubscribeChainHeadEvent registers a subscription of ChainHeadEvent.
+func (bc *BlockChain) SubscribeChainInsertErrorEvent(ch chan<- ChainHeadEvent) event.Subscription {
+	return bc.scope.Track(bc.chainErrorFeed.Subscribe(ch))
+}
+

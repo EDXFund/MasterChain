@@ -61,6 +61,7 @@ type ShardChainPool struct {
 	currenMasterBlock types.BlockIntf
 
 	newShardFeed event.Feed
+	masterBlockProcFeed event.Feed //new masterblock has arrived
 	scope        event.SubscriptionScope
 }
 
@@ -127,6 +128,9 @@ func (scp *ShardChainPool) InsertChain(blocks types.BlockIntfs) error {
 }
 func (scp *ShardChainPool) SubscribeChainShardsEvent(newShardCh chan *core.ChainsShardEvent) event.Subscription {
 	return scp.newShardFeed.Subscribe(newShardCh)
+}
+func (scp *ShardChainPool) SubscribeMasterHeadProcsEvent(newMasterProcCh chan core.ChainHeadEvent) event.Subscription {
+	return scp.masterBlockProcFeed.Subscribe(newMasterProcCh)
 }
 func (scp *ShardChainPool) GetBlockByHash(hash common.Hash,shardId uint16) *types.SBlock {
 	block := scp.GetBlock(hash,0)
@@ -323,4 +327,5 @@ func (scp *ShardChainPool) reset(oldHead, newHead types.BlockIntf) {
 		}
 	}
 	scp.currenMasterBlock = newHead
+	scp.masterBlockProcFeed.Send(core.ChainHeadEvent{Block:newHead})
 }
