@@ -299,7 +299,9 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	for i := 0; i < len_accounts; i++ {
 		allocs[sender[i].addr] = core.GenesisAccount{Balance:sender[i].fund}
 	}
-	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,0,allocs)
+	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,1,allocs)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(1)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0x03})
 	defer func(){
 		master.worker.close();
 		for _,shard := range shards {

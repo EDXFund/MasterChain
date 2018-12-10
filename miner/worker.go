@@ -24,6 +24,8 @@ import (
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/hashicorp/golang-lru"
+	"math"
+
 	//"github.com/golang/dep/gps"
 	"math/big"
 	"sync"
@@ -382,6 +384,7 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 		Extra:      w.extra,
 		Time:       big.NewInt(timestamp),
 	})
+
 	header = sheader
 	fmt.Println("mining shard after:","number",parent.NumberU64())
 	pending, err := w.eth.TxPool().Pending()
@@ -436,6 +439,7 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 	}
 }
 
+
 func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -473,20 +477,33 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	})
 	header = header_
 
+	shardExp := parent.ShardExp()
+	shardEnabled := parent.ShardEnabled()
+	shardEnabled[0] |= 1
+
 	type SHARD struct {
 		shardId uint16
 		number  uint64
 	}
 	shardInfo,err := w.eth.ShardPool().Pending()
 
-	sshards := make([]SHARD,0,len(shardInfo))
-	for shardId,infosOfShard := range shardInfo {
-		for _,shard := range infosOfShard {
-			sshards = append(sshards,SHARD{shardId,shard.BlockNumber})
+	//build shard enabled
+	for shardId,_ := range shardInfo {
+		seg :=  (shardId >> 3)
+		offset := shardId %3
+		//if shardBlock
+		shardEnabled[seg] |= (0x01 << offset)
+		if shardId > uint16(math.Pow(2,float64(shardExp))) {
+			shardExp = shardExp +1
 		}
-
 	}
-	fmt.Println(" mining after","number:",parent.NumberU64()," included:",sshards)
+
+	//setup shardExp
+	header_.SetShardExp(shardExp)
+	header_.SetShardEnabled(shardEnabled)
+
+
+
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
 		if w.coinbase == (common.Address{}) {
@@ -515,11 +532,19 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	log.Trace("Shards Before:","count:",len(shardInfo))
 	blocks := types.BlockIntfs{}
 	shards := make([]*types.ShardBlockInfo,0,len(shardInfo))
+
+
 	for _,pendingShard := range shardInfo {
 		for _, shard := range pendingShard{
 			newShard := shard
 			shards = append(shards,&newShard)
 			blocks = append(blocks,rawdb.ReadBlock(w.eth.ChainDb(),shard.Hash,shard.BlockNumber))
+			if len(blocks) > 512 {
+				break;
+			}
+		}
+		if len(blocks) > 512 {
+			break;
 		}
 
 	}
@@ -1117,7 +1142,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	//log.Trace("Process shard blocks:"," count:",blocks)
 	for _, block := range blocks {
 	//   if len(blocks) > 0 {
-		 fmt.Println("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
+		 fmt.Println("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64()," txs:",len(block.Results()))
 
 	//	f.WriteString(str)
 		for _, instruction := range block.Results() {
