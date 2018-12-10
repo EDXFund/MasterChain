@@ -28,6 +28,7 @@ import (
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/params"
+	"os"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -115,10 +116,10 @@ func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, 
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config, gasLimited uint64) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config, gasLimited uint64,usedGas *uint64) (types.Receipts, []*types.Log, uint64, error) {
 	var (
 		receipts types.Receipts
-		usedGas  = new(uint64)
+
 		header   = block.Header()
 		allLogs  []*types.Log
 		gp       = new(GasPool).AddGas(gasLimited)
@@ -127,6 +128,15 @@ func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb 
 	if block.ShardId() == types.ShardMaster {
 		return nil,nil,0,ErrInvalidBlocks
 	}
+	str := fmt.Sprintln("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
+	fname := "./state_proc.txt"
+	f, err := os.OpenFile(fname, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
+	if err != nil {
+		fmt.Println(err)
+	}
+	f.WriteString(str)
+	defer f.Close()
+
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
@@ -143,6 +153,8 @@ func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb 
 			//get hash from pool
 			statedb.Prepare(tx.Hash(), block.Hash(), i)
 			receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, nil,statedb, header, tx, usedGas, cfg)
+			str := fmt.Sprintf("%v,%v\r\n",tx.Hash(),*receipt)
+			f.WriteString(str)
 			if err != nil {
 				return nil, nil, 0, err
 			}
@@ -210,6 +222,7 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 	var (
 		receipts types.Receipts
 		usedGas  = new(uint64)
+		gasOfBlock = new(uint64)
 		header   = block.Header()
 		allLogs  []*types.Log
 	)
@@ -220,12 +233,13 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
 	}
+
 	// Iterate over and process the individual transactions
 	for _, blockInfo := range block.ShardBlocks() {
 		//从数据库中取出所有的分片信息
 		shardBlock := rawdb.ReadBlock(p.bc.db, blockInfo.Hash,blockInfo.BlockNumber)
 		if shardBlock != nil {
-			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit())
+			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit(),gasOfBlock)
 			if aerr == nil {
 				receipts = append(receipts, areceipts...)
 				allLogs = append(allLogs, aallLogs...)
@@ -238,7 +252,7 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb,block.ShardBlocks(),block.Results(), block.Transactions(), receipts)
 
-	return receipts, allLogs, *usedGas, nil
+	return receipts, allLogs, *gasOfBlock, nil
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database

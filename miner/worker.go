@@ -24,6 +24,7 @@ import (
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/hashicorp/golang-lru"
+	"os"
 
 	//"github.com/golang/dep/gps"
 	"math/big"
@@ -1105,10 +1106,19 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	gasUsed := uint64(0);
 	//gasUsed = gasUsed;// + w.current.header.GasUsed()
 	txs_proc := 0
+	fname := "./work_proc.txt"
+	f, err := os.OpenFile(fname, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	defer f.Close()
 	//log.Trace("Process shard blocks:"," count:",blocks)
 	for _, block := range blocks {
 	//   if len(blocks) > 0 {
-		fmt.Println("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
+		str := fmt.Sprintln("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
+
+		f.WriteString(str)
 		for _, instruction := range block.Results() {
 
 			if instruction.TxType == core.TT_COMMON  {
@@ -1116,7 +1126,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 				tx := w.eth.TxPool().Get(instruction.TxHash)
 				w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 				shardBase := block.Coinbase()
-				logs, err := w.masterCommitTransaction(tx, coinbase,&shardBase, &gasUsed)
+				logs, err := w.masterCommitTransaction(tx, coinbase,&shardBase, &gasUsed,f)
 				switch err {
 				case core.ErrGasLimitReached:
 					// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -1175,7 +1185,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	return false
 }
 
-func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.Address, shardBase *common.Address, gasUsed *uint64) ([]*types.Log, error) {
+func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.Address, shardBase *common.Address, gasUsed *uint64, f *os.File) ([]*types.Log, error) {
 
 	snap := w.current.state.Snapshot()
 	if w.current.gasPool == nil {
@@ -1189,7 +1199,8 @@ func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.
 	}
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
-
+	str := fmt.Sprintf("%v,%v\r\n",tx.Hash(),*receipt)
+	f.WriteString(str)
 	return receipt.Logs, nil
 }
 // commit runs any post-transaction state modifications, assembles the final block
