@@ -847,15 +847,18 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) types.BlockIntf 
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) types.BlockIntf {
 	number := bc.hc.GetBlockNumber(hash)
 	if number == nil {
-		number = bc.master_head.GetBlockNumber(hash)
-		if number != nil {
-			return bc.GetBlock(hash, *number)
-		} else {
-			return nil
-		}
-
+		return nil
 	}
-	return bc.GetBlock(hash, *number)
+
+	var block types.BlockIntf
+
+	block = bc.GetBlock(hash, *number)
+
+	if block == nil || reflect.ValueOf(block).IsNil() {
+		block = bc.master_head.GetBlock(hash, *number)
+	}
+
+	return block
 }
 
 // GetBlockByNumber retrieves a block from the database by number, caching it

@@ -600,7 +600,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if request.ShardId == types.ShardMaster {
 			// Deliver them all to the downloader for queuing
 			bodyData := make([]*blockMasterBody, 1)
-			if err := rlp.Decode(bytes.NewReader(request.Data), bodyData); err != nil {
+			if err := rlp.DecodeBytes(request.Data, &bodyData); err != nil {
 				return errResp(ErrDecode, "msg %v: %v", request.Data, err)
 			}
 
@@ -991,7 +991,7 @@ func (pm *ProtocolManager) minedBroadcastLoop() {
 	// automatically stops if unsubscribe
 	for obj := range pm.minedBlockSub.Chan() {
 		if ev, ok := obj.Data.(core.NewMinedBlockEvent); ok {
-			//pm.BroadcastBlock(ev.Block, true)  // First propagate block to peers
+			pm.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			pm.BroadcastBlock(ev.Block, false) // Only then announce to the rest
 		}
 	}

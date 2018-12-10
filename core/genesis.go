@@ -170,6 +170,10 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 
 		block, err := genesis.Commit(db, shardId)
 
+		if shardId != types.ShardMaster {
+			genesis.Commit(db, types.ShardMaster)
+		}
+
 		return genesis.Config, block.Hash(), err
 	}
 
@@ -271,7 +275,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	head.FillBy(head_)
 
 	if g.GasLimit == 0 {
-		head.SetGasLimit(params.GenesisGasLimit*1000)
+		head.SetGasLimit(params.GenesisGasLimit * 1000)
 	}
 	if g.Difficulty == nil {
 		head.SetDifficulty(params.GenesisDifficulty)
