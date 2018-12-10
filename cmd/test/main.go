@@ -146,7 +146,7 @@ func main() {
 	for id, node := range stacks {
 
 		if id == 0 {
-
+continue
 		}
 		var ethereum *eth.Ethereum
 		if err := node.Service(&ethereum); err != nil {

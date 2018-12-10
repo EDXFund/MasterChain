@@ -250,7 +250,7 @@ func TestSingleTransaction(t *testing.T) {
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	}*/
-	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(2*time.Second))//ethash.New(cfg,nil,false))
+	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(15*time.Second))//ethash.New(cfg,nil,false))
 }
 type Account struct {
 	pvKey *ecdsa.PrivateKey
@@ -266,45 +266,18 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 
 	state := make(chan  struct{})
 
-	sender := make([]Account,len_accounts,len_accounts)
-	receiver  := make([]Account,len_accounts,len_accounts)
-	for i := 0; i < len_accounts; i ++ {
-		testKey, _  := crypto.GenerateKey()
-		testAddress := crypto.PubkeyToAddress(testKey.PublicKey)
-		sender[i].pvKey = testKey
-		sender[i].addr = testAddress
-		sender[i].fund = big.NewInt(1000000000000000000)
-		sender[i].txs = make([]*types.Transaction,len_accounts)
-		testKey2, _  := crypto.GenerateKey()
-		testAddress2 := crypto.PubkeyToAddress(testKey2.PublicKey)
-		receiver[i].pvKey = testKey2
-		receiver[i].addr = testAddress2
-		receiver[i].fund = big.NewInt(0)
-	}
-
-	last := rand.NewSource(time.Now().UnixNano())
-	//create transactions
-	for i := 0; i < len_accounts; i++ {
-		for j := 0; j < len_accounts; j++ {
-			nonce := rand.New(last)
-			value := rand.New(nonce).Int31n(10000)
-			tx, _ := types.SignTx( types.NewTransaction(uint64(time.Now().UnixNano()) + uint64(nonce.Int31n(1000000000)) , receiver[j].addr, big.NewInt(int64(value)), params.TxGas, nil, nil,0), types.HomesteadSigner{}, sender[i].pvKey)
-
-			sender[i].txs[j] = tx
-		}
-
-	}
+	sender := funcName(len_accounts)
 
 	allocs := make(core.GenesisAlloc)
 	for i := 0; i < len_accounts; i++ {
-		allocs[sender[i].addr] = core.GenesisAccount{Balance:sender[i].fund}
+		allocs[sender[i].addr] = core.GenesisAccount{Balance: sender[i].fund}
 	}
-	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,1,allocs)
-	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(1)
-	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0x03})
-	defer func(){
+	master, shards := newMasterShardTestWorker(t, chainConfig, engine, 0, 3, allocs)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(3)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0x0f})
+	defer func() {
 		master.worker.close();
-		for _,shard := range shards {
+		for _, shard := range shards {
 			close(shard.channel)
 			shard.worker.close()
 		}
@@ -314,20 +287,20 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		time.Sleep(1400 * time.Millisecond)
 		//create a new send Txs
 		for i := 0; i < len_accounts; i++ {
-			fmt.Println("Adding txs:"," count:",len_accounts)
+			fmt.Println("Adding txs:", " count:", len_accounts)
 			master.backend.txPool.AddLocals(sender[i].txs)
 			shardTxs := make(map[uint16][]*types.Transaction)
-			for j:= 0; j <len_accounts; j++ {
+			for j := 0; j < len_accounts; j++ {
 				tx := sender[i].txs[j]
 
 				shard := master.backend.chain.TxShardByHash(tx.Hash())
 				if shardTxs[shard] == nil {
-					shardTxs[shard]=  []*types.Transaction{}
+					shardTxs[shard] = []*types.Transaction{}
 				}
-				shardTxs[shard] = append(shardTxs[shard],tx)
+				shardTxs[shard] = append(shardTxs[shard], tx)
 
 			}
-			for shardId,txs := range shardTxs {
+			for shardId, txs := range shardTxs {
 				shards[shardId].backend.txPool.AddLocals(txs)
 			}
 
@@ -345,12 +318,75 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
 */
 		master.worker.start()
-		for _,shard := range shards {
+		for _, shard := range shards {
 			shard.worker.start()
+		}
+		time.Sleep(14000 * time.Millisecond)
+		//create a new send Txs
+		for i := 0; i < len_accounts; i++ {
+			fmt.Println("Adding txs:", " count:", len_accounts)
+			master.backend.txPool.AddLocals(sender[i].txs)
+			shardTxs := make(map[uint16][]*types.Transaction)
+			for j := 0; j < len_accounts; j++ {
+				tx := sender[i].txs[j]
+
+				shard := master.backend.chain.TxShardByHash(tx.Hash())
+				if shardTxs[shard] == nil {
+					shardTxs[shard] = []*types.Transaction{}
+				}
+				shardTxs[shard] = append(shardTxs[shard], tx)
+
+			}
+			for shardId, txs := range shardTxs {
+				shards[shardId].backend.txPool.AddLocals(txs)
+			}
+
+		}
+		time.Sleep(14000 * time.Millisecond)
+		//create a new send Txs
+		for i := 0; i < len_accounts; i++ {
+			fmt.Println("Adding txs:", " count:", len_accounts)
+			master.backend.txPool.AddLocals(sender[i].txs)
+			shardTxs := make(map[uint16][]*types.Transaction)
+			for j := 0; j < len_accounts; j++ {
+				tx := sender[i].txs[j]
+
+				shard := master.backend.chain.TxShardByHash(tx.Hash())
+				if shardTxs[shard] == nil {
+					shardTxs[shard] = []*types.Transaction{}
+				}
+				shardTxs[shard] = append(shardTxs[shard], tx)
+
+			}
+			for shardId, txs := range shardTxs {
+				shards[shardId].backend.txPool.AddLocals(txs)
+			}
+
+		}
+		time.Sleep(14000 * time.Millisecond)
+		//create a new send Txs
+		for i := 0; i < len_accounts; i++ {
+			fmt.Println("Adding txs:", " count:", len_accounts)
+			master.backend.txPool.AddLocals(sender[i].txs)
+			shardTxs := make(map[uint16][]*types.Transaction)
+			for j := 0; j < len_accounts; j++ {
+				tx := sender[i].txs[j]
+
+				shard := master.backend.chain.TxShardByHash(tx.Hash())
+				if shardTxs[shard] == nil {
+					shardTxs[shard] = []*types.Transaction{}
+				}
+				shardTxs[shard] = append(shardTxs[shard], tx)
+
+			}
+			for shardId, txs := range shardTxs {
+				shards[shardId].backend.txPool.AddLocals(txs)
+			}
+
 		}
 	}()
 
-	go func(){
+	go func() {
 		// Ensure the new tx events has been processed
 
 		ch := make(chan core.ChainHeadEvent)
@@ -360,16 +396,46 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 			select {
 			case head := <-ch:
 				fmt.Println(head)
-				if count++; count > 30 {
+				if count++; count > 300 {
 					state <- struct{}{}
 				}
 			}
 		}
 
-
 	}()
 
-	<- state
+	<-state
+}
+
+func funcName(len_accounts int) []Account {
+	sender := make([]Account, len_accounts, len_accounts)
+	receiver := make([]Account, len_accounts, len_accounts)
+	for i := 0; i < len_accounts; i ++ {
+		testKey, _ := crypto.GenerateKey()
+		testAddress := crypto.PubkeyToAddress(testKey.PublicKey)
+		sender[i].pvKey = testKey
+		sender[i].addr = testAddress
+		sender[i].fund = big.NewInt(1000000000000000000)
+		sender[i].txs = make([]*types.Transaction, len_accounts)
+		testKey2, _ := crypto.GenerateKey()
+		testAddress2 := crypto.PubkeyToAddress(testKey2.PublicKey)
+		receiver[i].pvKey = testKey2
+		receiver[i].addr = testAddress2
+		receiver[i].fund = big.NewInt(0)
+	}
+	last := rand.NewSource(time.Now().UnixNano())
+	//create transactions
+	for i := 0; i < len_accounts; i++ {
+		for j := 0; j < len_accounts; j++ {
+			nonce := rand.New(last)
+			value := rand.New(nonce).Int31n(10000)
+			tx, _ := types.SignTx(types.NewTransaction(uint64(time.Now().UnixNano())+uint64(nonce.Int31n(1000000000)), receiver[j].addr, big.NewInt(int64(value)), params.TxGas, nil, nil, 0), types.HomesteadSigner{}, sender[i].pvKey)
+
+			sender[i].txs[j] = tx
+		}
+
+	}
+	return sender
 }
 
 

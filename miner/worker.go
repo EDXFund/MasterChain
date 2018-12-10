@@ -490,7 +490,7 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	//build shard enabled
 	for shardId,_ := range shardInfo {
 		seg :=  (shardId >> 3)
-		offset := shardId %3
+		offset := shardId % 8
 		//if shardBlock
 		shardEnabled[seg] |= (0x01 << offset)
 		if shardId > uint16(math.Pow(2,float64(shardExp))) {
@@ -501,8 +501,6 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	//setup shardExp
 	header_.SetShardExp(shardExp)
 	header_.SetShardEnabled(shardEnabled)
-
-
 
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {

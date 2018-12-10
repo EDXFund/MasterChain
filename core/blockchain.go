@@ -25,6 +25,7 @@ import (
 	"io"
 	"math/big"
 	mrand "math/rand"
+	. "os"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -211,6 +212,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	} else {
 		bc.master_head, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt, types.ShardMaster)
 
+
 	}
 	bc.genesisBlock = bc.GetBlockByNumber(0)
 	if bc.genesisBlock == nil || reflect.ValueOf(bc.genesisBlock).IsNil() {
@@ -244,6 +246,7 @@ func (bc *BlockChain) DB() ethdb.Database { return bc.db }
 func (bc *BlockChain) getProcInterrupt() bool {
 	return atomic.LoadInt32(&bc.procInterrupt) == 1
 }
+
 func (bc *BlockChain) getShardExp() uint16 {
 	return bc.CurrentHeader().ToHeader().ShardExp()
 }
@@ -282,12 +285,12 @@ func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo {
 /*func (bc *BlockChain) GetLatestHash() common.Hash{
 	return types.rlpHash(bc.latestShards)
 }*/
-
+var  maskBits = [16]uint16{0x00,0x01,0x03,0x07,0xF,0x1F,0x3F,0x7F,0xFF,0x1FF,0x3FF,0x7FF,0xFFF,0x1FFF,0x3FFF,0x7FFF}
 func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16 {
 	hashBytes := txHash.Bytes()
 	targetShard := uint16(hashBytes[0]) + (uint16(hashBytes[1]) << 8)
-
-	targetShard = targetShard & bc.getShardExp()
+	shardIndex := bc.getShardExp()
+	targetShard = (targetShard & maskBits[shardIndex])
 	shardState := bc.CurrentHeader().ToHeader().ShardEnabled()
 	seg := shardState[int(targetShard>>3)]
 	if (seg & (1 << (targetShard & 0x7))) != 0 {
@@ -1436,6 +1439,14 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		lastCanon     types.BlockIntf
 		coalescedLogs []*types.Log
 	)
+	fname := "stats.csv"
+	f, err := OpenFile(fname, O_CREATE|O_RDWR|O_APPEND, ModeAppend|ModePerm)
+	if err != nil {
+		fmt.Println(err)
+	}
+	//f.WriteString(",")
+	defer f.Close()
+
 	// Start the parallel header verifier
 	headers := make([]types.HeaderIntf, len(chain))
 	seals := make([]bool, len(chain))
@@ -1559,7 +1570,10 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		// Process block using the parent state as reference point.
 		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
 		log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
-
+		if block.ShardId() == types.ShardMaster {
+			str := fmt.Sprintf("blockNumber:,%v,time:,%v,counts:,%v\r\n",block.NumberU64(),block.Time().Uint64(),len(receipts))
+			f.WriteString(str)
+		}
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
 			return i, events, coalescedLogs, err

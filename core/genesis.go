@@ -169,6 +169,7 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis, shardId uint16) (*pa
 		db.Put([]byte("genesis"), data)
 
 		block, err := genesis.Commit(db, shardId)
+
 		return genesis.Config, block.Hash(), err
 	}
 
