@@ -768,7 +768,13 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 
 
 		}
-		rewardRemains[shardId].RewardRemains = remains
+		fmt.Println(" check Remain:",len(rewardRemains), " with shardId:",shardId)
+		if rewardRemains[shardId] == nil {
+			fmt.Println(" error check Remain:",len(rewardRemains), " with shardId:",shardId)
+		}else {
+			rewardRemains[shardId].RewardRemains = remains
+		}
+
 		//update shard state
 
 

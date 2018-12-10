@@ -24,7 +24,7 @@ import (
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/vm"
 	"github.com/hashicorp/golang-lru"
-	"os"
+	"math"
 
 	//"github.com/golang/dep/gps"
 	"math/big"
@@ -384,6 +384,7 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 		Extra:      w.extra,
 		Time:       big.NewInt(timestamp),
 	})
+
 	header = sheader
 	fmt.Println("mining shard after:","number",parent.NumberU64())
 	pending, err := w.eth.TxPool().Pending()
@@ -425,6 +426,7 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 
 			return nil
 		}
+
 	}
 
 	block,err := w.commit(w.fullTaskHook,true,time.Now())
@@ -432,9 +434,11 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 	if err != nil {
 		return nil
 	}else {
+		fmt.Println("Commit of:",block.NumberU64()," txs len:",len(block.Results()))
 		return block
 	}
 }
+
 
 func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	w.mu.RLock()
@@ -473,20 +477,33 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	})
 	header = header_
 
+	shardExp := parent.ShardExp()
+	shardEnabled := parent.ShardEnabled()
+	shardEnabled[0] |= 1
+
 	type SHARD struct {
 		shardId uint16
 		number  uint64
 	}
 	shardInfo,err := w.eth.ShardPool().Pending()
 
-	sshards := make([]SHARD,0,len(shardInfo))
-	for shardId,infosOfShard := range shardInfo {
-		for _,shard := range infosOfShard {
-			sshards = append(sshards,SHARD{shardId,shard.BlockNumber})
+	//build shard enabled
+	for shardId,_ := range shardInfo {
+		seg :=  (shardId >> 3)
+		offset := shardId %3
+		//if shardBlock
+		shardEnabled[seg] |= (0x01 << offset)
+		if shardId > uint16(math.Pow(2,float64(shardExp))) {
+			shardExp = shardExp +1
 		}
-
 	}
-	fmt.Println(" mining after","number:",parent.NumberU64()," included:",sshards)
+
+	//setup shardExp
+	header_.SetShardExp(shardExp)
+	header_.SetShardEnabled(shardEnabled)
+
+
+
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
 		if w.coinbase == (common.Address{}) {
@@ -515,11 +532,19 @@ func (w *worker)masterBuildEnvironment() types.BlockIntf{
 	log.Trace("Shards Before:","count:",len(shardInfo))
 	blocks := types.BlockIntfs{}
 	shards := make([]*types.ShardBlockInfo,0,len(shardInfo))
+
+
 	for _,pendingShard := range shardInfo {
 		for _, shard := range pendingShard{
 			newShard := shard
 			shards = append(shards,&newShard)
 			blocks = append(blocks,rawdb.ReadBlock(w.eth.ChainDb(),shard.Hash,shard.BlockNumber))
+			if len(blocks) > 512 {
+				break;
+			}
+		}
+		if len(blocks) > 512 {
+			break;
 		}
 
 	}
@@ -997,7 +1022,7 @@ func (w *worker) shardCommitTransactions(txs *types.TransactionsByPriceAndNonce,
 		}
 		// If we don't have enough gas for any further transactions then we're done
 		if w.current.gasPool.Gas() < params.TxGas {
-			log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
+			fmt.Println("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
 			break
 		}
 		// Retrieve the next transaction and abort if all done
@@ -1106,19 +1131,20 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	gasUsed := uint64(0);
 	//gasUsed = gasUsed;// + w.current.header.GasUsed()
 	txs_proc := 0
-	fname := "./work_proc.txt"
+	/*fname := "./work_proc.txt"
 	f, err := os.OpenFile(fname, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	defer f.Close()
+	*/
 	//log.Trace("Process shard blocks:"," count:",blocks)
 	for _, block := range blocks {
 	//   if len(blocks) > 0 {
-		str := fmt.Sprintln("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
+		 fmt.Println("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64()," txs:",len(block.Results()))
 
-		f.WriteString(str)
+	//	f.WriteString(str)
 		for _, instruction := range block.Results() {
 
 			if instruction.TxType == core.TT_COMMON  {
@@ -1126,7 +1152,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 				tx := w.eth.TxPool().Get(instruction.TxHash)
 				w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 				shardBase := block.Coinbase()
-				logs, err := w.masterCommitTransaction(tx, coinbase,&shardBase, &gasUsed,f)
+				logs, err := w.masterCommitTransaction(tx, coinbase,&shardBase, &gasUsed)
 				switch err {
 				case core.ErrGasLimitReached:
 					// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -1185,7 +1211,7 @@ func (w *worker) masterProcessShards(blocks types.BlockIntfs, coinbase common.Ad
 	return false
 }
 
-func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.Address, shardBase *common.Address, gasUsed *uint64, f *os.File) ([]*types.Log, error) {
+func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.Address, shardBase *common.Address, gasUsed *uint64) ([]*types.Log, error) {
 
 	snap := w.current.state.Snapshot()
 	if w.current.gasPool == nil {
@@ -1199,8 +1225,9 @@ func (w *worker) masterCommitTransaction(tx *types.Transaction, coinbase common.
 	}
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
-	str := fmt.Sprintf("%v,%v\r\n",tx.Hash(),*receipt)
+/*	str := fmt.Sprintf("%v,%v\r\n",tx.Hash(),*receipt)
 	f.WriteString(str)
+*/
 	return receipt.Logs, nil
 }
 // commit runs any post-transaction state modifications, assembles the final block

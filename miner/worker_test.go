@@ -196,7 +196,7 @@ func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, eng
 
 	master.worker = newWorker(chainConfig, engine, master.backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil,types.ShardMaster)
 	master.worker.setEtherbase(testBankAddress)
-	master.worker.start()
+
 
 	shards := int(math.Exp2(float64(shardExp)))
 
@@ -211,7 +211,7 @@ func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, eng
 
 
 		shardBackends[i] .worker.setEtherbase(testBankAddress)
-		shardBackends[i] .worker.start()
+
 		go func(chain *core.BlockChain){
 			ch := make(chan core.ChainHeadEvent)
 			master.backend.chain.SubscribeChainHeadEvent(ch)
@@ -260,7 +260,7 @@ type Account struct {
 }
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
-	len_accounts := 100
+	len_accounts := 200
 
 	defer engine.Close()
 
@@ -299,7 +299,9 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	for i := 0; i < len_accounts; i++ {
 		allocs[sender[i].addr] = core.GenesisAccount{Balance:sender[i].fund}
 	}
-	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,0,allocs)
+	master,shards := newMasterShardTestWorker(t, chainConfig, engine, 0,1,allocs)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(1)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0x03})
 	defer func(){
 		master.worker.close();
 		for _,shard := range shards {
@@ -312,12 +314,23 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		time.Sleep(1400 * time.Millisecond)
 		//create a new send Txs
 		for i := 0; i < len_accounts; i++ {
+			fmt.Println("Adding txs:"," count:",len_accounts)
+			master.backend.txPool.AddLocals(sender[i].txs)
+			shardTxs := make(map[uint16][]*types.Transaction)
 			for j:= 0; j <len_accounts; j++ {
 				tx := sender[i].txs[j]
-				master.backend.txPool.AddLocals([]*types.Transaction{tx})
+
 				shard := master.backend.chain.TxShardByHash(tx.Hash())
-				shards[shard].backend.txPool.AddLocals([]*types.Transaction{tx})
+				if shardTxs[shard] == nil {
+					shardTxs[shard]=  []*types.Transaction{}
+				}
+				shardTxs[shard] = append(shardTxs[shard],tx)
+
 			}
+			for shardId,txs := range shardTxs {
+				shards[shardId].backend.txPool.AddLocals(txs)
+			}
+
 		}
 		/*
 		master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})
@@ -331,7 +344,10 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		master.backend.txPool.AddLocals([]*types.Transaction{tx3})
 		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
 */
-
+		master.worker.start()
+		for _,shard := range shards {
+			shard.worker.start()
+		}
 	}()
 
 	go func(){

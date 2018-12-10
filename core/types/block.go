@@ -234,6 +234,8 @@ func (b *Header) SetDifficulty(v *big.Int) {
 	b.difficulty = new(big.Int).SetUint64(v.Uint64())
 	b.setHashDirty(true)
 }
+func (b *Header) SetShardExp(v uint16)        {  b.shardMaskEp=v;  b.setHashDirty(true)  }
+func (b *Header) SetShardEnabled(v [32]byte)  {  b.shardEnabled=v; b.setHashDirty(true) }
 func (b *Header) SetGasLimit(v uint64) { b.gasLimit = v; b.setHashDirty(true) }
 func (b *Header) SetGasUsed(v uint64) {
 
