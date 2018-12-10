@@ -192,6 +192,9 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 			return 0, nil
 		}
 		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
+
+		log.Debug("fetcher insert blocks", "number", blocks[0].Number(), "shardId", blocks[0].ShardId())
+
 		return manager.blockchain.InsertChain(blocks)
 	}
 	getblockByHash := func(hash common.Hash, shardId uint16) types.BlockIntf {
@@ -988,7 +991,7 @@ func (pm *ProtocolManager) minedBroadcastLoop() {
 	// automatically stops if unsubscribe
 	for obj := range pm.minedBlockSub.Chan() {
 		if ev, ok := obj.Data.(core.NewMinedBlockEvent); ok {
-			pm.BroadcastBlock(ev.Block, true)  // First propagate block to peers
+			//pm.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			pm.BroadcastBlock(ev.Block, false) // Only then announce to the rest
 		}
 	}

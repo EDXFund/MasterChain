@@ -359,9 +359,9 @@ func (f *Fetcher) loop() {
 				break
 			}
 			// Otherwise if fresh and still unknown, try and import
-			//un := f.getBlock(hash,op.block.ShardId())
-			//bool := number < height || !reflect.ValueOf(un).IsNil()
-			if number+maxUncleDist < height || f.getBlock(hash, op.block.ShardId()) != nil {
+			un := f.getBlock(hash, op.block.ShardId())
+			bool := number < height || !(un == nil || reflect.ValueOf(un).IsNil())
+			if bool {
 				f.forgetBlock(hash)
 				continue
 			}

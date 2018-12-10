@@ -120,11 +120,11 @@ type BlockChain struct {
 
 	chainShardFeed event.Feed //chainShardFeed用于处理
 
-	chainHeadFeed event.Feed
-	logsFeed      event.Feed
+	chainHeadFeed  event.Feed
+	logsFeed       event.Feed
 	chainErrorFeed event.Feed
-	scope         event.SubscriptionScope
-	genesisBlock  types.BlockIntf
+	scope          event.SubscriptionScope
+	genesisBlock   types.BlockIntf
 
 	shardId uint16
 	mu      sync.RWMutex // global mutex for locking chain operations
@@ -209,7 +209,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	if shardId == types.ShardMaster {
 
 	} else {
-		bc.master_head, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt, shardId)
+		bc.master_head, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt, types.ShardMaster)
+
 	}
 	bc.genesisBlock = bc.GetBlockByNumber(0)
 	if bc.genesisBlock == nil || reflect.ValueOf(bc.genesisBlock).IsNil() {
@@ -1314,14 +1315,14 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 			n, events, logs, err := bc.insertChain(chain)
 			if len(events) > 0 {
 				bc.PostChainEvents(events, logs)
-			}else {
-				bc.chainErrorFeed.Send(ChainHeadEvent{Block:chain[0]})
-				log.Debug("Error in insertchain:","error is",err)
+			} else {
+				bc.chainErrorFeed.Send(ChainHeadEvent{Block: chain[0]})
+				log.Debug("Error in insertchain:", "error is", err)
 			}
-
 
 			return n, err
 		} else {
+
 			if bc.shardId == types.ShardMaster { //主链收到了子链区块的信息，只需插入到shardManager中去
 				return bc.insertIntoShard(chain)
 			} else {
@@ -1339,6 +1340,9 @@ func (bc *BlockChain) InsertChain(chain types.BlockIntfs) (int, error) {
 }
 
 func (bc *BlockChain) insertIntoShard(chain types.BlockIntfs) (int, error) {
+	for _, block := range chain {
+		rawdb.WriteBlock(bc.DB(), block)
+	}
 	bc.chainShardFeed.Send(&ChainsShardEvent{Block: chain})
 	return len(chain), nil
 }
@@ -1362,7 +1366,8 @@ func (bc *BlockChain) switchTo(hash common.Hash, number uint64) {
 }
 func (bc *BlockChain) shardProcMasterBlock(chain types.BlockIntfs) (int, error) {
 	whFunc := func(header types.HeaderIntf) error {
-		return nil
+		_, err := bc.master_head.WriteHeader(header)
+		return err
 	}
 	headers := make([]types.HeaderIntf, 0, len(chain))
 	for _, item := range chain {
@@ -1466,7 +1471,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 		err := <-results
 		if err == nil {
-			fmt.Println(" valid body"," shard:",block.ShardId()," number:",block.NumberU64(),"hash:",block.Hash())
+			fmt.Println(" valid body", " shard:", block.ShardId(), " number:", block.NumberU64(), "hash:", block.Hash())
 			err = bc.Validator().ValidateBody(block)
 		}
 		switch {
@@ -1744,7 +1749,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock types.BlockIntf) error {
 			logFn = log.Warn
 		}
 		logFn("Chain split detected", "number", commonBlock.Number(), "hash", commonBlock.Hash(),
-			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "number",oldChain[0].NumberU64(),"add", len(newChain), "addfrom", newChain[0].Hash(),"number",newChain[0].NumberU64())
+			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "number", oldChain[0].NumberU64(), "add", len(newChain), "addfrom", newChain[0].Hash(), "number", newChain[0].NumberU64())
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
@@ -1875,7 +1880,7 @@ Parent:0x%x
 
 Error: %v
 ##############################
-`, bc.chainConfig, block.ShardId(), block.Number(), block.Hash(), block.ParentHash(), /*receiptString,*/ err))
+`, bc.chainConfig, block.ShardId(), block.Number(), block.Hash(), block.ParentHash() /*receiptString,*/, err))
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local
@@ -2025,4 +2030,3 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 func (bc *BlockChain) SubscribeChainInsertErrorEvent(ch chan<- ChainHeadEvent) event.Subscription {
 	return bc.scope.Track(bc.chainErrorFeed.Subscribe(ch))
 }
-
