@@ -28,7 +28,6 @@ import (
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/params"
-	"os"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -128,14 +127,14 @@ func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb 
 	if block.ShardId() == types.ShardMaster {
 		return nil,nil,0,ErrInvalidBlocks
 	}
-	str := fmt.Sprintln("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
+	/*str := fmt.Sprintln("proc instr: ","shardId:",block.ShardId(),"number:",block.NumberU64())
 	fname := "./state_proc.txt"
 	f, err := os.OpenFile(fname, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
 	if err != nil {
 		fmt.Println(err)
 	}
 	f.WriteString(str)
-	defer f.Close()
+	defer f.Close()*/
 
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
@@ -153,8 +152,8 @@ func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb 
 			//get hash from pool
 			statedb.Prepare(tx.Hash(), block.Hash(), i)
 			receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, nil,statedb, header, tx, usedGas, cfg)
-			str := fmt.Sprintf("%v,%v\r\n",tx.Hash(),*receipt)
-			f.WriteString(str)
+			/*str := fmt.Sprintf("%v,%v\r\n",tx.Hash(),*receipt)
+			f.WriteString(str)*/
 			if err != nil {
 				return nil, nil, 0, err
 			}
