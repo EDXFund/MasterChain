@@ -260,7 +260,7 @@ type Account struct {
 }
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
-	len_accounts := 200
+	len_accounts := 250
 
 	defer engine.Close()
 
@@ -288,9 +288,9 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	for i := 0; i < len_accounts; i++ {
 		allocs[sender[i].addr] = core.GenesisAccount{Balance: sender[i].fund}
 	}
-	master, shards := newMasterShardTestWorker(t, chainConfig, engine, 0, 3, allocs)
-	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(3)
-	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF})
+	master, shards := newMasterShardTestWorker(t, chainConfig, engine, 0, 4, allocs)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(4)
+	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF,0xFF})
 	defer func() {
 		master.worker.close();
 		for _, shard := range shards {
@@ -355,7 +355,7 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 
 func DistrubteTxs(len_accounts int, master *TestWorker, sender []Account, shards []*TestWorker) {
 	for i := 0; i < len_accounts; i++ {
-		fmt.Println("Adding txs:", "index",i," count:", len_accounts)
+		//fmt.Println("Adding txs:", "index",i," count:", len_accounts)
 		if len(sender[i].txs) > 0{
 			master.backend.txPool.AddLocals(sender[i].txs)
 			shardTxs := make(map[uint16][]*types.Transaction)
@@ -378,7 +378,7 @@ func DistrubteTxs(len_accounts int, master *TestWorker, sender []Account, shards
 
 			}
 			sender[i].txs = nil
-			fmt.Println("Added txs:", "index",i," count:", len_accounts)
+			//fmt.Println("Added txs:", "index",i," count:", len_accounts)
 		}
 
 	}
@@ -466,7 +466,7 @@ func init() {
 	glogger = log.NewGlogHandler(ostream)
 
 	log.PrintOrigins(true)
-	glogger.Verbosity(log.Lvl(3))
+	glogger.Verbosity(log.Lvl(2))
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
