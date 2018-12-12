@@ -355,23 +355,32 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 
 func DistrubteTxs(len_accounts int, master *TestWorker, sender []Account, shards []*TestWorker) {
 	for i := 0; i < len_accounts; i++ {
-		fmt.Println("Adding txs:", " count:", len_accounts)
-		master.backend.txPool.AddLocals(sender[i].txs)
-		shardTxs := make(map[uint16][]*types.Transaction)
-		for j := 0; j < len_accounts; j++ {
-			tx := sender[i].txs[j]
+		fmt.Println("Adding txs:", "index",i," count:", len_accounts)
+		if len(sender[i].txs) > 0{
+			master.backend.txPool.AddLocals(sender[i].txs)
+			shardTxs := make(map[uint16][]*types.Transaction)
+			for j := 0; j < len_accounts; j++ {
+				tx := sender[i].txs[j]
 
-			shard := master.backend.chain.TxShardByHash(tx.Hash())
-			if shardTxs[shard] == nil {
-				shardTxs[shard] = []*types.Transaction{}
+				shard := master.backend.chain.TxShardByHash(tx.Hash())
+				if shardTxs[shard] == nil {
+					shardTxs[shard] = []*types.Transaction{}
+				}
+				shardTxs[shard] = append(shardTxs[shard], tx)
+
 			}
-			shardTxs[shard] = append(shardTxs[shard], tx)
+			for shardId, txs := range shardTxs {
+				if shardTxs[shardId] == nil {
+					fmt.Println("error!")
+				}else{
+					shards[shardId].backend.txPool.AddLocals(txs)
+				}
 
+			}
+			sender[i].txs = nil
+			fmt.Println("Added txs:", "index",i," count:", len_accounts)
 		}
-		for shardId, txs := range shardTxs {
-			shards[shardId].backend.txPool.AddLocals(txs)
-		}
-		sender[i].txs = nil
+
 	}
 }
 
