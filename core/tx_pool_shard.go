@@ -31,6 +31,7 @@
 package core
 
 import (
+	"fmt"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"math"
 	"math/big"
@@ -580,6 +581,7 @@ func (pool *TxPoolShard) addTxsLocked(txs []*types.Transaction, local bool) []er
 		 }
 
 	}
+	fmt.Println("txs inpool","shard Id:",pool.shardId," counts:",pool.all.Count())
 	keys := make([]*common.Hash,0,pool.all.Count())
 	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
 		keys = append(keys,&hash)
