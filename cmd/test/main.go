@@ -12,6 +12,7 @@ import (
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/eth"
+	"github.com/EDXFund/MasterChain/eth/downloader"
 	"github.com/EDXFund/MasterChain/ethclient"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
@@ -71,6 +72,7 @@ func main() {
 
 		add := i + 1
 		cfg.Eth.Ethash.PowMode = ethash.ModeFake
+		cfg.Eth.SyncMode = downloader.FullSync
 		cfg.Eth.NetworkId = genesis.Config.ChainID.Uint64()
 		cfg.Eth.Genesis = genesis
 		//cfg.Eth.Etherbase = addr
@@ -146,7 +148,7 @@ func main() {
 	for id, node := range stacks {
 
 		if id == 0 {
-continue
+
 		}
 		var ethereum *eth.Ethereum
 		if err := node.Service(&ethereum); err != nil {
