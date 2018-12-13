@@ -60,9 +60,9 @@ type ShardChainPool struct {
 
 	currenMasterBlock types.BlockIntf
 
-	newShardFeed event.Feed
+	newShardFeed        event.Feed
 	masterBlockProcFeed event.Feed //new masterblock has arrived
-	scope        event.SubscriptionScope
+	scope               event.SubscriptionScope
 }
 
 func NewShardChainPool(bc *core.BlockChain, database ethdb.Database) *ShardChainPool {
@@ -132,16 +132,16 @@ func (scp *ShardChainPool) SubscribeChainShardsEvent(newShardCh chan *core.Chain
 func (scp *ShardChainPool) SubscribeMasterHeadProcsEvent(newMasterProcCh chan core.ChainHeadEvent) event.Subscription {
 	return scp.masterBlockProcFeed.Subscribe(newMasterProcCh)
 }
-func (scp *ShardChainPool) GetBlockByHash(hash common.Hash,shardId uint16) *types.SBlock {
-	block := scp.GetBlock(hash,0)
+func (scp *ShardChainPool) GetBlockByHash(hash common.Hash, shardId uint16) *types.SBlock {
+	block := scp.GetBlock(hash, 0)
 	if block == nil {
 		geneBlock := scp.bc.GenesisOfShard(shardId)
 		if geneBlock.Hash() == hash {
 			return geneBlock.ToSBlock()
-		}else {
+		} else {
 			return nil
 		}
-	}else {
+	} else {
 		return block
 	}
 }
@@ -151,23 +151,72 @@ func (scp *ShardChainPool) GetBlock(hash common.Hash, number uint64) *types.SBlo
 		return result
 	}
 	block := rawdb.ReadBlock(scp.db, hash, number)
-	if block != nil   {
+	if block != nil {
 		return block.ToSBlock()
-	}else {
+	} else {
 		return nil
 	}
 
 }
+func (scp *ShardChainPool) GetHeaderByHash(hash common.Hash, shardId uint16) types.HeaderIntf {
+	sBlock := scp.GetBlockByHash(hash, shardId)
+
+	if sBlock != nil {
+		return sBlock.Header()
+	}
+
+	return nil
+}
+
+func (scp *ShardChainPool) GetHeaderByNumber(number uint64, shardId uint16) types.HeaderIntf {
+	hash := rawdb.ReadCanonicalHash(scp.db, shardId, number)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	return scp.GetHeaderByHash(hash, shardId)
+}
+
+func (scp *ShardChainPool) GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64, shardId uint16) (common.Hash, uint64) {
+	if ancestor > number {
+		return common.Hash{}, 0
+	}
+	if ancestor == 1 {
+		// in this case it is cheaper to just read the header
+		if header := scp.GetHeaderByHash(hash, shardId); header != nil {
+			return header.ParentHash(), number - 1
+		} else {
+			return common.Hash{}, 0
+		}
+	}
+	for ancestor != 0 {
+		if rawdb.ReadCanonicalHash(scp.db, shardId, number) == hash {
+			number -= ancestor
+			return rawdb.ReadCanonicalHash(scp.db, shardId, number), number
+		}
+		if *maxNonCanonical == 0 {
+			return common.Hash{}, 0
+		}
+		*maxNonCanonical--
+		ancestor--
+		header := scp.GetHeaderByHash(hash, shardId)
+		if header == nil || reflect.ValueOf(header).IsNil() {
+			return common.Hash{}, 0
+		}
+		hash = header.ParentHash()
+		number--
+	}
+	return hash, number
+}
 
 /**
-	insert shardchain update each shard chain tree
- */
+insert shardchain update each shard chain tree
+*/
 func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 
 	shardId := blocks[0].ShardId()
 	qchain, ok := scp.shards[shardId]
 	if !ok {
-		qchain = NewHeaderTreeManager(shardId,scp.db)
+		qchain = NewHeaderTreeManager(shardId, scp.db)
 		scp.shards[shardId] = qchain
 	}
 	header := []types.HeaderIntf{}
@@ -177,7 +226,7 @@ func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 	}
 
 	newHeaders := qchain.AddNewHeads(header)
-	log.Debug(" Add Headers:","header count:",len(header),"confirmed:", len(newHeaders))
+	log.Debug(" Add Headers:", "header count:", len(header), "confirmed:", len(newHeaders))
 	if len(newHeaders) > 0 {
 		newBlocks := types.BlockIntfs{}
 		for _, val := range newHeaders {
@@ -189,18 +238,18 @@ func (scp *ShardChainPool) insertShardChain(blocks []*types.SBlock) error {
 		scp.newShardFeed.Send(&core.ChainsShardEvent{Block: newBlocks})
 
 	}
-	return nil;
+	return nil
 }
 
 /**
 return all max Tds block info of shard
- */
-func (scp *ShardChainPool) GetMaxTds() (map[uint16]types.ShardBlockInfo) {
+*/
+func (scp *ShardChainPool) GetMaxTds() map[uint16]types.ShardBlockInfo {
 	scp.mu.Lock()
 	defer scp.mu.Unlock()
 	results := make(map[uint16]types.ShardBlockInfo)
 	for shardId, shard := range scp.shards {
-		shardInfo,err := shard.GetMaxTd()
+		shardInfo, err := shard.GetMaxTd()
 		if err == nil {
 			results[shardId] = *shardInfo
 		}
@@ -208,6 +257,7 @@ func (scp *ShardChainPool) GetMaxTds() (map[uint16]types.ShardBlockInfo) {
 	}
 	return results
 }
+
 //miner's worker uses Pending to retrieve shardblockInfos which could be packed into master block
 func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 	scp.mu.Lock()
@@ -216,7 +266,7 @@ func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 	for shardId, shards := range scp.shards {
 
 		pendings := shards.Pending()
-		log.Trace(" Shards Pending:","shardId:",shardId," len:",len(pendings))
+		log.Trace(" Shards Pending:", "shardId:", shardId, " len:", len(pendings))
 		if len(pendings) > 0 {
 			results[shardId] = make(PendingShard)
 			for _, head := range pendings {
@@ -225,13 +275,13 @@ func (scp *ShardChainPool) Pending() (map[uint16]PendingShard, error) {
 			}
 		}
 	}
-	log.Trace("Pending:"," len:",len(results))
+	log.Trace("Pending:", " len:", len(results))
 	return results, nil
 }
 
 /**
 reset would be called on master block's incoming
- */
+*/
 func (scp *ShardChainPool) reset(oldHead, newHead types.BlockIntf) {
 
 	scp.mu.Lock()
@@ -322,10 +372,10 @@ func (scp *ShardChainPool) reset(oldHead, newHead types.BlockIntf) {
 		if !ok {
 			log.Crit("qchain does not exist of:", shardId)
 		} else {
-			log.Trace(" confirm most recent:","block number:",mostRecent.NumberU64())
+			log.Trace(" confirm most recent:", "block number:", mostRecent.NumberU64())
 			qchain.SetConfirmed(mostRecent.Header())
 		}
 	}
 	scp.currenMasterBlock = newHead
-	scp.masterBlockProcFeed.Send(core.ChainHeadEvent{Block:newHead})
+	scp.masterBlockProcFeed.Send(core.ChainHeadEvent{Block: newHead})
 }
