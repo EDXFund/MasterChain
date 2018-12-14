@@ -80,7 +80,10 @@ func main() {
 		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(add)
 		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(add)
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
+		cfg.Node.HTTPHost = "0.0.0.0"
 		cfg.Node.HTTPPort = 8545 + add*2
+		cfg.Node.WSOrigins = []string{"*"}
+		cfg.Node.WSHost = "0.0.0.0"
 		cfg.Node.WSPort = 8546 + add*2
 	}
 
@@ -147,8 +150,8 @@ func main() {
 
 	for id, node := range stacks {
 
-		if id == 0 {
-
+		if id == 1 {
+			continue
 		}
 		var ethereum *eth.Ethereum
 		if err := node.Service(&ethereum); err != nil {
@@ -181,8 +184,8 @@ func defaultNodeConfig() node.Config {
 	cfg := node.DefaultConfig
 	cfg.Name = "edx"
 	cfg.Version = "0.0.1"
-	cfg.HTTPModules = append(cfg.HTTPModules, "eth", "shh")
-	cfg.WSModules = append(cfg.WSModules, "eth", "shh")
+	cfg.HTTPModules = append(cfg.HTTPModules, "eth")
+	cfg.WSModules = append(cfg.WSModules, "eth")
 	cfg.IPCPath = "edx.ipc"
 	return cfg
 }
