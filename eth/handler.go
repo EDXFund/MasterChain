@@ -377,7 +377,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			headers []types.HeaderIntf
 			unknown bool
 		)
-		////MUST TODO retrieve different data from different chain
+
 		for !unknown && len(headers) < int(query.Amount) && bytes < softResponseLimit && len(headers) < downloader.MaxHeaderFetch {
 			// Retrieve the next header satisfying the query
 			var origin types.HeaderIntf
@@ -387,7 +387,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					if dataInChain {
 						origin = pm.blockchain.GetHeaderByHash(query.Origin.Hash)
 					} else {
-						origin = rawdb.ReadHeader(pm.blockchain.DB(), query.Origin.Hash, query.Origin.Number)
+
+						origin = pm.shardpool.GetHeaderByHash(query.Origin.Hash, query.ShardId)
 					}
 
 					if origin != nil {
@@ -397,14 +398,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					if dataInChain {
 						origin = pm.blockchain.GetHeader(query.Origin.Hash, query.Origin.Number)
 					} else {
-						origin = rawdb.ReadHeader(pm.blockchain.DB(), query.Origin.Hash, query.Origin.Number)
+						origin = pm.shardpool.GetHeaderByHash(query.Origin.Hash, query.ShardId)
 					}
 				}
 			} else {
 				if dataInChain {
 					origin = pm.blockchain.GetHeaderByNumber(query.Origin.Number)
 				} else {
-					origin = rawdb.ReadHeader(pm.blockchain.DB(), query.Origin.Hash, query.Origin.Number)
+					origin = pm.shardpool.GetHeaderByNumber(query.Origin.Number, query.ShardId)
 				}
 
 			}
@@ -425,9 +426,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					if dataInChain {
 						query.Origin.Hash, query.Origin.Number = pm.blockchain.GetAncestor(query.Origin.Hash, query.Origin.Number, ancestor, &maxNonCanonical)
 					} else {
-						//TODO 从rawdb中取该hash的前几个head
-
-						//query.Origin.Hash, query.Origin.Number  = rawdb.FindCommonAncestor(pm.blockchain.DB(),origin)
+						query.Origin.Hash, query.Origin.Number = pm.shardpool.GetAncestor(query.Origin.Hash, query.Origin.Number, ancestor, &maxNonCanonical, query.ShardId)
 					}
 
 					unknown = (query.Origin.Hash == common.Hash{})
@@ -443,9 +442,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					p.Log().Warn("GetBlockHeaders skip overflow attack", "current", current, "skip", query.Skip, "next", next, "attacker", infos)
 					unknown = true
 				} else {
-					if header := pm.blockchain.GetHeaderByNumber(next); header != nil {
+					var header types.HeaderIntf
+					if dataInChain {
+						header = pm.blockchain.GetHeaderByNumber(next)
+					} else {
+						header = pm.shardpool.GetHeaderByNumber(next, query.ShardId)
+					}
+
+					if header != nil {
 						nextHash := header.Hash()
-						expOldHash, _ := pm.blockchain.GetAncestor(nextHash, next, query.Skip+1, &maxNonCanonical)
+						var expOldHash common.Hash
+						if dataInChain {
+							expOldHash, _ = pm.blockchain.GetAncestor(nextHash, next, query.Skip+1, &maxNonCanonical)
+						} else {
+							expOldHash, _ = pm.shardpool.GetAncestor(nextHash, next, query.Skip+1, &maxNonCanonical, query.ShardId)
+						}
 						if expOldHash == query.Origin.Hash {
 							query.Origin.Hash, query.Origin.Number = nextHash, next
 						} else {

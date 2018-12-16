@@ -91,13 +91,13 @@ const (
 // PeerEvent is an event emitted when peers are either added or dropped from
 // a p2p.Server or when a message is sent or received on a peer connection
 type PeerEvent struct {
-	Type     PeerEventType `json:"type"`
-	Peer     enode.ID      `json:"peer"`
-	Error    string        `json:"error,omitempty"`
-	Protocol string        `json:"protocol,omitempty"`
-	MsgCode  *uint64       `json:"msg_code,omitempty"`
-	MsgShardId *uint16	   `json:"msg_shardid,omitempty"`
-	MsgSize  *uint32       `json:"msg_size,omitempty"`
+	Type       PeerEventType `json:"type"`
+	Peer       enode.ID      `json:"peer"`
+	Error      string        `json:"error,omitempty"`
+	Protocol   string        `json:"protocol,omitempty"`
+	MsgCode    *uint64       `json:"msg_code,omitempty"`
+	MsgShardId *uint16       `json:"msg_shardid,omitempty"`
+	MsgSize    *uint32       `json:"msg_size,omitempty"`
 }
 
 // Peer represents a connected remote node.
@@ -252,7 +252,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendItems(p.rw,0xffff, pingMsg); err != nil {
+			if err := SendItems(p.rw, pingMsg); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -284,7 +284,7 @@ func (p *Peer) handle(msg Msg) error {
 	switch {
 	case msg.Code == pingMsg:
 		msg.Discard()
-		go SendItems(p.rw,  pongMsg)
+		go SendItems(p.rw, pongMsg)
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or

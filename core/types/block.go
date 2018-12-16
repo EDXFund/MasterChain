@@ -70,10 +70,10 @@ type HeaderStruct struct {
 	ParentHash   common.Hash    `json:"parentHash"       gencodec:"required"`
 	UncleHash    common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase     common.Address `json:"miner"            gencodec:"required"`
-	ShardMaskEp  uint16         `json:"shardHash"		gencodec:"required"` //how many shard can be restarted
-	ShardEnabled [32]byte       `json:"shardHash"		gencodec:"required"` //shard enabed/disabled state
+	ShardMaskEp  uint16         `json:"shardMaskEp"		gencodec:"required"`  //how many shard can be restarted
+	ShardEnabled [32]byte       `json:"shardEnabled"		gencodec:"required"` //shard enabed/disabled state
 	Root         common.Hash    `json:"stateRoot"        gencodec:"required"`
-	ShardTxsHash common.Hash    `json:"transactionsRoot" gencodec:"required"` //hash of all included shardinfo
+	ShardTxsHash common.Hash    `json:"shardTxsHash" 	gencodec:"required"` //hash of all included shardinfo
 	ReceiptHash  common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom        Bloom          `json:"logsBloom"        gencodec:"required"`
 	BloomReject  Bloom          `json:"rjLogsBloom"        gencodec:"required"` //fast check rejected transactions
@@ -84,7 +84,7 @@ type HeaderStruct struct {
 	Time         *big.Int       `json:"timestamp"        gencodec:"required"`
 	Extra        []byte         `json:"extraData"        gencodec:"required"`
 	MixDigest    common.Hash    `json:"mixHash"          gencodec:"required"`
-	ShardState   []ShardState   `json:"rewardRemains"        gencodec:"required"`
+	ShardState   []ShardState   `json:"shardState"        gencodec:"required"`
 	Nonce        BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
@@ -234,9 +234,9 @@ func (b *Header) SetDifficulty(v *big.Int) {
 	b.difficulty = new(big.Int).SetUint64(v.Uint64())
 	b.setHashDirty(true)
 }
-func (b *Header) SetShardExp(v uint16)        {  b.shardMaskEp=v;  b.setHashDirty(true)  }
-func (b *Header) SetShardEnabled(v [32]byte)  {  b.shardEnabled=v; b.setHashDirty(true) }
-func (b *Header) SetGasLimit(v uint64) { b.gasLimit = v; b.setHashDirty(true) }
+func (b *Header) SetShardExp(v uint16)       { b.shardMaskEp = v; b.setHashDirty(true) }
+func (b *Header) SetShardEnabled(v [32]byte) { b.shardEnabled = v; b.setHashDirty(true) }
+func (b *Header) SetGasLimit(v uint64)       { b.gasLimit = v; b.setHashDirty(true) }
 func (b *Header) SetGasUsed(v uint64) {
 
 	b.gasUsed = v
@@ -395,8 +395,8 @@ func NewBlock(header HeaderIntf, blks []*ShardBlockInfo, uncles []HeaderIntf, re
 		b.header.receiptHash = EmptyRootHash
 	} else {
 
-		shardid,number := header.ShardId(),header.NumberU64()
-		if shardid ==uint16(0xFFFF) && number == 11 {
+		shardid, number := header.ShardId(), header.NumberU64()
+		if shardid == uint16(0xFFFF) && number == 11 {
 			fmt.Println("here")
 		}
 		receiptRoot := DeriveSha(Receipts(receipts))

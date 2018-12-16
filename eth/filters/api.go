@@ -219,7 +219,11 @@ func (api *PublicFilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, er
 		for {
 			select {
 			case h := <-headers:
-				notifier.Notify(rpcSub.ID, h)
+				if h.ShardId() == types.ShardMaster {
+					notifier.Notify(rpcSub.ID, h.ToHeader().ToHeaderStruct())
+				} else {
+					notifier.Notify(rpcSub.ID, h.ToSHeader().ToStruct())
+				}
 			case <-rpcSub.Err():
 				headersSub.Unsubscribe()
 				return
