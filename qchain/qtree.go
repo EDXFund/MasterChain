@@ -18,13 +18,16 @@ package qchain
 
 import (
 	"container/list"
+	"fmt"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/ethdb"
 	"github.com/EDXFund/MasterChain/log"
+	"github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
+	"math/big"
 	"sort"
 	"sync"
 )
@@ -37,13 +40,14 @@ type HeaderTree struct {
 	//for quick search
 	parent *HeaderTree
 	wg     sync.RWMutex
-
+	owner   *HeaderTreeManager
 }
 
-func NewHeaderTree(root types.HeaderIntf) *HeaderTree {
+func NewHeaderTree(root types.HeaderIntf,owner *HeaderTreeManager) *HeaderTree {
 	return &HeaderTree{
 		self:     root,
 		children: list.New(),
+		owner:owner,
 	}
 }
 
@@ -90,7 +94,7 @@ func (t *HeaderTree) addHeader(node types.HeaderIntf) bool {
 			}
 		}
 		if !exist {
-			parent.children.PushBack(&HeaderTree{self: node, children: list.New(), parent: parent})
+			parent.children.PushBack(&HeaderTree{self: node, children: list.New(), parent: parent,owner:t.owner})
 		}
 
 		//make a HeaderTree
@@ -131,7 +135,8 @@ func (t *HeaderTree) ShrinkToBranch(node types.HeaderIntf) *HeaderTree{
 }
 //found max td return (td, the longest tree node)
 func (t *HeaderTree) getMaxTdPath() (uint64, *HeaderTree) {
-	td := t.self.Difficulty().Uint64()
+	td := t.owner.GetTd(t.self)
+	fmt.Println("td test:","shardId:",t.self.ShardId(), " blockNo:",t.self.NumberU64()," td:",td)
 	maxTd := uint64(0)
 	var maxHeader *HeaderTree
 	maxHeader = nil
@@ -317,6 +322,7 @@ type  HeaderTreeManager struct{
 
 	confirmedHash common.Hash
 	db       ethdb.Database
+	tdCache  *lru.Cache
 }
 
 func NewHeaderTreeManager(shardId uint16,database ethdb.Database) *HeaderTreeManager {
@@ -327,7 +333,9 @@ func NewHeaderTreeManager(shardId uint16,database ethdb.Database) *HeaderTreeMan
 		confirmed:make([]types.HeaderIntf,0),
 		confirmedHash:common.Hash{},
 		db:database,
+
 	}
+	htm.tdCache, _ = lru.New(sheaderCacheLimit)
 	confirmedHash,confirmedNumber,maxHash,maxNumber := rawdb.ReadLatestShardInfo(database,shardId)
 	headerToInsert := []types.HeaderIntf{}
 	if maxNumber != 0{
@@ -338,7 +346,7 @@ func NewHeaderTreeManager(shardId uint16,database ethdb.Database) *HeaderTreeMan
 			headerInfo := rawdb.ReadHeader(database,hash,number)
 			if headerInfo != nil {
 				headerToInsert = append(headerToInsert,headerInfo)
-				if(hash == confirmedHash || number == confirmedNumber) {
+				if hash == confirmedHash || number == confirmedNumber {
 					break
 				}
 			}else {
@@ -353,9 +361,23 @@ func NewHeaderTreeManager(shardId uint16,database ethdb.Database) *HeaderTreeMan
 	return htm
 
 }
+
 func (t *HeaderTreeManager)Trees() map[common.Hash] *HeaderTree { return t.trees }
 func (t *HeaderTreeManager)TreeOf(hash common.Hash) (*HeaderTree){ return t.trees[hash] }
 func (t* HeaderTreeManager)SetRootHash(hash common.Hash) { t.rootHash = hash}
+func (t* HeaderTreeManager)GetTd(header types.HeaderIntf) uint64{
+	td,ok := t.tdCache.Get(header.Hash())
+	if ok {
+		return td.(*big.Int).Uint64()
+	}
+	td = rawdb.ReadTd(t.db,t.shardId, header.Hash(), header.NumberU64())
+	if td != nil {
+		t.tdCache.Add(header.Hash(),td)
+		return td.(*big.Int).Uint64()
+	}else{
+		return 0
+	}
+}
 //add new BLock to tree, if more than 6 blocks has reached, a new block will popup to shard_pool
 //if the node can not be add to  any existing tree, a new tree will be established
 func (t *HeaderTreeManager)AddNewHeads(nodes []types.HeaderIntf)  []types.HeaderIntf {
@@ -402,8 +424,7 @@ func (t *HeaderTreeManager)GetMaxTd() (*types.ShardBlockInfo,error) {
 	if(t.rootHash != common.Hash{}) {
 		head := t.maxTd
 		if head != nil {
-
-			return  &types.ShardBlockInfo{head.ShardId(),head.NumberU64(),head.Hash(),head.ParentHash(),head.Coinbase(),head.Difficulty().Uint64()},nil
+			return  &types.ShardBlockInfo{head.ShardId(),head.NumberU64(),head.Hash(),head.ParentHash(),head.Coinbase(),t.GetTd(head)},nil
 		}else {
 			return nil,errors.New("no max td node found")
 		}
@@ -425,7 +446,7 @@ func (t *HeaderTreeManager)AddNewHead(node types.HeaderIntf) {
 		t.rootHash = node.Hash()
 	}
 	if found == nil{
-		found = NewHeaderTree(node)
+		found = NewHeaderTree(node,t)
 		t.trees[node.Hash()] = found
 	}
 	//do possible tree merge
