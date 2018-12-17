@@ -20,7 +20,6 @@ import (
 	"container/list"
 	"fmt"
 	"github.com/EDXFund/MasterChain/common"
-	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/ethdb"
@@ -81,6 +80,11 @@ func (t *HeaderTree) AddHeader(node types.HeaderIntf) bool {
 //insert node , whose parent
 func (t *HeaderTree) addHeader(node types.HeaderIntf) bool {
 
+	//check for existing node
+	if t.self.Hash() == node.Hash() {
+		return true
+	}
+	//else check and add to its parent
 	parent := t.findHeader(node, func(n1, n2 types.HeaderIntf) bool {
 		return n1.Hash() == n2.ParentHash()
 	})
@@ -408,6 +412,7 @@ func (t *HeaderTreeManager) AddNewHeads(nodes []types.HeaderIntf) []types.Header
 					t.confirmed = append(t.confirmed, node.self)
 				}
 			}
+
 		}
 		if len(t.confirmed) > 0 {
 			rawdb.WriteLatestShardInfo(t.db, t.confirmed[0], t.maxTd)
@@ -504,16 +509,14 @@ func (t *HeaderTreeManager) ReduceTo(node types.HeaderIntf) error {
 		t.rootHash = node.Hash()
 		return nil
 	} else {
-		return core.ErrInvalidBlocks
+		return nil
 	}
 
 }
 
 func (t *HeaderTreeManager) SetConfirmed(head types.HeaderIntf) []types.HeaderIntf {
 
-	if t.rootHash == head.Hash() {
-		return nil
-	}
+
 	val := head.NumberU64()
 
 	reduceIndex := 0
@@ -537,7 +540,7 @@ func (t *HeaderTreeManager) Pending() []types.HeaderIntf {
 	if len(t.confirmed) > 0 {
 		result := make([]types.HeaderIntf, 0, len(t.confirmed))
 		for _, val := range t.confirmed {
-			if val.Hash() != t.rootHash && val.Hash() != t.confirmedHash {
+			if  val.Hash() != t.confirmedHash {
 				result = append(result, val)
 			}
 
