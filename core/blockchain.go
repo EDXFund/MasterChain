@@ -212,7 +212,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	} else {
 		bc.master_head, err = NewHeaderChain(db, chainConfig, engine, bc.getProcInterrupt, types.ShardMaster)
 
-
 	}
 	bc.genesisBlock = bc.GetBlockByNumber(0)
 	if bc.genesisBlock == nil || reflect.ValueOf(bc.genesisBlock).IsNil() {
@@ -285,7 +284,8 @@ func (bc *BlockChain) GetLatestShard(shardId uint16) *types.ShardBlockInfo {
 /*func (bc *BlockChain) GetLatestHash() common.Hash{
 	return types.rlpHash(bc.latestShards)
 }*/
-var  maskBits = [16]uint16{0x00,0x01,0x03,0x07,0xF,0x1F,0x3F,0x7F,0xFF,0x1FF,0x3FF,0x7FF,0xFFF,0x1FFF,0x3FFF,0x7FFF}
+var maskBits = [16]uint16{0x00, 0x01, 0x03, 0x07, 0xF, 0x1F, 0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF, 0x1FFF, 0x3FFF, 0x7FFF}
+
 func (bc *BlockChain) TxShardByHash(txHash common.Hash) uint16 {
 	hashBytes := txHash.Bytes()
 	targetShard := uint16(hashBytes[0]) + (uint16(hashBytes[1]) << 8)
@@ -1574,7 +1574,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
 		log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
 		if block.ShardId() == types.ShardMaster {
-			str := fmt.Sprintf("blockNumber:,%v,time:,%v,counts:,%v\r\n",block.NumberU64(),block.Time().Uint64(),len(receipts))
+			str := fmt.Sprintf("blockNumber:,%v,time:,%v,counts:,%v\r\n", block.NumberU64(), block.Time().Uint64(), len(receipts))
 			f.WriteString(str)
 		}
 		if err != nil {
@@ -1596,8 +1596,8 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		}
 		switch status {
 		case CanonStatTy:
-			log.Debug("Inserted new block", "number", block.Number(), "shardId ", block.ShardId(), "hash", block.Hash(), "uncles", len(block.Uncles()),
-				"txs", len(block.Transactions()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
+			log.Debug("Inserted new block", "number", block.Number(), "shardId ", block.ShardId(), "hash", block.Hash(), "shards", len(block.ShardBlocks()),
+				"txs", len(block.Results()), "gas", block.GasUsed(), "elapsed", common.PrettyDuration(time.Since(bstart)))
 
 			coalescedLogs = append(coalescedLogs, logs...)
 			blockInsertTimer.UpdateSince(bstart)

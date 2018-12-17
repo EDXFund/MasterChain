@@ -151,7 +151,7 @@ func main() {
 	for id, node := range stacks {
 
 		if id == 1 {
-			continue
+
 		}
 		var ethereum *eth.Ethereum
 		if err := node.Service(&ethereum); err != nil {
@@ -162,14 +162,14 @@ func main() {
 		}
 	}
 
-	//rpcClient, err := stacks[0].Attach()
-	//if err != nil {
-	//	log.Error("rpcClient error")
-	//}
+	rpcClient, err := stacks[0].Attach()
+	if err != nil {
+		log.Error("rpcClient error")
+	}
 
-	//client := ethclient.NewClient(rpcClient)
+	client := ethclient.NewClient(rpcClient)
 
-	//sendTx(client)
+	sendTx(client)
 
 	stacks[0].Wait()
 
@@ -195,18 +195,18 @@ func sendTx(client *ethclient.Client) {
 	if err != nil {
 		log.Debug("")
 	}
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		log.Debug("error casting public key to ECDSA")
-	}
-
-	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
-	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-	if err != nil {
-		log.Debug("")
-	}
+	//
+	//publicKey := privateKey.Public()
+	//publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	//if !ok {
+	//	log.Debug("error casting public key to ECDSA")
+	//}
+	//
+	//fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+	//nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+	//if err != nil {
+	//	log.Debug("")
+	//}
 
 	value := big.NewInt(1)    // in wei (1 eth)
 	gasLimit := uint64(21000) // in units
@@ -217,7 +217,7 @@ func sendTx(client *ethclient.Client) {
 
 	toAddress := common.HexToAddress("0x4592d8f8d7b001e72cb26a73e4fa1806a51ac79d")
 	var data []byte
-	tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, data, 0)
+	tx := types.NewTransaction(0, toAddress, value, gasLimit, gasPrice, data, 0)
 
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
