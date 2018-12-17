@@ -137,10 +137,8 @@ type blockChain interface {
 
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 	GetShardBlock(shardId uint16, hash common.Hash, number uint64) types.BlockIntf
-	DB()   ethdb.Database
+	DB() ethdb.Database
 }
-
-
 
 // TxPoolConfig are the configuration parameters of the transaction pool.
 type TxPoolConfig struct {
@@ -195,8 +193,10 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 	}
 	return conf
 }
+
 // store shard infos in ascend order
-type  mShardInfo map[uint64]*types.ShardBlockInfo
+type mShardInfo map[uint64]*types.ShardBlockInfo
+
 // TxPool contains all currently known transactions. Transactions
 // enter the pool when they are received from the network or submitted
 // locally. They exit the pool when they are included in the blockchain.
@@ -205,9 +205,9 @@ type  mShardInfo map[uint64]*types.ShardBlockInfo
 // current state) and future transactions. Transactions move between those
 // two states over time as they are received and processed.
 type TxPool struct {
-	config       TxPoolConfig
-	chainconfig  *params.ChainConfig
-	chain        blockChain
+	config      TxPoolConfig
+	chainconfig *params.ChainConfig
+	chain       blockChain
 
 	shardId      uint16
 	gasPrice     *big.Int
@@ -232,14 +232,14 @@ type TxPool struct {
 	priced  *txPricedList                // All transactions sorted by price
 
 	pendingShards map[uint16]mShardInfo
-	wg sync.WaitGroup // for shutdown sync
+	wg            sync.WaitGroup // for shutdown sync
 
 	homestead bool
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPoolMaster(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain,shardId uint16) *TxPool {
+func NewTxPoolMaster(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain, shardId uint16) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -266,10 +266,9 @@ func NewTxPoolMaster(config TxPoolConfig, chainconfig *params.ChainConfig, chain
 
 	if shardId == types.ShardMaster {
 		pool.resetOfMaster(nil, chain.CurrentBlock().Header().ToHeader())
-	}else {
-		pool.resetOfSHeader(nil,chain.CurrentBlock().Header().ToSHeader())
+	} else {
+		pool.resetOfSHeader(nil, chain.CurrentBlock().Header().ToSHeader())
 	}
-
 
 	// If local transactions and journaling is enabled, load from disk
 	if !config.NoLocals && config.Journal != "" {
@@ -324,17 +323,17 @@ func (pool *TxPool) loop() {
 				if pool.chainconfig.IsHomestead(ev.Block.Number()) {
 					pool.homestead = true
 				}
-				if ev.Block.ShardId() == types.ShardMaster  {
+				if ev.Block.ShardId() == types.ShardMaster {
 					if head.ShardId() == types.ShardMaster {
 						temp := ev.Block.Header().ToHeader()
 						pool.resetOfMaster(head.Header().ToHeader(), temp)
 					}
 					//tx pool ignores master block, because shard block would be updated before master block
 
-				}else { //this is shard Id, new shard block arrived
+				} else { //this is shard Id, new shard block arrived
 					if head.ShardId() == ev.Block.ShardId() {
 						temp := ev.Block.Header().ToSHeader()
-						pool.resetOfSHeader(head.Header().ToSHeader(),temp)
+						pool.resetOfSHeader(head.Header().ToSHeader(), temp)
 					}
 					//on master node,  when shard block arrives, it will be send to shardManager and popuped
 				}
@@ -388,13 +387,14 @@ func (pool *TxPool) loop() {
 		}
 	}
 }
+
 //resetOfMaster compares newHead and oldHead, find the different shardblocks
 //and then recaculates txs of discarded and new added
-func (pool *TxPool)resetOfMaster(oldHead,newHead types.HeaderIntf){
+func (pool *TxPool) resetOfMaster(oldHead, newHead types.HeaderIntf) {
 
-	var reinjectTxs    types.Transactions
+	var reinjectTxs types.Transactions
 
-	if newHead == nil ||  reflect.ValueOf(newHead).IsNil() {
+	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
 		newHead = pool.chain.CurrentBlock().Header()
 	}
 	if oldHead != nil && !reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.ParentHash() {
@@ -414,26 +414,26 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead types.HeaderIntf){
 			)
 			for rem.NumberU64() > add.NumberU64() {
 				discarded = append(discarded, rem.ShardBlocks()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 			}
 			for add.NumberU64() > rem.NumberU64() {
 				included = append(included, add.ShardBlocks()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
 			}
 			for rem.Hash() != add.Hash() {
 				discarded = append(discarded, rem.ShardBlocks()...)
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 				included = append(included, add.ShardBlocks()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
@@ -441,16 +441,16 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead types.HeaderIntf){
 			//reinjectShards = types.ShardInfoDifference(discarded, included)
 			disTxs := []*types.Transaction{}
 			addTxs := []*types.Transaction{}
-			for _,blockInfo := range discarded {
-				block := pool.chain.GetShardBlock(blockInfo.ShardId,blockInfo.Hash,blockInfo.BlockNumber)
-				disTxs = append(disTxs,block.Transactions()...)
+			for _, blockInfo := range discarded {
+				block := pool.chain.GetShardBlock(blockInfo.ShardId, blockInfo.Hash, blockInfo.BlockNumber)
+				disTxs = append(disTxs, block.Transactions()...)
 			}
-			for _,blockInfo := range included {
-				block := pool.chain.GetShardBlock(blockInfo.ShardId,blockInfo.Hash,blockInfo.BlockNumber)
-				addTxs = append(addTxs,block.Transactions()...)
+			for _, blockInfo := range included {
+				block := pool.chain.GetShardBlock(blockInfo.ShardId, blockInfo.Hash, blockInfo.BlockNumber)
+				addTxs = append(addTxs, block.Transactions()...)
 			}
 
-			reinjectTxs = types.TxDifference(disTxs,addTxs)
+			reinjectTxs = types.TxDifference(disTxs, addTxs)
 
 		}
 	}
@@ -488,9 +488,8 @@ func (pool *TxPool)resetOfMaster(oldHead,newHead types.HeaderIntf){
 	// or remove those that have become invalid
 	pool.promoteExecutables(nil)
 
-
-
 }
+
 // lockedResetOfSHeader is a wrapper around resetOfSHeader to allow calling it in a thread safe
 // manner. This method is only ever used in the tester!
 func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
@@ -499,7 +498,7 @@ func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
 
 	if pool.shardId == types.ShardMaster {
 		pool.resetOfMaster(oldHead, newHead)
-	}else {
+	} else {
 		pool.resetOfSHeader(oldHead, newHead)
 	}
 
@@ -507,15 +506,16 @@ func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
 func (pool *TxPool) resetOfHeader(oldHead, newHead types.HeaderIntf) {
 
 }
+
 // resetOfSHeader is used by shard Chain to deal with txs, it should promote those txs to
 func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
 	var discarded, included types.Transactions
-	if newHead == nil ||  reflect.ValueOf(newHead).IsNil() {
+	if newHead == nil || reflect.ValueOf(newHead).IsNil() {
 		newHead = pool.chain.CurrentBlock().Header()
 	}
-	if oldHead != nil &&  !reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.Hash() {
+	if oldHead != nil && !reflect.ValueOf(oldHead).IsNil() && oldHead.Hash() != newHead.Hash() {
 		// If the reorg is too deep, avoid doing it (will happen during fast sync)
 		oldNum := oldHead.NumberU64()
 		newNum := newHead.NumberU64()
@@ -525,28 +525,27 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 		} else {
 			// Reorg seems shallow enough to pull in all transactions into memory
 
-
 			var (
 				rem = pool.chain.GetBlock(oldHead.Hash(), oldHead.NumberU64())
 				add = pool.chain.GetBlock(newHead.Hash(), newHead.NumberU64())
 			)
 			for rem.NumberU64() > add.NumberU64() {
 
-				for _,item := range rem.Results() {
+				for _, item := range rem.Results() {
 					discarded = append(discarded, pool.all.Get(item.TxHash))
 				}
 
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil() {
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
 			}
 			for add.NumberU64() > rem.NumberU64() {
-				for _,item := range add.Results() {
+				for _, item := range add.Results() {
 					included = append(included, pool.all.Get(item.TxHash))
 				}
 				included = append(included, add.Transactions()...)
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil(){
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
@@ -554,17 +553,17 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 			//向前寻找共同的祖先
 			for rem.Hash() != add.Hash() {
 
-				for _,item := range rem.Results() {
+				for _, item := range rem.Results() {
 					discarded = append(discarded, pool.all.Get(item.TxHash))
 				}
-				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil  || reflect.ValueOf(rem).IsNil(){
+				if rem = pool.chain.GetBlock(rem.ParentHash(), rem.NumberU64()-1); rem == nil || reflect.ValueOf(rem).IsNil() {
 					log.Error("Unrooted old chain seen by tx pool", "block", oldHead.Number, "hash", oldHead.Hash())
 					return
 				}
-				for _,item := range add.Results() {
+				for _, item := range add.Results() {
 					included = append(included, pool.all.Get(item.TxHash))
 				}
-				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil  || reflect.ValueOf(add).IsNil() {
+				if add = pool.chain.GetBlock(add.ParentHash(), add.NumberU64()-1); add == nil || reflect.ValueOf(add).IsNil() {
 					log.Error("Unrooted new chain seen by tx pool", "block", newHead.Number, "hash", newHead.Hash())
 					return
 				}
@@ -599,11 +598,11 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// have been invalidated because of another transaction (e.g.
 	// higher gas price)
 	nonces := make(map[common.Address]uint64)
-	for _,tx := range included {
-		msg ,err := tx.AsMessage(types.HomesteadSigner{})
+	for _, tx := range included {
+		msg, err := tx.AsMessage(types.HomesteadSigner{})
 		if err == nil {
-			accountNonce,ok := nonces[msg.From()]
-			if(!ok || accountNonce < msg.Nonce()) {
+			accountNonce, ok := nonces[msg.From()]
+			if !ok || accountNonce < msg.Nonce() {
 				nonces[msg.From()] = msg.Nonce()
 			}
 		}
@@ -622,9 +621,9 @@ func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 }
 func (pool *TxPool) removeTxs(nonces map[common.Address]uint64) {
 	for addr, list := range pool.pending {
-		if nonce,ok := nonces[addr]; ok {
+		if nonce, ok := nonces[addr]; ok {
 			// Drop all transactions that are deemed too old (low nonce)
-			for _, tx := range list.Forward(nonce+1) {
+			for _, tx := range list.Forward(nonce + 1) {
 				hash := tx.Hash()
 				log.Trace("Removed old pending transaction", "hash", hash)
 
@@ -824,7 +823,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	// If the transaction is already known, discard it
 	hash := tx.Hash()
-	_tx,err := rawdb.ReadRawTransaction(pool.chain.DB(),tx.Hash())
+	_tx, err := rawdb.ReadRawTransaction(pool.chain.DB(), tx.Hash())
 	if _tx != nil {
 		log.Trace("Discarding already known transaction", "hash", hash)
 		return false, fmt.Errorf("known transaction: %x", hash)
@@ -843,7 +842,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
 	return false,err
 	// If the transaction pool is full, discard underpriced transactions
-/*	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
+	/*	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
 		// If the new transaction is underpriced, don't accept it
 		if !local && pool.priced.Underpriced(tx, pool.locals) {
 			log.Trace("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
@@ -890,9 +889,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		return false, err
 	}
 
-
-	log.Trace("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
-	return replace, nil
 */
 }
 
@@ -1030,9 +1026,9 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
 	return pool.addTxsLocked(txs, local)
 }
 func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
-	for _,shard := range shards {
+	for _, shard := range shards {
 		shardId := shard.ShardId
-		shardInfos,ok := pool.pendingShards[shardId]
+		shardInfos, ok := pool.pendingShards[shardId]
 		if !ok {
 			shardInfos = make(mShardInfo)
 			pool.pendingShards[shardId] = shardInfos
@@ -1041,6 +1037,7 @@ func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
 	}
 	return nil
 }
+
 // addTxsLocked attempts to queue a batch of transactions if they are valid,
 // whilst assuming the transaction pool lock is already held.
 func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
@@ -1159,7 +1156,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 			continue // Just in case someone calls with a non existing account
 		}
 		// Drop all transactions that are deemed too old (low nonce)
-	//	fmt.Println("account nonce to delete:",pool.currentState.GetNonce(addr))
+		//	fmt.Println("account nonce to delete:",pool.currentState.GetNonce(addr))
 		for _, tx := range list.Forward(pool.currentState.GetNonce(addr)) {
 			hash := tx.Hash()
 			log.Trace("Removed old queued transaction", "hash", hash)
