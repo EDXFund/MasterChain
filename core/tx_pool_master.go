@@ -839,6 +839,9 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		invalidTxCounter.Inc(1)
 		return false, err
 	}
+	pool.all.Add(tx)
+	go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
+	return false,err
 	// If the transaction pool is full, discard underpriced transactions
 /*	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
 		// If the new transaction is underpriced, don't accept it
@@ -854,7 +857,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 			underpricedTxCounter.Inc(1)
 			pool.removeTx(tx.Hash(), false)
 		}
-	}*/
+	}
 	// If the transaction is replacing an already pending one, do directly
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
@@ -871,8 +874,8 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 			pendingReplaceCounter.Inc(1)
 		}
 		pool.all.Add(tx)
-		pool.priced.Put(tx)
-		pool.journalTx(from, tx)
+		//pool.priced.Put(tx)
+		//pool.journalTx(from, tx)
 
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
 
@@ -886,17 +889,11 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// Mark local addresses and journal local transactions
-	if local {
-		if !pool.locals.contains(from) {
-			log.Info("Setting new local account", "address", from)
-			pool.locals.add(from)
-		}
-	}
-	pool.journalTx(from, tx)
+
 
 	log.Trace("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
 	return replace, nil
+*/
 }
 
 // enqueueTx inserts a new transaction into the non-executable transaction queue.

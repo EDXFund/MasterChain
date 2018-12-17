@@ -250,7 +250,7 @@ func TestSingleTransaction(t *testing.T) {
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	}*/
-	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(5*time.Second))//ethash.New(cfg,nil,false))
+	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(2*time.Second))//ethash.New(cfg,nil,false))
 }
 type Account struct {
 	pvKey *ecdsa.PrivateKey
@@ -319,13 +319,13 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		for _, shard := range shards {
 			shard.worker.start()
 		}
-		timeTxs := time.NewTimer(100*time.Second)
+		timeTxs := time.NewTimer(40*time.Second)
 		for {
 			select {
 			case <- timeTxs.C:
 				createTxs(len_accounts, receiver, sender)
 				DistrubteTxs(len_accounts,master,sender,shards)
-				timeTxs.Reset(10*time.Second)
+				timeTxs.Reset(16*time.Second)
 			}
 
 		}

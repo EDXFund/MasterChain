@@ -233,20 +233,26 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 		misc.ApplyDAOHardFork(statedb)
 	}
 
+	receiptCnt := 0
 	// Iterate over and process the individual transactions
 	for _, blockInfo := range block.ShardBlocks() {
 		//从数据库中取出所有的分片信息
 		shardBlock := rawdb.ReadBlock(p.bc.db, blockInfo.Hash,blockInfo.BlockNumber)
 		if shardBlock != nil {
+			receiptCnt += len(shardBlock.Results())
+			fmt.Println("receipt cnt:", len(shardBlock.Results()))
 			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit(),gasOfBlock)
 			if aerr == nil {
 				receipts = append(receipts, areceipts...)
 				allLogs = append(allLogs, aallLogs...)
 				*usedGas += ausedGas
 			}else {
-
+				fmt.Println("error occurs:","err:",aerr)
 			}
 		}
+	}
+	if receiptCnt > 0 {
+		fmt.Println("total receipt cnt:", receiptCnt, " len of receipts:",len(receipts), " count of shard:",block.ShardBlocks() )
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb,block.ShardBlocks(),block.Results(), block.Transactions(), receipts)

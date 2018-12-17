@@ -18,7 +18,6 @@ package qchain
 
 import (
 	"container/list"
-	"fmt"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
@@ -136,7 +135,7 @@ func (t *HeaderTree) ShrinkToBranch(node types.HeaderIntf) *HeaderTree{
 //found max td return (td, the longest tree node)
 func (t *HeaderTree) getMaxTdPath() (uint64, *HeaderTree) {
 	td := t.owner.GetTd(t.self)
-	fmt.Println("td test:","shardId:",t.self.ShardId(), " blockNo:",t.self.NumberU64()," td:",td)
+	//fmt.Println("td test:","shardId:",t.self.ShardId(), " blockNo:",t.self.NumberU64()," td:",td)
 	maxTd := uint64(0)
 	var maxHeader *HeaderTree
 	maxHeader = nil
