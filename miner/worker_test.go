@@ -261,7 +261,7 @@ type Account struct {
 
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
-	len_accounts := 100
+	len_accounts := 128
 
 	defer engine.Close()
 
