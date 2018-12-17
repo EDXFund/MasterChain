@@ -822,7 +822,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 
 			if trueTD.Cmp(blockTd) > 0 {
-				go pm.synchronise(p)
+				//go pm.synchronise(p)
 			}
 		}
 
@@ -843,7 +843,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 			p.MarkTransaction(tx.Hash())
 		}
-		pm.txpool.AddRemotes(txs)
+		pm.txpool.AddLocals(txs)
 
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
