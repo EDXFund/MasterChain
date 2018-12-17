@@ -193,7 +193,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		}
 		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
 
-		log.Debug("fetcher insert blocks", "number", blocks[0].Number(), "shardId", blocks[0].ShardId())
+		log.Debug("fetcher insert blocks", "selfShardId", blockchain.ShardId(), "number", blocks[0].Number(), "shardId", blocks[0].ShardId())
 
 		return manager.blockchain.InsertChain(blocks)
 	}
