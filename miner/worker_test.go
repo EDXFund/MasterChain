@@ -261,7 +261,7 @@ type Account struct {
 
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
-	len_accounts := 128
+	len_accounts := 64
 
 	defer engine.Close()
 
@@ -472,7 +472,7 @@ func init() {
 	glogger = log.NewGlogHandler(ostream)
 
 	log.PrintOrigins(true)
-	glogger.Verbosity(log.Lvl(5))
+	glogger.Verbosity(log.Lvl(2))
 
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
