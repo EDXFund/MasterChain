@@ -73,9 +73,9 @@ func init() {
 		Period: 100,
 		Epoch:  30000,
 	}
-	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testBankKey)
+	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, 0), types.HomesteadSigner{}, testBankKey)
 	pendingTxs = append(pendingTxs, tx1)
-	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil,0), types.HomesteadSigner{}, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, 0), types.HomesteadSigner{}, testBankKey)
 	newTxs = append(newTxs, tx2)
 }
 
@@ -88,18 +88,18 @@ type testWorkerBackend struct {
 	testTxFeed event.Feed
 	uncleBlock types.BlockIntf
 }
-func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int, shardId uint16) *testWorkerBackend {
-	db    := ethdb.NewMemDatabase()
-	return newTestWorkerBackendWithAccount(t,db,chainConfig,engine,n,shardId,core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}})
-}
-func newTestWorkerBackendWithDb(t *testing.T, db ethdb.Database,chainConfig *params.ChainConfig, engine consensus.Engine, n int, shardId uint16) *testWorkerBackend {
 
-	return newTestWorkerBackendWithAccount(t,db,chainConfig,engine,n,shardId,core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}})
+func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int, shardId uint16) *testWorkerBackend {
+	db := ethdb.NewMemDatabase()
+	return newTestWorkerBackendWithAccount(t, db, chainConfig, engine, n, shardId, core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}})
+}
+func newTestWorkerBackendWithDb(t *testing.T, db ethdb.Database, chainConfig *params.ChainConfig, engine consensus.Engine, n int, shardId uint16) *testWorkerBackend {
+
+	return newTestWorkerBackendWithAccount(t, db, chainConfig, engine, n, shardId, core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}})
 }
 
 func newTestWorkerBackendWithAccount(t *testing.T, db ethdb.Database, chainConfig *params.ChainConfig, engine consensus.Engine, n int, shardId uint16, accountsInfos core.GenesisAlloc) *testWorkerBackend {
 	var (
-
 		gspec = core.Genesis{
 			Config: chainConfig,
 			Alloc:  accountsInfos,
@@ -116,17 +116,17 @@ func newTestWorkerBackendWithAccount(t *testing.T, db ethdb.Database, chainConfi
 	}
 	genesis := gspec.MustCommit(db, shardId)
 
-	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil,shardId)
+	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil, shardId)
 	var txpool core.TxPoolIntf
 	var shardpool *qchain.ShardChainPool
 	if shardId == types.ShardMaster {
 		txpool = core.NewTxPoolMaster(testTxPoolConfig, chainConfig, chain, shardId)
-		shardpool = qchain.NewShardChainPool(chain,db)
-	}else {
+		shardpool = qchain.NewShardChainPool(chain, db)
+	} else {
 		txpool = core.NewTxPoolShard(*testTxPoolConfig.ToShardConfig(), chainConfig, chain, shardId)
 	}
 
-	chain.SetupProcessor(gspec.Config,engine,txpool)
+	chain.SetupProcessor(gspec.Config, engine, txpool)
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
 		blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {
@@ -152,7 +152,7 @@ func newTestWorkerBackendWithAccount(t *testing.T, db ethdb.Database, chainConfi
 		uncleBlock: blocks[0],
 	}
 }
-func createChain(chainConfig *params.ChainConfig, number int,shardId uint16) []types.BlockIntf {
+func createChain(chainConfig *params.ChainConfig, number int, shardId uint16) []types.BlockIntf {
 	var (
 		db    = ethdb.NewMemDatabase()
 		gspec = core.Genesis{
@@ -168,63 +168,63 @@ func createChain(chainConfig *params.ChainConfig, number int,shardId uint16) []t
 	return chainblock
 }
 
-func (b *testWorkerBackend) BlockChain() *core.BlockChain { return b.chain }
-func (b *testWorkerBackend) TxPool() core.TxPoolIntf         { return b.txPool }
-func (b *testWorkerBackend) ShardPool() *qchain.ShardChainPool         { return b.shardPool }
-func (b *testWorkerBackend) ChainDb()  ethdb.Database         { return b.db }
+func (b *testWorkerBackend) BlockChain() *core.BlockChain      { return b.chain }
+func (b *testWorkerBackend) TxPool() core.TxPoolIntf           { return b.txPool }
+func (b *testWorkerBackend) ShardPool() *qchain.ShardChainPool { return b.shardPool }
+func (b *testWorkerBackend) ChainDb() ethdb.Database           { return b.db }
 func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shardId uint16) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks, shardId)
 	backend.txPool.AddLocals(pendingTxs)
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil,shardId)
+	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, shardId)
 	w.setEtherbase(testBankAddress)
 	w.start()
 	return w, backend
 }
+
 type TestWorker struct {
-	worker *worker
+	worker  *worker
 	backend *testWorkerBackend
 	channel chan core.ChainHeadEvent
 }
-func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shardExp uint16,accounts core.GenesisAlloc) (*TestWorker,[]*TestWorker) {
-	 master := TestWorker{}
+
+func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shardExp uint16, accounts core.GenesisAlloc) (*TestWorker, []*TestWorker) {
+	master := TestWorker{}
 	//create master chain
-	db    := ethdb.NewMemDatabase()
-	master.backend = newTestWorkerBackendWithAccount(t, db,chainConfig, engine, blocks, types.ShardMaster,accounts)
+	db := ethdb.NewMemDatabase()
+	master.backend = newTestWorkerBackendWithAccount(t, db, chainConfig, engine, blocks, types.ShardMaster, accounts)
 
-	master.worker = newWorker(chainConfig, engine, master.backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil,types.ShardMaster)
+	master.worker = newWorker(chainConfig, engine, master.backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, types.ShardMaster)
 	master.worker.setEtherbase(testBankAddress)
-
 
 	shards := int(math.Exp2(float64(shardExp)))
 
-	shardBackends := make([]*TestWorker,shards)
+	shardBackends := make([]*TestWorker, shards)
 	//create shard chain
 	for i := 0; i < shards; i++ {
 		shardBackends[i] = &TestWorker{}
-		shardBackends[i].backend = newTestWorkerBackendWithDb(t,db,chainConfig,engine,0,uint16(i))
-		shardBackends[i].worker = newWorker(chainConfig, engine, shardBackends[i].backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil,uint16(i))
+		shardBackends[i].backend = newTestWorkerBackendWithDb(t, db, chainConfig, engine, 0, uint16(i))
+		shardBackends[i].worker = newWorker(chainConfig, engine, shardBackends[i].backend, new(event.TypeMux), time.Second, params.GenesisGasLimit, params.GenesisGasLimit, nil, uint16(i))
 		shardBackends[i].channel = make(chan core.ChainHeadEvent)
 		shardBackends[i].backend.chain.SubscribeChainHeadEvent(shardBackends[i].channel)
 
+		shardBackends[i].worker.setEtherbase(testBankAddress)
 
-		shardBackends[i] .worker.setEtherbase(testBankAddress)
-
-		go func(chain *core.BlockChain){
+		go func(chain *core.BlockChain) {
 			ch := make(chan core.ChainHeadEvent)
 			master.backend.chain.SubscribeChainHeadEvent(ch)
 			for {
 				select {
-				case value := <- ch:
+				case value := <-ch:
 
 					chain.InsertChain(types.BlockIntfs{value.Block})
 				}
 			}
 		}(shardBackends[i].backend.chain)
 	}
-	go func(){
+	go func() {
 		cases := make([]reflect.SelectCase, shards)
 		for i, ch := range shardBackends {
 			cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch.channel)}
@@ -238,9 +238,8 @@ func newMasterShardTestWorker(t *testing.T, chainConfig *params.ChainConfig, eng
 			}
 		}
 
-
 	}()
-	return &master,shardBackends
+	return &master, shardBackends
 }
 func TestSingleTransaction(t *testing.T) {
 	/*cfg := ethash.Config{
@@ -250,32 +249,34 @@ func TestSingleTransaction(t *testing.T) {
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	}*/
-	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(2*time.Second))//ethash.New(cfg,nil,false))
+	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(2*time.Second)) //ethash.New(cfg,nil,false))
 }
+
 type Account struct {
 	pvKey *ecdsa.PrivateKey
 	addr  common.Address
 	fund  *big.Int
 	txs   []*types.Transaction
 }
+
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
 	len_accounts := 64
 
 	defer engine.Close()
 
-	state := make(chan  struct{})
+	state := make(chan struct{})
 
-	sender := make([]Account,len_accounts,len_accounts)
-	receiver  := make([]Account,len_accounts,len_accounts)
-	for i := 0; i < len_accounts; i ++ {
-		testKey, _  := crypto.GenerateKey()
+	sender := make([]Account, len_accounts, len_accounts)
+	receiver := make([]Account, len_accounts, len_accounts)
+	for i := 0; i < len_accounts; i++ {
+		testKey, _ := crypto.GenerateKey()
 		testAddress := crypto.PubkeyToAddress(testKey.PublicKey)
 		sender[i].pvKey = testKey
 		sender[i].addr = testAddress
 		sender[i].fund = big.NewInt(1000000000000000000)
-		sender[i].txs = make([]*types.Transaction,len_accounts)
-		testKey2, _  := crypto.GenerateKey()
+		sender[i].txs = make([]*types.Transaction, len_accounts)
+		testKey2, _ := crypto.GenerateKey()
 		testAddress2 := crypto.PubkeyToAddress(testKey2.PublicKey)
 		receiver[i].pvKey = testKey2
 		receiver[i].addr = testAddress2
@@ -290,9 +291,9 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	}
 	master, shards := newMasterShardTestWorker(t, chainConfig, engine, 0, 4, allocs)
 	master.backend.chain.CurrentHeader().ToHeader().SetShardExp(4)
-	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF,0xFF})
+	master.backend.chain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF, 0xFF})
 	defer func() {
-		master.worker.close();
+		master.worker.close()
 		for _, shard := range shards {
 			close(shard.channel)
 			shard.worker.close()
@@ -304,30 +305,30 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		//create a new send Txs
 		DistributeTxs(len_accounts, master, sender, shards)
 		/*
-		master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})
-		shard2 := master.backend.chain.TxShardByHash(tx2.Hash())
-		shard3 := master.backend.chain.TxShardByHash(tx3.Hash())
-		//shard4 := master.backend.chain.TxShardByHash(tx4.Hash())
-		shards[shard2].backend.txPool.AddLocals([]*types.Transaction{tx2})
-		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
+			master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})
+			shard2 := master.backend.chain.TxShardByHash(tx2.Hash())
+			shard3 := master.backend.chain.TxShardByHash(tx3.Hash())
+			//shard4 := master.backend.chain.TxShardByHash(tx4.Hash())
+			shards[shard2].backend.txPool.AddLocals([]*types.Transaction{tx2})
+			shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
 
-		time.Sleep(10*time.Second)
-		master.backend.txPool.AddLocals([]*types.Transaction{tx3})
-		shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
-*/
+			time.Sleep(10*time.Second)
+			master.backend.txPool.AddLocals([]*types.Transaction{tx3})
+			shards[shard3].backend.txPool.AddLocals([]*types.Transaction{tx3})
+		*/
 		master.worker.start()
 		for _, shard := range shards {
 			shard.worker.start()
 		}
-		timeTxs := time.NewTimer(40*time.Second)
+		timeTxs := time.NewTimer(40 * time.Second)
 		for {
 			select {
-			case <- timeTxs.C:
+			case <-timeTxs.C:
 				createTxs(len_accounts, receiver, sender)
-			    cur := time.Now()
-				DistributeTxs(len_accounts,master,sender,shards)
-			    fmt.Println(" distributed msec:", (time.Now().Sub(cur)))
-				timeTxs.Reset(16*time.Second)
+				cur := time.Now()
+				DistributeTxs(len_accounts, master, sender, shards)
+				fmt.Println(" distributed msec:", (time.Now().Sub(cur)))
+				timeTxs.Reset(16 * time.Second)
 			}
 
 		}
@@ -356,10 +357,10 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 }
 
 func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shards []*TestWorker) {
-	txcnts := 0
+	//txcnts := 0
 	for i := 0; i < len_accounts; i++ {
 		//fmt.Println("Adding txs:", "index",i," count:", len_accounts)
-		if len(sender[i].txs) > 0{
+		if len(sender[i].txs) > 0 {
 			master.backend.txPool.AddLocals(sender[i].txs)
 			shardTxs := make(map[uint16][]*types.Transaction)
 			for j := 0; j < len_accounts; j++ {
@@ -375,7 +376,7 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 			for shardId, txs := range shardTxs {
 				if shardTxs[shardId] == nil {
 					fmt.Println("error!")
-				}else{
+				} else {
 					shards[shardId].backend.txPool.AddLocals(txs)
 				}
 
@@ -392,7 +393,7 @@ func createTxs(len_accounts int, receiver []Account, sender []Account) {
 	last := rand.NewSource(time.Now().UnixNano())
 	//create transactions
 	for i := 0; i < len_accounts; i++ {
-		sender[i].txs = make([]*types.Transaction,len_accounts)
+		sender[i].txs = make([]*types.Transaction, len_accounts)
 		for j := 0; j < len_accounts; j++ {
 
 			nonce := rand.New(last)
@@ -405,8 +406,6 @@ func createTxs(len_accounts int, receiver []Account, sender []Account) {
 	}
 }
 
-
-
 /*func TestPendingStateAndBlockEthash(t *testing.T) {
 	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
 }
@@ -414,23 +413,23 @@ func TestPendingStateAndBlockClique(t *testing.T) {
 	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
 }*/
 func TestPendingStateAndBlockEthash0(t *testing.T) {
-	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(),0)
+	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(), 0)
 }
 func TestPendingStateAndBlockClique0(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 0)
 }
 
 func TestPendingStateAndBlockEthash10(t *testing.T) {
-	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(),10)
+	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker(), 10)
 }
 func TestPendingStateAndBlockClique10(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 10)
 }
 func TestShardBlock(t *testing.T) {
 	testShardBlock(t, ethashChainConfig, ethash.NewFaker())
 }
 
-func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine,shardId uint16) {
+func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
 	defer engine.Close()
 
 	w, b := newTestWorker(t, chainConfig, engine, 0, shardId)
@@ -455,6 +454,7 @@ func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, eng
 		t.Errorf("account balance mismatch: have %d, want %d", balance, 2000)
 	}
 }
+
 var (
 	ostream log.Handler
 	glogger *log.GlogHandler
@@ -476,8 +476,6 @@ func init() {
 	log.Root().SetHandler(glogger)
 }
 
-
-
 func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	log.PrintOrigins(true)
 	glogger.Verbosity(log.Lvl(4))
@@ -487,10 +485,9 @@ func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consen
 
 	defer engine.Close()
 
-	state := make(chan  struct{})
-	w, b := newTestWorker(t, chainConfig, engine, 0,10)
+	state := make(chan struct{})
+	w, b := newTestWorker(t, chainConfig, engine, 0, 10)
 	defer w.close()
-
 
 	// Ensure snapshot has been updated.
 	/*time.Sleep(100 * time.Millisecond)
@@ -507,27 +504,23 @@ func testShardBlock(t *testing.T, chainConfig *params.ChainConfig, engine consen
 		b.txPool.AddLocals(newTxs)
 	}()
 
-
-
-
-	go func(){
+	go func() {
 
 		// Ensure the new tx events has been processed
 		time.Sleep(60000 * time.Millisecond)
-		block:= w.pendingBlock()
+		block := w.pendingBlock()
 		if block == nil {
 			t.Errorf("shard results error: block is nil")
-		}else{
+		} else {
 			if len(block.Results()) != len(newTxs) {
-				t.Errorf("shard results error balance mismatch: have %d, want %d", len(block.Results()),len(newTxs))
+				t.Errorf("shard results error balance mismatch: have %d, want %d", len(block.Results()), len(newTxs))
 			}
 		}
 		state <- struct{}{}
 	}()
 
-	<- state
+	<-state
 }
-
 
 /*func TestEmptyWorkEthash(t *testing.T) {
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
@@ -536,21 +529,21 @@ func TestEmptyWorkClique(t *testing.T) {
 	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
 }*/
 func TestEmptyWorkEthash0(t *testing.T) {
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(),0)
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), 0)
 }
 func TestEmptyWorkClique0(t *testing.T) {
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 0)
 }
 func TestEmptyWorkEthash10(t *testing.T) {
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(),10)
+	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), 10)
 }
 func TestEmptyWorkClique10(t *testing.T) {
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 10)
 }
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0,shardId)
+	w, _ := newTestWorker(t, chainConfig, engine, 0, shardId)
 	defer w.close()
 
 	var (
@@ -665,23 +658,23 @@ func TestRegenerateMiningBlockClique(t *testing.T) {
 }
 */
 func TestRegenerateMiningBlockEthash0(t *testing.T) {
-	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(),0)
+	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(), 0)
 }
 
 func TestRegenerateMiningBlockClique0(t *testing.T) {
-	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 0)
 }
 func TestRegenerateMiningBlockEthash10(t *testing.T) {
-	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(),10)
+	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker(), 10)
 }
 
 func TestRegenerateMiningBlockClique10(t *testing.T) {
-	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 10)
 }
 func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0,shardId)
+	w, b := newTestWorker(t, chainConfig, engine, 0, shardId)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
@@ -734,6 +727,7 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 		t.Error("new task timeout")
 	}
 }
+
 /*
 func TestAdjustIntervalEthash(t *testing.T) {
 	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(),types.ShardMaster)
@@ -743,26 +737,25 @@ func TestAdjustIntervalClique0(t *testing.T) {
 	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),types.ShardMaster)
 }*/
 func TestAdjustIntervalEthash0(t *testing.T) {
-	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(),0)
+	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(), 0)
 }
 
 func TestAdjustIntervalClique10(t *testing.T) {
-	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),0)
+	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 0)
 }
 
 func TestAdjustIntervalEthash10(t *testing.T) {
-	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(),10)
+	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker(), 10)
 }
 
 func TestAdjustIntervalClique(t *testing.T) {
-	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()),10)
+	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 10)
 }
-
 
 func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, shardId uint16) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0,shardId)
+	w, _ := newTestWorker(t, chainConfig, engine, 0, shardId)
 	defer w.close()
 
 	w.skipSealHook = func(block types.BlockIntf) bool {

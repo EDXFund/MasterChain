@@ -49,49 +49,54 @@ func main() {
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
 
-	cfgs := []*gethConfig{
-		{
-			Eth:  eth.DefaultConfig,
-			Node: defaultNodeConfig(),
-		},
-		{
-			Eth:  eth.DefaultConfig,
-			Node: defaultNodeConfig(),
-		},
-	}
+	shardNumber := 4
 
-	cfgs[1].Eth.ShardId = 0x0000
+	senders, receivers, alloc := initAccount(200)
 
-	var stacks [2]*node.Node
-	add, _ := hexutil.Decode("0xEa3a1E0735507dBd305555A48411457D03AD4e88")
-	addr := common.BytesToAddress(add)
-	genesis := core.DeveloperGenesisBlock(0, addr)
+	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
+	genesis.Alloc = alloc
+	cfgs := make([]*gethConfig, 0)
 
-	for i, cfg := range cfgs {
+	for i := 0; i < shardNumber+1; i++ {
 
+		cfg := &gethConfig{
+			Eth:  eth.DefaultConfig,
+			Node: defaultNodeConfig(),
+		}
 		add := i + 1
+		var shardId uint16
+		if i == 0 {
+			shardId = uint16(65535)
+			cfg.Node.HTTPHost = "0.0.0.0"
+			cfg.Node.HTTPPort = 8545 + add*2
+			cfg.Node.WSOrigins = []string{"*"}
+			cfg.Node.WSHost = "0.0.0.0"
+			cfg.Node.WSPort = 8546 + add*2
+		} else {
+			shardId = uint16(i - 1)
+		}
+		cfg.Eth.ShardId = shardId
 		cfg.Eth.Ethash.PowMode = ethash.ModeFake
 		cfg.Eth.SyncMode = downloader.FullSync
 		cfg.Eth.NetworkId = genesis.Config.ChainID.Uint64()
 		cfg.Eth.Genesis = genesis
 		//cfg.Eth.Etherbase = addr
-		cfg.Eth.Ethash.CacheDir = "ethash" + strconv.Itoa(add)
-		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(add)
-		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(add)
+		cfg.Eth.Ethash.CacheDir = "ethash" + strconv.Itoa(int(shardId))
+		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(int(shardId))
+		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(int(shardId))
+		cfg.Node.P2P.NoDiscovery = false
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
-		cfg.Node.HTTPHost = "0.0.0.0"
-		cfg.Node.HTTPPort = 8545 + add*2
-		cfg.Node.WSOrigins = []string{"*"}
-		cfg.Node.WSHost = "0.0.0.0"
-		cfg.Node.WSPort = 8546 + add*2
+
+		cfgs = append(cfgs, cfg)
 	}
+
+	var stacks [shardNumber + 1]*node.Node
 
 	for i, cfg := range cfgs {
 
-		if i == 1 {
+		if i > 0 {
 
-			cfg.Eth.ShardId = 0
 			cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
 			server := stacks[0].Server()
 			publicKey := server.PrivateKey.Public()
@@ -150,7 +155,7 @@ func main() {
 
 	for id, node := range stacks {
 
-		if id == 1 {
+		if id == 0 {
 
 		}
 		var ethereum *eth.Ethereum
@@ -169,7 +174,7 @@ func main() {
 
 	client := ethclient.NewClient(rpcClient)
 
-	sendTx(client)
+	sendTx(client, senders, receivers)
 
 	stacks[0].Wait()
 
@@ -178,6 +183,44 @@ func main() {
 type gethConfig struct {
 	Eth  eth.Config
 	Node node.Config
+}
+
+func initAccount(len int) (senders []*TAccount, receivers []*TAccount, alloc map[common.Address]core.GenesisAccount) {
+	alloc = make(map[common.Address]core.GenesisAccount)
+	for i := 0; i < len; i++ {
+
+		senderKey, _ := crypto.GenerateKey()
+		senderAddress := crypto.PubkeyToAddress(senderKey.PublicKey)
+
+		senders = append(senders, &TAccount{
+			pvKey: senderKey,
+			nonce: big.NewInt(0),
+			addr:  senderAddress,
+		})
+
+		alloc[senderAddress] = core.GenesisAccount{Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))}
+
+	}
+
+	for i := 0; i < 200; i++ {
+		receiversKey, _ := crypto.GenerateKey()
+		senderAddress := crypto.PubkeyToAddress(receiversKey.PublicKey)
+
+		receivers = append(receivers, &TAccount{
+			pvKey: receiversKey,
+			nonce: big.NewInt(0),
+			addr:  senderAddress,
+		})
+	}
+
+	return senders, receivers, alloc
+}
+
+type TAccount struct {
+	pvKey *ecdsa.PrivateKey
+	addr  common.Address
+	nonce *big.Int
+	txs   []*types.Transaction
 }
 
 func defaultNodeConfig() node.Config {
@@ -190,11 +233,36 @@ func defaultNodeConfig() node.Config {
 	return cfg
 }
 
-func sendTx(client *ethclient.Client) {
-	privateKey, err := crypto.HexToECDSA("ecd5bb67db7b936a52a7d310ddeaf2defdb390703eb04d8310ed0a689abd0a18")
-	if err != nil {
-		log.Debug("")
+func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount) {
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	chainID, err := client.NetworkID(context.Background())
+
+	for _, sender := range senders {
+		privateKey := sender.pvKey
+		value := big.NewInt(1)    // in wei (1 eth)
+		gasLimit := uint64(21000) // in units
+
+		var data []byte
+
+		for _, receiver := range receivers {
+
+			tx := types.NewTransaction(0, receiver.addr, value, gasLimit, gasPrice, data, 0)
+
+			signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+			if err != nil {
+				log.Error("")
+			}
+
+			err = client.SendTransaction(context.Background(), signedTx)
+			if err != nil {
+				log.Error("")
+			}
+
+			fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
+		}
+
 	}
+
 	//
 	//publicKey := privateKey.Public()
 	//publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
@@ -208,31 +276,4 @@ func sendTx(client *ethclient.Client) {
 	//	log.Debug("")
 	//}
 
-	value := big.NewInt(1)    // in wei (1 eth)
-	gasLimit := uint64(21000) // in units
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		log.Debug("")
-	}
-
-	toAddress := common.HexToAddress("0x4592d8f8d7b001e72cb26a73e4fa1806a51ac79d")
-	var data []byte
-	tx := types.NewTransaction(0, toAddress, value, gasLimit, gasPrice, data, 0)
-
-	chainID, err := client.NetworkID(context.Background())
-	if err != nil {
-		log.Error("")
-	}
-
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-	if err != nil {
-		log.Error("")
-	}
-
-	err = client.SendTransaction(context.Background(), signedTx)
-	if err != nil {
-		log.Error("")
-	}
-
-	fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
 }
