@@ -261,7 +261,7 @@ type Account struct {
 
 func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 
-	len_accounts := 64
+	len_accounts := 128
 
 	defer engine.Close()
 
@@ -328,7 +328,7 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 				cur := time.Now()
 				DistributeTxs(len_accounts, master, sender, shards)
 				fmt.Println(" distributed msec:", (time.Now().Sub(cur)))
-				timeTxs.Reset(16 * time.Second)
+				timeTxs.Reset(4 * time.Second)
 			}
 
 		}
@@ -381,14 +381,14 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 				}
 
 			}
-			txcnts += len(sender[i].txs)
+			//txcnts += len(sender[i].txs)
 			sender[i].txs = nil
 
 		}
 
 
 	}
-	fmt.Println("Added txs:", " count:", txcnts)
+	//fmt.Println("Added txs:", " count:", txcnts)
 }
 
 func createTxs(len_accounts int, receiver []Account, sender []Account) {
