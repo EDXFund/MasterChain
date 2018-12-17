@@ -302,7 +302,7 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	go func() {
 		time.Sleep(1400 * time.Millisecond)
 		//create a new send Txs
-		DistrubteTxs(len_accounts, master, sender, shards)
+		DistributeTxs(len_accounts, master, sender, shards)
 		/*
 		master.backend.txPool.AddLocals([]*types.Transaction{tx2,tx3})
 		shard2 := master.backend.chain.TxShardByHash(tx2.Hash())
@@ -324,7 +324,9 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 			select {
 			case <- timeTxs.C:
 				createTxs(len_accounts, receiver, sender)
-				DistrubteTxs(len_accounts,master,sender,shards)
+			    cur := time.Now()
+				DistributeTxs(len_accounts,master,sender,shards)
+			    fmt.Println(" distributed msec:", (time.Now().Sub(cur)))
 				timeTxs.Reset(16*time.Second)
 			}
 
@@ -353,7 +355,8 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 	<-state
 }
 
-func DistrubteTxs(len_accounts int, master *TestWorker, sender []Account, shards []*TestWorker) {
+func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shards []*TestWorker) {
+	txcnts := 0
 	for i := 0; i < len_accounts; i++ {
 		//fmt.Println("Adding txs:", "index",i," count:", len_accounts)
 		if len(sender[i].txs) > 0{
@@ -377,6 +380,7 @@ func DistrubteTxs(len_accounts int, master *TestWorker, sender []Account, shards
 				}
 
 			}
+
 			sender[i].txs = nil
 			//fmt.Println("Added txs:", "index",i," count:", len_accounts)
 		}

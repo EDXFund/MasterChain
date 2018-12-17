@@ -18,6 +18,7 @@ package qchain
 
 import (
 	"container/list"
+	"fmt"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/rawdb"
@@ -424,6 +425,7 @@ func (t *HeaderTreeManager) GetMaxTd() (*types.ShardBlockInfo, error) {
 	if (t.rootHash != common.Hash{}) {
 		head := t.maxTd
 		if head != nil {
+			fmt.Println(" max td of shard:",t.shardId, " number:",head.NumberU64(), " td:",t.GetTd(head), " hash:", head.Hash());
 			return &types.ShardBlockInfo{head.ShardId(), head.NumberU64(), head.Hash(), head.ParentHash(), head.Coinbase(), t.GetTd(head)}, nil
 		} else {
 			return nil, errors.New("no max td node found")
