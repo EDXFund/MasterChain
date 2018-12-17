@@ -60,6 +60,7 @@ type TxPoolIntf interface {
 	Stats() (int, int)
 	AddRemotes([]*types.Transaction) []error
 	Content() (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
+	SubscribeBlockTxsProcsEvent( chan ChainHeadEvent) event.Subscription
 	Stop()
 }
 // TxPoolShardConfig are the configuration parameters of the transaction pool.
@@ -109,6 +110,7 @@ type TxPoolShard struct {
 	shardId      uint16
 	gasPrice     *big.Int
 	txFeed       event.Feed
+	txsProcFeed  event.Feed
 	scope        event.SubscriptionScope
 	chainHeadCh  chan ChainHeadEvent
 	chainHeadSub event.Subscription
@@ -289,6 +291,7 @@ func (pool *TxPoolShard) lockedReset(oldHead, newHead types.HeaderIntf) {
 
 // resetOfSHeader is used by shard Chain to deal with txs, it should promote those txs to
 func (pool *TxPoolShard) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
+
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
 	var discarded, included types.Transactions
@@ -379,8 +382,8 @@ func (pool *TxPoolShard) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 		pool.all.Remove(tx.Hash())
 
 	}
-
-
+	//scp.newShardFeed.Send(&core.ChainsShardEvent{Block: newBlocks})
+	pool.txsProcFeed.Send(ChainHeadEvent{Block: types.NewSBlockWithHeader(newHead)})
 }
 
 
@@ -402,7 +405,11 @@ func (pool *TxPoolShard) Stop() {
 func (pool *TxPoolShard) SubscribeNewTxsEvent(ch chan<- NewTxsEvent) event.Subscription {
 	return pool.scope.Track(pool.txFeed.Subscribe(ch))
 }
-
+// SubscribeTxsProcEvent registers a subscription of NewTxsEvent and
+// starts sending event to the given channel.SubscribeBlockTxsProcsEvent( chan <-ChainHeadEvent) event.Subscription
+func (pool *TxPoolShard) SubscribeBlockTxsProcsEvent(ch  chan ChainHeadEvent) event.Subscription {
+	return pool.scope.Track(pool.txsProcFeed.Subscribe(ch))
+}
 // GasPrice returns the current gas price enforced by the transaction pool.
 func (pool *TxPoolShard) GasPrice() *big.Int {
 	pool.mu.RLock()

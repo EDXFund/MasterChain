@@ -506,7 +506,9 @@ func (pool *TxPool) lockedReset(oldHead, newHead types.HeaderIntf) {
 func (pool *TxPool) resetOfHeader(oldHead, newHead types.HeaderIntf) {
 
 }
-
+func (pool *TxPool) SubscribeBlockTxsProcsEvent(ch  chan ChainHeadEvent) event.Subscription {
+	return nil
+}
 // resetOfSHeader is used by shard Chain to deal with txs, it should promote those txs to
 func (pool *TxPool) resetOfSHeader(oldHead, newHead types.HeaderIntf) {
 	// If we're reorging an old state, reinject all dropped transactions

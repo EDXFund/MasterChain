@@ -1485,7 +1485,7 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 		err := <-results
 		if err == nil {
-			fmt.Println(" valid body", " shard:", block.ShardId(), " number:", block.NumberU64(), "hash:", block.Hash())
+			log.Trace(" valid body", " shard:", block.ShardId(), " number:", block.NumberU64(), "hash:", block.Hash())
 			err = bc.Validator().ValidateBody(block)
 		}
 		switch {

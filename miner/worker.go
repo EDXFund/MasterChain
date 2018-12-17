@@ -259,6 +259,10 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 	if shardId == types.ShardMaster{
 		worker.chainShardSub = eth.ShardPool().SubscribeChainShardsEvent(worker.chainShardCh)
 		worker.masterHeadProcSub = eth.ShardPool().SubscribeMasterHeadProcsEvent(worker.masterHeadProcCh)
+	}else{
+		worker.masterHeadProcSub = eth.TxPool().SubscribeBlockTxsProcsEvent(worker.masterHeadProcCh)
+		//worker.masterHeadProcSub = eth.ShardPool().SubscribeMasterHeadProcsEvent(worker.masterHeadProcCh)
+
 	}
 
 	worker.txsCache,_   =        lru.New(txCacheSize)
@@ -386,8 +390,9 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 	})
 
 	header = sheader
-	fmt.Println("mining shard after:","number",parent.NumberU64())
+
 	pending, err := w.eth.TxPool().Pending()
+	fmt.Println("mining shard ",w.shardId, " after:","number",parent.NumberU64())
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
 		if w.coinbase == (common.Address{}) {
@@ -592,7 +597,7 @@ func (w *worker) enterResume() {
 	//w.timedelay  = 10*time.Millisecond
 }
 func (w *worker) enterState(newState uint8) {
-	fmt.Println("State Transition","shardId:",w.shardId, "cur state:",w.state," new State:",newState)
+	//fmt.Println("State Transition","shardId:",w.shardId, "cur state:",w.state," new State:",newState)
 	if w.exitFuncs[w.state] != nil {
 		w.exitFuncs[w.state]()
 	}
@@ -671,7 +676,7 @@ func (w *worker) mainStateLoop() {
 			log.Trace("Event Transition","evt_InsertError:",w.shardId, "block shard:",newHead.Block.ShardId()," number:",newHead.Block.NumberU64()," blocks:",len(newHead.Block.ShardBlocks()))
 			w.handleInsertErrorProc(newHead.Block)
 		case newShards := <- w.chainShardCh:
-			fmt.Println("Event Transition","evt_shard:",w.shardId, "block shard:",newShards.Block[0].ShardId()," number:",newShards.Block[0].NumberU64()," hash:",newShards.Block[0].Hash())
+			log.Trace("Event Transition","evt_shard:",w.shardId, "block shard:",newShards.Block[0].ShardId()," number:",newShards.Block[0].NumberU64()," hash:",newShards.Block[0].Hash())
 			w.handleShardChain(newShards.Block)
 		case newTxs := <- w.txsCh:
 			log.Trace("Event Transition","evt_newtx:",w.shardId)
@@ -687,7 +692,7 @@ func (w *worker) mainStateLoop() {
 				log.Warn("Sanitizing miner recommit interval", "provided", interval, "updated", minRecommitInterval)
 				interval = minRecommitInterval
 			}
-			fmt.Println("Miner recommit interval update", "from", minRecommit, "to", interval)
+			log.Trace("Miner recommit interval update", "from", minRecommit, "to", interval)
 			minRecommit, w.recommit = interval, interval
 
 			if w.resubmitHook != nil {
@@ -788,7 +793,7 @@ func(w *worker) handleMasterHeadProc(block types.BlockIntf){
 		if w.shardId== types.ShardMaster {
 			w.masterBuildEnvironment()
 		}else {
-			//w.shardBuildEnvironment()
+			w.shardBuildEnvironment()
 		}
 	case ST_INSERTING:
 		fallthrough
@@ -826,7 +831,7 @@ func(w *worker) handleNewHead(block types.BlockIntf){
 		if w.shardId== types.ShardMaster {
 			//w.masterBuildEnvironment()
 		}else {
-			w.shardBuildEnvironment()
+			//w.shardBuildEnvironment()
 		}
 	case ST_INSERTING:
 		fallthrough
@@ -835,7 +840,7 @@ func(w *worker) handleNewHead(block types.BlockIntf){
 			if w.shardId== types.ShardMaster {
 			//	w.enterState(ST_MASTER)
 			}else {
-				w.enterState(ST_SHARD)
+				//w.enterState(ST_SHARD)
 			}
 		}
 

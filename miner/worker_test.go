@@ -380,12 +380,14 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 				}
 
 			}
-
+			txcnts += len(sender[i].txs)
 			sender[i].txs = nil
-			//fmt.Println("Added txs:", "index",i," count:", len_accounts)
+
 		}
 
+
 	}
+	fmt.Println("Added txs:", " count:", txcnts)
 }
 
 func createTxs(len_accounts int, receiver []Account, sender []Account) {
@@ -470,9 +472,11 @@ func init() {
 	glogger = log.NewGlogHandler(ostream)
 
 	log.PrintOrigins(true)
-	glogger.Verbosity(log.Lvl(2))
+	glogger.Verbosity(log.Lvl(5))
+
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+
 	log.Root().SetHandler(glogger)
 }
 

@@ -275,7 +275,7 @@ func ReadBody(db DatabaseReader, hash common.Hash, number uint64) *types.SuperBo
 // WriteBody storea a block body into the database.
 //add shardid into db, so we can judge which body should be used on reading
 func WriteBody(db DatabaseWriter, hash common.Hash,shardId uint16, number uint64, body *types.SuperBody) {
-	log.Trace("Write body:","hash:",hash,"data:",body)
+	//log.Trace("Write body:","hash:",hash,"data:",body)
 	data, err := rlp.EncodeToBytes(body)
 
 	if err != nil {

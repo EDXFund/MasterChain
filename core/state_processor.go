@@ -240,7 +240,7 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 		shardBlock := rawdb.ReadBlock(p.bc.db, blockInfo.Hash,blockInfo.BlockNumber)
 		if shardBlock != nil {
 			receiptCnt += len(shardBlock.Results())
-			fmt.Println("receipt cnt:", len(shardBlock.Results()))
+			//fmt.Println("receipt cnt:", len(shardBlock.Results()))
 			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit(),gasOfBlock)
 			if aerr == nil {
 				receipts = append(receipts, areceipts...)
