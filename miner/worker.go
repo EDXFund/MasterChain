@@ -434,7 +434,7 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf{
 	if err != nil {
 		return nil
 	}else {
-		fmt.Println("Commit of:",block.NumberU64()," txs len:",len(block.Results()))
+		fmt.Println("Commit of:",block.NumberU64()," shardId:",block.ShardId(), " txs len:",len(block.Results()))
 		return block
 	}
 }
