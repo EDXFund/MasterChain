@@ -601,6 +601,34 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, blockHash comm
 	return nil, err
 }
 
+func (s *PublicBlockChainAPI) GetShardBlockByHash(ctx context.Context, blockHash common.Hash, shardId uint16) (map[string]interface{}, error) {
+	block, err := s.b.GetShardBlock(ctx, blockHash, shardId)
+	if block != nil {
+		fields := map[string]interface{}{
+			"number":  (*hexutil.Big)(block.Number()),
+			"results": block.Results(),
+			//"hash":             b.Hash(),
+			//"parentHash":       head.ParentHash,
+			//"nonce":            head.Nonce,
+			//"mixHash":          head.MixDigest,
+			//"sha3Uncles":       head.UncleHash,
+			//"logsBloom":        head.Bloom,
+			//"stateRoot":        head.Root,
+			//"miner":            head.Coinbase,
+			//"difficulty":       (*hexutil.Big)(head.Difficulty()),
+			//"extraData":        hexutil.Bytes(head.Extra()),
+			//"size":             hexutil.Uint64(b.Size()),
+			//"gasLimit":         hexutil.Uint64(head.GasLimit()),
+			//"gasUsed":          hexutil.Uint64(head.GasUsed()),
+			//"timestamp":        (*hexutil.Big)(head.Time()),
+			//"transactionsRoot": head.TxHash,
+			//"receiptsRoot":     head.ReceiptHash,
+		}
+		return fields, nil
+	}
+	return nil, err
+}
+
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
 // all transactions in the block are returned in full detail, otherwise only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetUncleByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) (map[string]interface{}, error) {
@@ -869,23 +897,24 @@ func FormatLogs(logs []vm.StructLog) []StructLogRes {
 func RPCMarshalBlock(b types.BlockIntf, inclTx bool, fullTx bool) (map[string]interface{}, error) {
 	head := b.Header() // copies the header once
 	fields := map[string]interface{}{
-		"number":           (*hexutil.Big)(head.Number()),
-		"hash":             b.Hash(),
-		"parentHash":       head.ParentHash,
-		"nonce":            head.Nonce,
-		"mixHash":          head.MixDigest,
-		"sha3Uncles":       head.UncleHash,
-		"logsBloom":        head.Bloom,
-		"stateRoot":        head.Root,
-		"miner":            head.Coinbase,
-		"difficulty":       (*hexutil.Big)(head.Difficulty()),
-		"extraData":        hexutil.Bytes(head.Extra()),
-		"size":             hexutil.Uint64(b.Size()),
-		"gasLimit":         hexutil.Uint64(head.GasLimit()),
-		"gasUsed":          hexutil.Uint64(head.GasUsed()),
-		"timestamp":        (*hexutil.Big)(head.Time()),
-		"transactionsRoot": head.TxHash,
-		"receiptsRoot":     head.ReceiptHash,
+		"number": (*hexutil.Big)(head.Number()),
+		//"hash":             b.Hash(),
+		//"parentHash":       head.ParentHash,
+		//"nonce":            head.Nonce,
+		//"mixHash":          head.MixDigest,
+		//"sha3Uncles":       head.UncleHash,
+		//"logsBloom":        head.Bloom,
+		//"stateRoot":        head.Root,
+		//"miner":            head.Coinbase,
+		//"difficulty":       (*hexutil.Big)(head.Difficulty()),
+		//"extraData":        hexutil.Bytes(head.Extra()),
+		//"size":             hexutil.Uint64(b.Size()),
+		//"gasLimit":         hexutil.Uint64(head.GasLimit()),
+		//"gasUsed":          hexutil.Uint64(head.GasUsed()),
+		//"timestamp":        (*hexutil.Big)(head.Time()),
+		//"transactionsRoot": head.TxHash,
+		//"receiptsRoot":     head.ReceiptHash,
+		"shardInfo": b.ShardBlocks(),
 	}
 
 	if inclTx {
@@ -908,12 +937,12 @@ func RPCMarshalBlock(b types.BlockIntf, inclTx bool, fullTx bool) (map[string]in
 		fields["transactions"] = transactions
 	}
 
-	uncles := b.Uncles()
-	uncleHashes := make([]common.Hash, len(uncles))
-	for i, uncle := range uncles {
-		uncleHashes[i] = uncle.Hash()
-	}
-	fields["uncles"] = uncleHashes
+	//uncles := b.Uncles()
+	//uncleHashes := make([]common.Hash, len(uncles))
+	//for i, uncle := range uncles {
+	//	uncleHashes[i] = uncle.Hash()
+	//}
+	//fields["uncles"] = uncleHashes
 
 	return fields, nil
 }

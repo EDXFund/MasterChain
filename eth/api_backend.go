@@ -95,7 +95,7 @@ func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.
 	}
 	// Otherwise resolve the block number and return its state
 	header, err := b.HeaderByNumber(ctx, blockNr)
-	if header == nil  || reflect.ValueOf(header).IsNil()  || err != nil {
+	if header == nil || reflect.ValueOf(header).IsNil() || err != nil {
 		return nil, nil, err
 	}
 	stateDb, err := b.eth.BlockChain().StateAt(header.Root())
@@ -104,6 +104,10 @@ func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.
 
 func (b *EthAPIBackend) GetBlock(ctx context.Context, hash common.Hash) (types.BlockIntf, error) {
 	return b.eth.blockchain.GetBlockByHash(hash), nil
+}
+
+func (b *EthAPIBackend) GetShardBlock(ctx context.Context, hash common.Hash, shardId uint16) (types.BlockIntf, error) {
+	return b.eth.shardPool.GetBlockByHash(hash, shardId), nil
 }
 
 func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {

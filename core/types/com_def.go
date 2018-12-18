@@ -75,13 +75,14 @@ type contractReception struct {
 // Minimized data to transfer
 // contract data should be retrieved by other command
 type ContractResult struct {
-	TxType            byte 			`json:"txHash" 		gencodec:"required"`
-	TxHash            common.Hash 	`json:"txHash" 		gencodec:"required"`
-	GasUsed           uint64      	`json:"gasPrice"		gencodec:"required"`
-	PostState         []byte      	`json:"root"		gencodec:"required"`
-	Data              []byte		`json:"data"`
+	TxType    byte        `json:"TxType" 		gencodec:"required"`
+	TxHash    common.Hash `json:"txHash" 		gencodec:"required"`
+	GasUsed   uint64      `json:"gasPrice"		gencodec:"required"`
+	PostState []byte      `json:"root"		gencodec:"required"`
+	Data      []byte      `json:"data"`
 }
-type ContractResults []*ContractResult;
+type ContractResults []*ContractResult
+
 // Len returns the length of s.
 func (s ContractResults) Len() int { return len(s) }
 
@@ -146,7 +147,7 @@ type BlockIntf interface {
 	UncleHash() common.Hash
 	Extra() []byte
 
-	ShardId()  uint16
+	ShardId() uint16
 	ShardExp() uint16
 	ShardEnabled() [32]byte
 	// Body returns the non-header content of the block.
@@ -163,7 +164,6 @@ type BlockIntf interface {
 
 	//Uncles()       []*Header
 
-
 	//
 	ReceivedAt() time.Time
 	SetReceivedAt(tm time.Time)
@@ -172,8 +172,8 @@ type BlockIntf interface {
 	Transactions() []*Transaction
 
 	ShardBlocks() []*ShardBlockInfo
-	Receipts()    []*Receipt
-	Results()    []*ContractResult
+	Receipts() []*Receipt
+	Results() []*ContractResult
 }
 
 type HeaderIntf interface {
@@ -187,7 +187,7 @@ type HeaderIntf interface {
 	ParentHash() common.Hash
 	UncleHash() common.Hash
 	ReceiptHash() common.Hash
-	ResultHash()  common.Hash
+	ResultHash() common.Hash
 	TxHash() common.Hash
 	ShardTxsHash() common.Hash
 	Extra() []byte
@@ -203,22 +203,22 @@ type HeaderIntf interface {
 	//func (b *Header) ExtraPtr() *[]byte            { return &b.extra }
 	GasUsedPtr() *uint64
 	CoinbasePtr() *common.Address
-	SetShardId( uint16)
-	SetNumber( *big.Int)
-	SetParentHash( common.Hash)
-	SetUncleHash( common.Hash)
-	SetReceiptHash( common.Hash)
-	SetTxHash( common.Hash)
-	SetExtra( []byte)
-	SetTime( *big.Int)
-	SetCoinbase( common.Address)
-	SetRoot( common.Hash)
-	SetBloom( Bloom)
-	SetDifficulty( *big.Int)
-	SetGasLimit( uint64)
-	SetGasUsed( uint64)
-	SetMixDigest( common.Hash)
-	SetNonce( BlockNonce)
+	SetShardId(uint16)
+	SetNumber(*big.Int)
+	SetParentHash(common.Hash)
+	SetUncleHash(common.Hash)
+	SetReceiptHash(common.Hash)
+	SetTxHash(common.Hash)
+	SetExtra([]byte)
+	SetTime(*big.Int)
+	SetCoinbase(common.Address)
+	SetRoot(common.Hash)
+	SetBloom(Bloom)
+	SetDifficulty(*big.Int)
+	SetGasLimit(uint64)
+	SetGasUsed(uint64)
+	SetMixDigest(common.Hash)
+	SetNonce(BlockNonce)
 
 	setHashDirty(bool)
 }
@@ -229,7 +229,7 @@ type SuperBody struct {
 	Uncles []*Header
 
 	Transactions []*Transaction
-	Receipts   []*Receipt
+	Receipts     []*Receipt
 
 	//receipts
 	Results []*ContractResult
@@ -240,7 +240,7 @@ func (sb *SuperBody) ToBody() *Body {
 }
 
 func (sb *SuperBody) ToSBody() *SBody {
-	return &SBody{ Receipts: sb.Results}
+	return &SBody{Receipts: sb.Results}
 }
 
 type HeadEncode struct {
@@ -252,6 +252,7 @@ type BodyEncode struct {
 	ShardId uint16
 	Body    []byte
 }
+
 // TxDifference returns a new set which is the difference between a and b.
 func ShardInfoDifference(a, b ShardBlockInfos) ShardBlockInfos {
 	keep := make(ShardBlockInfos, 0, len(a))

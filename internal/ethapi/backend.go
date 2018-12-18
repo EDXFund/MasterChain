@@ -51,6 +51,7 @@ type Backend interface {
 	BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (types.BlockIntf, error)
 	StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, types.HeaderIntf, error)
 	GetBlock(ctx context.Context, blockHash common.Hash) (types.BlockIntf, error)
+	GetShardBlock(ctx context.Context, blockHash common.Hash, shardId uint16) (types.BlockIntf, error)
 	GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error)
 	GetTd(blockHash common.Hash) *big.Int
 	GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header types.HeaderIntf, vmCfg vm.Config) (*vm.EVM, func() error, error)

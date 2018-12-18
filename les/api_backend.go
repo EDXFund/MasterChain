@@ -70,7 +70,7 @@ func (b *LesApiBackend) HeaderByHash(ctx context.Context, hash common.Hash) (typ
 
 func (b *LesApiBackend) BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (types.BlockIntf, error) {
 	header, err := b.HeaderByNumber(ctx, blockNr)
-	if header  == nil || reflect.ValueOf(header).IsNil() || err != nil {
+	if header == nil || reflect.ValueOf(header).IsNil() || err != nil {
 		return nil, err
 	}
 	return b.GetBlock(ctx, header.Hash())
@@ -78,13 +78,17 @@ func (b *LesApiBackend) BlockByNumber(ctx context.Context, blockNr rpc.BlockNumb
 
 func (b *LesApiBackend) StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, types.HeaderIntf, error) {
 	header, err := b.HeaderByNumber(ctx, blockNr)
-	if header  == nil || reflect.ValueOf(header).IsNil() || err != nil {
+	if header == nil || reflect.ValueOf(header).IsNil() || err != nil {
 		return nil, nil, err
 	}
 	return light.NewState(ctx, header, b.eth.odr), header, nil
 }
 
 func (b *LesApiBackend) GetBlock(ctx context.Context, blockHash common.Hash) (types.BlockIntf, error) {
+	return b.eth.blockchain.GetBlockByHash(ctx, blockHash)
+}
+
+func (b *LesApiBackend) GetShardBlock(ctx context.Context, blockHash common.Hash, shardId uint16) (types.BlockIntf, error) {
 	return b.eth.blockchain.GetBlockByHash(ctx, blockHash)
 }
 
