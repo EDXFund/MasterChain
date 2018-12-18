@@ -1570,16 +1570,19 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 
 		}
 
+		curTime := time.Now()
+
 		// Process block using the parent state as reference point.
 		receipts, logs, usedGas, shardTxs, err := bc.processor.Process(block, state, bc.vmConfig)
 		log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
 		if block.ShardId() == types.ShardMaster {
 			str := fmt.Sprintf("blockNumber:,%v,time:,%+v,counts:,%v, shard Detail:", block.NumberU64(), block.Time().Uint64(), len(receipts))
 			for _, shardTx := range shardTxs {
-				str2 := fmt.Sprintf("shardInfo:,%v,%v,%v,%v,",shardTx.ShardId,shardTx.BlkNo,shardTx.Difficulty,shardTx.TxCounts)
+				str2 := fmt.Sprintf("shardInfo:,%v,%v,%v,%v,", shardTx.ShardId, shardTx.BlkNo, shardTx.Difficulty, shardTx.TxCounts)
 				str += str2
 			}
 			f.WriteString(str + "\r\n")
+			fmt.Println(" Process :", "duration ", time.Now().Sub(curTime))
 		}
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
@@ -1594,7 +1597,9 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		proctime := time.Since(bstart)
 
 		// Write the block to the chain and get the status.
+
 		status, err := bc.WriteBlockWithState(block, receipts, state)
+
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}

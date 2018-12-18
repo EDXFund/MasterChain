@@ -1005,6 +1005,7 @@ func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
 
 // addTx enqueues a single transaction into the pool if it is valid.
 func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
+
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
@@ -1023,10 +1024,14 @@ func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 
 // addTxs attempts to queue a batch of transactions if they are valid.
 func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
+
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	return pool.addTxsLocked(txs, local)
+	curTime := time.Now()
+	err := pool.addTxsLocked(txs, local)
+	fmt.Println(" locked :", "duration ", time.Now().Sub(curTime))
+	return err
 }
 func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
 	for _, shard := range shards {
@@ -1057,9 +1062,9 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 		}*/
 		//fmt.Println("add tx:",tx.Hash())
 	}
-
+	go pool.txFeed.Send(NewTxsEvent{txs})
 	// Only reprocess the internal state if something was actually added
-/*	if len(dirty) > 0 {
+	/*	if len(dirty) > 0 {
 		addrs := make([]common.Address, 0, len(dirty))
 		for addr := range dirty {
 			addrs = append(addrs, addr)

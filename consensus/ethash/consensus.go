@@ -26,7 +26,6 @@ import (
 	"runtime"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/common/math"
 	"github.com/EDXFund/MasterChain/consensus"
@@ -36,6 +35,7 @@ import (
 	"github.com/EDXFund/MasterChain/crypto/sha3"
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rlp"
+	mapset "github.com/deckarep/golang-set"
 )
 
 // Ethash proof-of-work protocol constants.
@@ -95,7 +95,7 @@ func (ethash *Ethash) VerifyHeader(chain consensus.ChainReader, header types.Hea
 		return nil
 	}
 	parent := chain.GetHeader(header.ParentHash(), number-1)
-	if parent == nil  ||  reflect.ValueOf(parent).IsNil()  {
+	if parent == nil || reflect.ValueOf(parent).IsNil() {
 
 		return consensus.ErrUnknownAncestor
 	}
@@ -176,13 +176,13 @@ func (ethash *Ethash) verifyHeaderWorker(chain consensus.ChainReader, headers []
 	} else if headers[index-1].Hash() == headers[index].ParentHash() {
 		parent = headers[index-1]
 	}
-	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
-		log.Debug("error in find parent:","index:",index,"number:",headers[index].NumberU64(),"hash:",headers[index].Hash(),"parentHash:",headers[index].ParentHash())
-	//	fmt.Println("")
+	if parent == nil || reflect.ValueOf(parent).IsNil() {
+		log.Debug("error in find parent:", "index:", index, "number:", headers[index].NumberU64(), "hash:", headers[index].Hash(), "parentHash:", headers[index].ParentHash())
+		//	fmt.Println("")
 		return consensus.ErrUnknownAncestor
 	} else {
-		log.Trace("in find parent:","index:",index,"number:",headers[index].NumberU64(),"hash:",headers[index].Hash(),"parentHash:",headers[index].ParentHash())
-	//	fmt.Println("")
+		log.Trace("in find parent:", "index:", index, "number:", headers[index].NumberU64(), "hash:", headers[index].Hash(), "parentHash:", headers[index].ParentHash())
+		//	fmt.Println("")
 
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].NumberU64()) != nil {
@@ -209,7 +209,7 @@ func (ethash *Ethash) VerifyUncles(chain consensus.ChainReader, block types.Bloc
 	number, parent := block.NumberU64()-1, block.ParentHash()
 	for i := 0; i < 7; i++ {
 		ancestor := chain.GetBlock(parent, number)
-		if ancestor == nil  || reflect.ValueOf(ancestor).IsNil()  {
+		if ancestor == nil || reflect.ValueOf(ancestor).IsNil() {
 			break
 		}
 		ancestors[ancestor.Hash()] = ancestor.Header()
@@ -235,7 +235,7 @@ func (ethash *Ethash) VerifyUncles(chain consensus.ChainReader, block types.Bloc
 			return errUncleIsAncestor
 		}
 		val := ancestors[uncle.ParentHash()]
-		if val == nil  || reflect.ValueOf(val).IsNil()  || uncle.ParentHash() == block.ParentHash() {
+		if val == nil || reflect.ValueOf(val).IsNil() || uncle.ParentHash() == block.ParentHash() {
 			return errDanglingUncle
 		}
 		if err := ethash.verifyHeader(chain, uncle, ancestors[uncle.ParentHash()], true, true); err != nil {
@@ -373,7 +373,7 @@ func makeDifficultyCalculator(bombDelay *big.Int) func(time uint64, parent types
 		x.Sub(bigTime, bigParentTime)
 		x.Div(x, big9)
 		/*if parent.UncleHash() == types.EmptyUncleHash{*/
-			x.Sub(big1, x)
+		x.Sub(big1, x)
 		/*} else {
 			x.Sub(big2, x)
 		}*/
@@ -420,7 +420,6 @@ func calcDifficultyHomestead(time uint64, parent types.HeaderIntf) *big.Int {
 	// diff = (parent_diff +
 	//         (parent_diff / 2048 * max(1 - (block_timestamp - parent_timestamp) // 10, -99))
 	//        ) + 2^(periodCount - 2)
-
 
 	bigTime := new(big.Int).SetUint64(time)
 	bigParentTime := new(big.Int).Set(parent.Time())
@@ -508,7 +507,8 @@ func (ethash *Ethash) VerifySeal(chain consensus.ChainReader, header types.Heade
 func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.HeaderIntf, fulldag bool) error {
 	// If we're running a fake PoW, accept any seal as valid
 	if ethash.config.PowMode == ModeFake || ethash.config.PowMode == ModeFullFake {
-		time.Sleep(ethash.fakeDelay)
+		timer := time.NewTimer(ethash.fakeDelay)
+		<-timer.C
 		if ethash.fakeFail == header.NumberU64() {
 			return errInvalidPoW
 		}
@@ -558,7 +558,7 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 		runtime.KeepAlive(cache)
 	}
 	// Verify the calculated values against the ones provided in the header
-	digestHeader := header.MixDigest();
+	digestHeader := header.MixDigest()
 
 	if !bytes.Equal(digestHeader[:], digest) {
 		return errInvalidMixDigest
@@ -574,52 +574,54 @@ func (ethash *Ethash) verifySeal(chain consensus.ChainReader, header types.Heade
 // header to conform to the ethash protocol. The changes are done inline.
 func (ethash *Ethash) Prepare(chain consensus.ChainReader, header types.HeaderIntf) error {
 	parent := chain.GetHeader(header.ParentHash(), header.NumberU64()-1)
-	if parent == nil  || reflect.ValueOf(parent).IsNil()  {
+	if parent == nil || reflect.ValueOf(parent).IsNil() {
 		return consensus.ErrUnknownAncestor
 	}
-	header.SetDifficulty (ethash.CalcDifficulty(chain, header.Time().Uint64(), parent))
+	header.SetDifficulty(ethash.CalcDifficulty(chain, header.Time().Uint64(), parent))
 	return nil
 }
 
 // Finalize implements consensus.Engine, accumulating the block and uncle rewards,
 // setting the final state and assembling the block.
-func (ethash *Ethash) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,results []*types.ContractResult, txs []*types.Transaction,  receipts []*types.Receipt)(types.BlockIntf, error) {
+func (ethash *Ethash) Finalize(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB, blks []*types.ShardBlockInfo, results []*types.ContractResult, txs []*types.Transaction, receipts []*types.Receipt) (types.BlockIntf, error) {
 	if header.ShardId() == types.ShardMaster {
-		return ethash.finalizeMaster(chain,header,state,blks,receipts)
-	}else{
-		return ethash.finalizeShard(chain,header,state,results)
+		return ethash.finalizeMaster(chain, header, state, blks, receipts)
+	} else {
+		return ethash.finalizeShard(chain, header, state, results)
 	}
 }
+
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given, and returns the final block.
-func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB,results []*types.ContractResult) (types.BlockIntf, error) {
+func (ethash *Ethash) finalizeShard(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB, results []*types.ContractResult) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
 	/*accumulateRewards(chain.Config(), state, header, nil)
 
-*/
-	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
+	 */
+	header.SetRoot(state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 	// Header seems complete, assemble into a block and return
 	return types.NewSBlock(header, results), nil
 }
-func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader,header types.HeaderIntf, state *state.StateDB,blks []*types.ShardBlockInfo,  receipts []*types.Receipt) (types.BlockIntf, error) {
+func (ethash *Ethash) finalizeMaster(chain consensus.ChainReader, header types.HeaderIntf, state *state.StateDB, blks []*types.ShardBlockInfo, receipts []*types.Receipt) (types.BlockIntf, error) {
 	// Accumulate any block and uncle rewards and commit the final state root
-	parent := chain.GetHeader(header.ParentHash(),header.NumberU64()-1)
-	accumulateRewards(chain.Config(), state, parent,header, blks)
-	header.SetRoot (state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
+	parent := chain.GetHeader(header.ParentHash(), header.NumberU64()-1)
+	accumulateRewards(chain.Config(), state, parent, header, blks)
+	header.SetRoot(state.IntermediateRoot(chain.Config().IsEIP158(header.Number())))
 
 	// Header seems complete, assemble into a block and return
-	out := make( []types.ShardBlockInfo,len(blks))
-	for i,val := range blks {
+	out := make([]types.ShardBlockInfo, len(blks))
+	for i, val := range blks {
 		out[i] = *val
 	}
 	//fmt.Println(" shard blocks:",out)
 	return types.NewBlock(header, blks, nil, receipts), nil
 }
+
 // SealHash returns the hash of a block prior to it being sealed.
 func (ethash *Ethash) SealHash(header types.HeaderIntf) (hash common.Hash) {
 	hasher := sha3.NewKeccak256()
 
-	if header.ShardId() == types.ShardMaster{
+	if header.ShardId() == types.ShardMaster {
 		rlp.Encode(hasher, []interface{}{
 			header.ParentHash(),
 			header.UncleHash(),
@@ -635,7 +637,7 @@ func (ethash *Ethash) SealHash(header types.HeaderIntf) (hash common.Hash) {
 			header.Time(),
 			header.Extra(),
 		})
-	} 	else {
+	} else {
 		rlp.Encode(hasher, []interface{}{
 			header.ShardId(),
 			header.ParentHash(),
@@ -662,51 +664,49 @@ var (
 	big32 = big.NewInt(32)
 )
 
-var bitMask =[8]uint8{0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80}
-var stageMask = []uint64{13200000,26400000,39600000,52800000,66000000,79200000}
-var blockRewardBase = new(big.Int).Mul(big.NewInt(1e14),big.NewInt(3125))
-var rewardBaseUint = new(big.Int).Mul(big.NewInt(1e10),big.NewInt(3125))
+var bitMask = [8]uint8{0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80}
+var stageMask = []uint64{13200000, 26400000, 39600000, 52800000, 66000000, 79200000}
+var blockRewardBase = new(big.Int).Mul(big.NewInt(1e14), big.NewInt(3125))
+var rewardBaseUint = new(big.Int).Mul(big.NewInt(1e10), big.NewInt(3125))
+
 // AccumulateRewards credits the coinbase of the given block with the mining
 // reward. The total reward consists of the static block reward and rewards for
 // included uncles. The coinbase of each uncle block is also rewarded.
 // the more shard included the more main block can be rewarded
-func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent types.HeaderIntf,header types.HeaderIntf, blks []*types.ShardBlockInfo) {
+func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent types.HeaderIntf, header types.HeaderIntf, blks []*types.ShardBlockInfo) {
 	// Select the correct block reward based on chain progression
 
+	blockRewardBase := new(big.Int).Mul(big.NewInt(1e14), big.NewInt(3125))
 
-	blockRewardBase := new(big.Int).Mul(big.NewInt(1e14),big.NewInt(3125))
-
-
-    multiple := int64(1)
+	multiple := int64(1)
 	blockNumber := header.NumberU64()
 	if blockNumber < stageMask[0] {
 		multiple = 64
 	} else if blockNumber >= stageMask[0] && blockNumber < stageMask[1] {
 		multiple = 32
-	} else 	if blockNumber >= stageMask[1] && blockNumber < stageMask[2] {
+	} else if blockNumber >= stageMask[1] && blockNumber < stageMask[2] {
 		multiple = 16
-	} else	if blockNumber >= stageMask[2] && blockNumber < stageMask[3] {
+	} else if blockNumber >= stageMask[2] && blockNumber < stageMask[3] {
 		multiple = 8
-	} else 	if blockNumber >= stageMask[3] && blockNumber < stageMask[4] {
-		multiple =  4
-	} else	if blockNumber >= stageMask[4] && blockNumber < stageMask[5] {
-		multiple =2
-	} else  if blockNumber >= stageMask[5] {
+	} else if blockNumber >= stageMask[3] && blockNumber < stageMask[4] {
+		multiple = 4
+	} else if blockNumber >= stageMask[4] && blockNumber < stageMask[5] {
+		multiple = 2
+	} else if blockNumber >= stageMask[5] {
 		multiple = 1
 	}
 
-	blockReward := new(big.Int).Mul(blockRewardBase,big.NewInt(multiple));
-	log.Trace("award master ","coinbase:",header.Coinbase()," number:",header.NumberU64(),"amount",blockReward);
+	blockReward := new(big.Int).Mul(blockRewardBase, big.NewInt(multiple))
+	log.Trace("award master ", "coinbase:", header.Coinbase(), " number:", header.NumberU64(), "amount", blockReward)
 	//reward to master
 	state.AddBalance(header.Coinbase(), blockReward)
-
 
 	//calc reward for shard blocks
 	shardEnabled := header.ToHeader().ShardEnabled()
 	shardEnabled[0] = shardEnabled[0] | 0x01
 	shardsCount := 0
-	for _,enabled := range shardEnabled {
-		for i := 0; i <8; i ++{
+	for _, enabled := range shardEnabled {
+		for i := 0; i < 8; i++ {
 			if (enabled & bitMask[i]) != 0 {
 				shardsCount++
 			}
@@ -717,71 +717,69 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, parent 
 	rewardInHeader := []types.ShardState{}
 	if parent != nil {
 		rewardInHeader = parent.ToHeader().ShardState()
-	}//rawDb.ReadRewardRemains
+	} //rawDb.ReadRewardRemains
 
-	rewardRemains :=make(map[uint16]*types.ShardState)
-	for _,shardState := range rewardInHeader {
+	rewardRemains := make(map[uint16]*types.ShardState)
+	for _, shardState := range rewardInHeader {
 		rewardRemains[shardState.ShardId] = &shardState
 	}
-	for seg,enabled := range shardEnabled {
-		for i := 0; i <8; i ++{
+	for seg, enabled := range shardEnabled {
+		for i := 0; i < 8; i++ {
 			if (enabled & bitMask[i]) != 0 {
 				index := uint16(seg*8 + i)
-				_,ok := rewardRemains[index]
+				_, ok := rewardRemains[index]
 				if !ok {
-					rewardRemains[index] = &types.ShardState{index,0,uint32(rewardOfShard)}
-				}else {
-					rewardRemains[index].RewardRemains =rewardRemains[index].RewardRemains + rewardOfShard
+					rewardRemains[index] = &types.ShardState{index, 0, uint32(rewardOfShard)}
+				} else {
+					rewardRemains[index].RewardRemains = rewardRemains[index].RewardRemains + rewardOfShard
 				}
 
 			}
 		}
 	}
 	blkInfos := make(map[uint16]types.ShardBlockInfos)
-	for _,blk := range blks {
-		blkInfos[blk.ShardId] = append(blkInfos[blk.ShardId],blk)
+	for _, blk := range blks {
+		blkInfos[blk.ShardId] = append(blkInfos[blk.ShardId], blk)
 	}
-	result :=make([]types.ShardState,0,shardsCount)
-	for shardId,blkArray := range blkInfos {
+	result := make([]types.ShardState, 0, shardsCount)
+	for shardId, blkArray := range blkInfos {
 		blockNo := uint64(0)
 		remains := uint32(0)
-		if ss,ok := rewardRemains[shardId]; ok {
-			if ss.RewardRemains < uint32(len(blkArray)) * rewardOfShard {
-				rewardOfShard = ss.RewardRemains/uint32(len(blkArray))
+		if ss, ok := rewardRemains[shardId]; ok {
+			if ss.RewardRemains < uint32(len(blkArray))*rewardOfShard {
+				rewardOfShard = ss.RewardRemains / uint32(len(blkArray))
 			}
 			remains = ss.RewardRemains
 		}
 
-		for _,oneBlock := range blkArray {
+		for _, oneBlock := range blkArray {
 			if oneBlock.BlockNumber > blockNo {
 				blockNo = oneBlock.BlockNumber
 			}
-			log.Trace("award shard ","coinbase:",oneBlock.Coinbase," number:",oneBlock.BlockNumber, "amount",rewardOfShard);
+			log.Trace("award shard ", "coinbase:", oneBlock.Coinbase, " number:", oneBlock.BlockNumber, "amount", rewardOfShard)
 			//reward to master
-			if remains > rewardOfShard  {
+			if remains > rewardOfShard {
 				remains -= rewardOfShard
-				state.AddBalance(oneBlock.Coinbase, new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(rewardOfShard))))
-			}else {
-				state.AddBalance(oneBlock.Coinbase, new(big.Int).Mul(rewardBaseUint,big.NewInt(int64(remains))))
+				state.AddBalance(oneBlock.Coinbase, new(big.Int).Mul(rewardBaseUint, big.NewInt(int64(rewardOfShard))))
+			} else {
+				state.AddBalance(oneBlock.Coinbase, new(big.Int).Mul(rewardBaseUint, big.NewInt(int64(remains))))
 				remains = 0
 			}
 
-
 		}
-		fmt.Println(" check Remain:",len(rewardRemains), " with shardId:",shardId)
+		log.Trace(" check Remain:", "rewards:", len(rewardRemains), " with shardId:", shardId)
 		if rewardRemains[shardId] == nil {
-			fmt.Println(" error check Remain:",len(rewardRemains), " with shardId:",shardId)
-		}else {
+			fmt.Println(" error check Remain:", len(rewardRemains), " with shardId:", shardId)
+		} else {
 			rewardRemains[shardId].RewardRemains = remains
 		}
 
 		//update shard state
 
-
 	}
 
-	for shardId,remain := range rewardRemains {
-		result = append(result,types.ShardState{shardId,remain.BlockNumber,remain.RewardRemains})
+	for shardId, remain := range rewardRemains {
+		result = append(result, types.ShardState{shardId, remain.BlockNumber, remain.RewardRemains})
 	}
 	header.ToHeader().SetShardState(result)
 
