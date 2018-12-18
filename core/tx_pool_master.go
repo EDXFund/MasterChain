@@ -55,6 +55,7 @@ import (
 const (
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
+	chainNewTxsSize   = 100000
 )
 
 var (
@@ -213,6 +214,7 @@ type TxPool struct {
 	gasPrice     *big.Int
 	txFeed       event.Feed
 	scope        event.SubscriptionScope
+	txsCh        chan []*types.Transaction
 	chainHeadCh  chan ChainHeadEvent
 	chainHeadSub event.Subscription
 	signer       types.Signer
@@ -254,6 +256,7 @@ func NewTxPoolMaster(config TxPoolConfig, chainconfig *params.ChainConfig, chain
 		queue:       make(map[common.Address]*txList),
 		beats:       make(map[common.Address]time.Time),
 		all:         newTxLookup(),
+		txsCh:       make(chan []*types.Transaction, chainNewTxsSize),
 		chainHeadCh: make(chan ChainHeadEvent, chainHeadChanSize),
 		gasPrice:    new(big.Int).SetUint64(config.PriceLimit),
 	}
@@ -384,7 +387,10 @@ func (pool *TxPool) loop() {
 				}
 				pool.mu.Unlock()
 			}
+		case txs := <-pool.txsCh:
+			pool.txFeed.Send(NewTxsEvent{txs})
 		}
+
 	}
 }
 
@@ -842,7 +848,8 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		return false, err
 	}*/
 	pool.all.Add(tx)
-	go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
+	pool.txsCh <- types.Transactions{tx}
+	//go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
 	return false, nil
 	// If the transaction pool is full, discard underpriced transactions
 	/*	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
@@ -1062,7 +1069,8 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 		}*/
 		//fmt.Println("add tx:",tx.Hash())
 	}
-	go pool.txFeed.Send(NewTxsEvent{txs})
+	pool.txsCh <- txs
+	//go pool.txFeed.Send(NewTxsEvent{txs})
 	// Only reprocess the internal state if something was actually added
 	/*	if len(dirty) > 0 {
 		addrs := make([]common.Address, 0, len(dirty))
