@@ -52,7 +52,7 @@ const (
 
 	// txChanSize is the size of channel listening to NewTxsEvent.
 	// The number is referenced from the size of tx pool.
-	txChanSize = 4096
+	txChanSize = 40960
 
 	// minimim number of peers to broadcast new blocks to
 	minBroadcastPeers = 4
@@ -989,7 +989,7 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 			txset[peer] = append(txset[peer], tx)
 
 		}
-		log.Trace("Broadcast transaction", "hash", tx.Hash(), "recipients", len(peers))
+		log.Debug("Broadcast transaction", "hash", tx.Hash(), "recipients", len(peers))
 	}
 	// FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
 	for peer, txs := range txset {
@@ -1009,10 +1009,15 @@ func (pm *ProtocolManager) minedBroadcastLoop() {
 }
 
 func (pm *ProtocolManager) txBroadcastLoop() {
+	i := 0
 	for {
 		select {
-		case event := <-pm.txsCh:
-			pm.BroadcastTxs(event.Txs)
+		case <-pm.txsCh:
+			i++
+			if i > 9999 {
+				fmt.Printf("tx received end: %v ----  %v ", i, time.Now())
+			}
+			//pm.BroadcastTxs(event.Txs)
 
 		// Err() channel will be closed when unsubscribing.
 		case <-pm.txsSub.Err():

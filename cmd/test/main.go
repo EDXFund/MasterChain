@@ -238,6 +238,8 @@ func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount
 	gasPrice, _ := client.SuggestGasPrice(context.Background())
 	chainID, _ := client.NetworkID(context.Background())
 
+	var count = 0
+
 	for _, sender := range senders {
 		privateKey := sender.pvKey
 		value := big.NewInt(1)    // in wei (1 eth)
@@ -256,13 +258,16 @@ func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount
 			sender.nonce += 1
 			err = client.SendTransaction(context.Background(), signedTx)
 			if err != nil {
+
 				log.Error("")
 			}
+			count += 1
 
 			//fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
 		}
 
 	}
+	fmt.Printf("tx sent end: %v ----  %v ", count, time.Now())
 
 	//
 	//publicKey := privateKey.Public()

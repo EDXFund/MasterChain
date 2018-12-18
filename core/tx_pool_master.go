@@ -290,8 +290,21 @@ func NewTxPoolMaster(config TxPoolConfig, chainconfig *params.ChainConfig, chain
 	// Start the event loop and return
 	pool.wg.Add(1)
 	go pool.loop()
+	go pool.loop2()
 
 	return pool
+}
+func (pool *TxPool) loop2() {
+	for {
+		select {
+
+		case txs := <-pool.txsCh:
+			curTime := time.Now()
+			pool.txFeed.Send(NewTxsEvent{txs})
+			fmt.Println("tx time end:  ", time.Now().Sub(curTime))
+		}
+
+	}
 }
 
 // loop is the transaction pool's main event loop, waiting for and reacting to
@@ -388,7 +401,9 @@ func (pool *TxPool) loop() {
 				pool.mu.Unlock()
 			}
 		case txs := <-pool.txsCh:
+			curTime := time.Now()
 			pool.txFeed.Send(NewTxsEvent{txs})
+			fmt.Println("tx time end:  ", time.Now().Sub(curTime))
 		}
 
 	}
@@ -477,7 +492,9 @@ func (pool *TxPool) resetOfMaster(oldHead, newHead types.HeaderIntf) {
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinjectTxs))
 	senderCacher.recover(pool.signer, reinjectTxs)
-	pool.addTxsLocked(reinjectTxs, false)
+	if len(reinjectTxs) > 0 {
+		pool.addTxsLocked(reinjectTxs, false)
+	}
 
 	// validate the pool of pending transactions, this will remove
 	// any transactions that have been included in the block or
