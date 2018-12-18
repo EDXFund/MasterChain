@@ -360,7 +360,7 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 	txcnts := 0
 	for i := 0; i < len_accounts; i++ {
 		//fmt.Println("Adding txs:", "index",i," count:", len_accounts)
-		curTime := time.Now()
+		//	curTime := time.Now()
 
 		if len(sender[i].txs) > 0 {
 			//			cur := time.Now()
@@ -393,7 +393,7 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 
 		}
 
-		fmt.Println(" locked sub :", "duration ", time.Now().Sub(curTime))
+		//	fmt.Println(" locked sub :", "duration ", time.Now().Sub(curTime))
 	}
 	fmt.Println("Added txs:", " count:", txcnts)
 }

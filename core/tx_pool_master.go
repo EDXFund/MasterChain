@@ -1039,9 +1039,9 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	curTime := time.Now()
+	//curTime := time.Now()
 	err := pool.addTxsLocked(txs, local)
-	fmt.Println(" locked :", "duration ", time.Now().Sub(curTime))
+	//fmt.Println(" locked :", "duration ", time.Now().Sub(curTime))
 	return err
 }
 func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
