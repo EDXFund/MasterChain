@@ -62,7 +62,7 @@ const (
 
 	// txChanSize is the size of channel listening to NewTxsEvent.
 	// The number is referenced from the size of tx pool.
-	txChanSize = 4096
+	txChanSize = 40960
 	// rmLogsChanSize is the size of channel listening to RemovedLogsEvent.
 	rmLogsChanSize = 10
 	// logsChanSize is the size of channel listening to LogsEvent.
@@ -384,7 +384,7 @@ func (es *EventSystem) lightFilterNewHead(newHeader types.HeaderIntf, callBack f
 	for oldh.Hash() != newh.Hash() {
 		if oldh.NumberU64() >= newh.NumberU64() {
 			oldHeaders = append(oldHeaders, oldh)
-			oldh = rawdb.ReadHeader(es.backend.ChainDb(),  oldh.ParentHash(), oldh.NumberU64()-1)
+			oldh = rawdb.ReadHeader(es.backend.ChainDb(), oldh.ParentHash(), oldh.NumberU64()-1)
 		}
 		if oldh.NumberU64() < newh.NumberU64() {
 			newHeaders = append(newHeaders, newh)

@@ -49,7 +49,7 @@ func main() {
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
 
-	shardNumber := 4
+	shardNumber := 2
 
 	senders, receivers, alloc := initAccount(100)
 

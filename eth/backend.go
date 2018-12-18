@@ -177,8 +177,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if shardId == types.ShardMaster {
 		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain, shardId)
 		eth.shardPool = qchain.NewShardChainPool(eth.blockchain, eth.chainDb)
-		eth.blockchain.CurrentHeader().ToHeader().SetShardExp(2)
-		eth.blockchain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF})
+		eth.blockchain.CurrentHeader().ToHeader().SetShardExp(1)
+		eth.blockchain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0x03})
 
 	} else {
 		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain, shardId)
@@ -240,7 +240,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 	switch config.PowMode {
 	case ethash.ModeFake:
 		log.Warn("Ethash used in fake mode")
-		return ethash.NewFakeDelayer(5 * time.Second)
+		return ethash.NewFakeDelayer(15 * time.Second)
 	case ethash.ModeTest:
 		log.Warn("Ethash used in test mode")
 		return ethash.NewTester(nil, noverify)
