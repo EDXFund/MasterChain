@@ -1009,15 +1009,15 @@ func (pm *ProtocolManager) minedBroadcastLoop() {
 }
 
 func (pm *ProtocolManager) txBroadcastLoop() {
-	i := 0
+	//i := 0
 	for {
 		select {
-		case <-pm.txsCh:
-			i++
-			if i > 9999 {
-				fmt.Printf("tx received end: %v ----  %v ", i, time.Now())
-			}
-			//pm.BroadcastTxs(event.Txs)
+		case event := <-pm.txsCh:
+			//i++
+			//if i > 9999 {
+			//	fmt.Printf("tx received end: %v ----  %v ", i, time.Now())
+			//}
+			pm.BroadcastTxs(event.Txs)
 
 		// Err() channel will be closed when unsubscribing.
 		case <-pm.txsSub.Err():
