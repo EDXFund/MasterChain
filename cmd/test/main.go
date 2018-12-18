@@ -49,9 +49,9 @@ func main() {
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
 
-	shardNumber := 4
+	shardNumber := 1
 
-	senders, receivers, alloc := initAccount(200)
+	senders, receivers, alloc := initAccount(20)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
@@ -85,30 +85,15 @@ func main() {
 		cfg.Eth.Ethash.CacheDir = "ethash" + strconv.Itoa(int(shardId))
 		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(int(shardId))
 		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(int(shardId))
-		cfg.Node.P2P.NoDiscovery = false
+		cfg.Node.P2P.NoDiscovery = true
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
 
 		cfgs = append(cfgs, cfg)
 	}
 
-	var stacks [shardNumber + 1]*node.Node
+	stacks := make([]*node.Node, shardNumber+1)
 
 	for i, cfg := range cfgs {
-
-		if i > 0 {
-
-			cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
-			server := stacks[0].Server()
-			publicKey := server.PrivateKey.Public()
-			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
-			//bootString := stacks[0].Server().NodeInfo().Enode
-			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@192.168.31.9" + cfgs[0].Node.P2P.ListenAddr
-			node, err := enode.ParseV4(bootString)
-			if err == nil {
-				cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
-			}
-
-		}
 
 		stack, err := node.New(&cfg.Node)
 
@@ -130,6 +115,21 @@ func main() {
 		}
 
 		err = stack.Start()
+		if i > 0 {
+
+			//cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
+			server := stacks[0].Server()
+			publicKey := server.PrivateKey.Public()
+			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+			//bootString := stacks[0].Server().NodeInfo().Enode
+			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@192.168.31.9" + cfgs[0].Node.P2P.ListenAddr
+			node, err := enode.ParseV4(bootString)
+			if err == nil {
+				stack.Server().AddPeer(node)
+				//cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
+			}
+
+		}
 
 		// Set the gas price to the limits from the CLI and start mining
 		/*	gasprice := utils.GlobalBig(ctx, utils.MinerLegacyGasPriceFlag.Name)
@@ -174,7 +174,7 @@ func main() {
 
 	client := ethclient.NewClient(rpcClient)
 
-	sendTx(client, senders, receivers)
+	go sendTx(client, senders, receivers)
 
 	stacks[0].Wait()
 
@@ -183,6 +183,13 @@ func main() {
 type gethConfig struct {
 	Eth  eth.Config
 	Node node.Config
+}
+
+type TAccount struct {
+	pvKey *ecdsa.PrivateKey
+	addr  common.Address
+	nonce uint64
+	txs   []*types.Transaction
 }
 
 func initAccount(len int) (senders []*TAccount, receivers []*TAccount, alloc map[common.Address]core.GenesisAccount) {
@@ -194,7 +201,7 @@ func initAccount(len int) (senders []*TAccount, receivers []*TAccount, alloc map
 
 		senders = append(senders, &TAccount{
 			pvKey: senderKey,
-			nonce: big.NewInt(0),
+			nonce: uint64(0),
 			addr:  senderAddress,
 		})
 
@@ -202,25 +209,18 @@ func initAccount(len int) (senders []*TAccount, receivers []*TAccount, alloc map
 
 	}
 
-	for i := 0; i < 200; i++ {
+	for i := 0; i < len; i++ {
 		receiversKey, _ := crypto.GenerateKey()
 		senderAddress := crypto.PubkeyToAddress(receiversKey.PublicKey)
 
 		receivers = append(receivers, &TAccount{
 			pvKey: receiversKey,
-			nonce: big.NewInt(0),
+			nonce: uint64(0),
 			addr:  senderAddress,
 		})
 	}
 
 	return senders, receivers, alloc
-}
-
-type TAccount struct {
-	pvKey *ecdsa.PrivateKey
-	addr  common.Address
-	nonce *big.Int
-	txs   []*types.Transaction
 }
 
 func defaultNodeConfig() node.Config {
@@ -234,8 +234,8 @@ func defaultNodeConfig() node.Config {
 }
 
 func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount) {
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	chainID, err := client.NetworkID(context.Background())
+	gasPrice, _ := client.SuggestGasPrice(context.Background())
+	chainID, _ := client.NetworkID(context.Background())
 
 	for _, sender := range senders {
 		privateKey := sender.pvKey
@@ -246,13 +246,13 @@ func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount
 
 		for _, receiver := range receivers {
 
-			tx := types.NewTransaction(0, receiver.addr, value, gasLimit, gasPrice, data, 0)
+			tx := types.NewTransaction(sender.nonce, receiver.addr, value, gasLimit, gasPrice, data, 0)
 
 			signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
 			if err != nil {
 				log.Error("")
 			}
-
+			sender.nonce += 1
 			err = client.SendTransaction(context.Background(), signedTx)
 			if err != nil {
 				log.Error("")

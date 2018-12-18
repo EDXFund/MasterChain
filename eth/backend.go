@@ -176,8 +176,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if shardId == types.ShardMaster {
 		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain, shardId)
 		eth.shardPool = qchain.NewShardChainPool(eth.blockchain, eth.chainDb)
-		eth.blockchain.CurrentHeader().ToHeader().SetShardExp(4)
-		eth.blockchain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF, 0xFF})
+		//eth.blockchain.CurrentHeader().ToHeader().SetShardExp(4)
+		//eth.blockchain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0xFF, 0xFF})
 
 	} else {
 		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain, shardId)
