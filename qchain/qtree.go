@@ -98,6 +98,8 @@ func (t *HeaderTree) addHeader(node types.HeaderIntf) bool {
 			}
 		}
 		if !exist {
+
+			rawdb.WriteTd(t.owner.db,node.ShardId(),node.Hash(),node.NumberU64(),big.NewInt(0).Add(big.NewInt(int64(t.owner.GetTd(parent.self))),node.Difficulty()))
 			parent.children.PushBack(&HeaderTree{self: node, children: list.New(), parent: parent, owner: t.owner})
 		}
 
@@ -453,6 +455,14 @@ func (t *HeaderTreeManager) AddNewHead(node types.HeaderIntf) {
 		t.rootHash = node.Hash()
 	}
 	if found == nil {
+		if node.NumberU64() == 1 {
+			hash := rawdb.ReadCanonicalHash(t.db,types.ShardMaster,0)
+			head := rawdb.ReadHeader(t.db,hash,0)
+			if head != nil {
+				rawdb.WriteTd(t.db,node.ShardId(),node.Hash(),1,big.NewInt(0).Add(head.Difficulty(),node.Difficulty()))
+			}
+
+		}
 		found = NewHeaderTree(node, t)
 		t.trees[node.Hash()] = found
 	}

@@ -1571,11 +1571,15 @@ func (bc *BlockChain) insertChain(chain types.BlockIntfs) (int, []interface{}, [
 		}
 
 		// Process block using the parent state as reference point.
-		receipts, logs, usedGas, err := bc.processor.Process(block, state, bc.vmConfig)
+		receipts, logs, usedGas, shardTxs, err := bc.processor.Process(block, state, bc.vmConfig)
 		log.Trace(" Trace root after:", "number:", block.NumberU64(), "Root:", block.Root())
 		if block.ShardId() == types.ShardMaster {
-			str := fmt.Sprintf("blockNumber:,%v,time:,%v,counts:,%v\r\n", block.NumberU64(), block.Time().Uint64(), len(receipts))
-			f.WriteString(str)
+			str := fmt.Sprintf("blockNumber:,%v,time:,%+v,counts:,%v, shard Detail:", block.NumberU64(), block.Time().Uint64(), len(receipts))
+			for _, shardTx := range shardTxs {
+				str2 := fmt.Sprintf("shardInfo:,%v,%v,%v,%v,",shardTx.ShardId,shardTx.BlkNo,shardTx.Difficulty,shardTx.TxCounts)
+				str += str2
+			}
+			f.WriteString(str + "\r\n")
 		}
 		if err != nil {
 			bc.reportBlock(block, receipts, err)

@@ -320,7 +320,7 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 		for _, shard := range shards {
 			shard.worker.start()
 		}
-		timeTxs := time.NewTimer(40 * time.Second)
+		timeTxs := time.NewTimer(20 * time.Second)
 		for {
 			select {
 			case <-timeTxs.C:

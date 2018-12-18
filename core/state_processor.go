@@ -100,11 +100,11 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // 			当前是主链，处理某个分片信息   或者
 //          当前是子链，同步其他节点生成的子链区块
 
-func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) Process(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64,[]ShardTxsStat, error) {
 	if p.bc.shardId == types.ShardMaster{
 		return p.MasterProcessMasterBlock(block,statedb,cfg)
 	}else {
-		return nil,nil,0,nil
+		return nil,nil,0,nil,nil
 		//return p.ShardProcessShardBlock(block,statedb,cfg)
 	}
 }
@@ -165,7 +165,7 @@ func (p *StateProcessor) MasterProcessShardBlock(block types.BlockIntf, statedb 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb,block.ShardBlocks(),block.Results(), block.Transactions(),  receipts)
 
-	return receipts, allLogs, *usedGas, nil
+	return receipts, allLogs, *usedGas,nil
 }
 /*
 func (p *StateProcessor) ShardProcessShardBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.ContractResults, uint64, error) {
@@ -217,7 +217,7 @@ func (p *StateProcessor) ShardProcessShardBlock(block types.BlockIntf, statedb *
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, []ShardTxsStat,error) {
 	var (
 		receipts types.Receipts
 		usedGas  = new(uint64)
@@ -226,7 +226,7 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 		allLogs  []*types.Log
 	)
 	if block.ShardId() != types.ShardMaster {
-		return nil,nil,0,ErrInvalidBlocks
+		return nil,nil,0,nil,ErrInvalidBlocks
 	}
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
@@ -234,6 +234,8 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 	}
 
 	receiptCnt := 0
+
+	infos := make([]ShardTxsStat,0,len(block.ShardBlocks()))
 	// Iterate over and process the individual transactions
 	for _, blockInfo := range block.ShardBlocks() {
 		//从数据库中取出所有的分片信息
@@ -241,11 +243,12 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 		if shardBlock != nil {
 			receiptCnt += len(shardBlock.Results())
 			//fmt.Println("receipt cnt:", len(shardBlock.Results()))
-			areceipts, aallLogs, ausedGas,aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit(),gasOfBlock)
+			areceipts, aallLogs, ausedGas, aerr := p.MasterProcessShardBlock(shardBlock.ToSBlock(),statedb,cfg,block.GasLimit(),gasOfBlock)
 			if aerr == nil {
 				receipts = append(receipts, areceipts...)
 				allLogs = append(allLogs, aallLogs...)
 				*usedGas += ausedGas
+				infos = append(infos, ShardTxsStat{shardBlock.ShardId(),shardBlock.NumberU64(),shardBlock.Difficulty().Uint64(),uint64(len(shardBlock.Results()))})
 			}else {
 				fmt.Println("error occurs:","err:",aerr)
 			}
@@ -257,7 +260,7 @@ func (p *StateProcessor) MasterProcessMasterBlock(block types.BlockIntf, statedb
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb,block.ShardBlocks(),block.Results(), block.Transactions(), receipts)
 
-	return receipts, allLogs, *gasOfBlock, nil
+	return receipts, allLogs, *gasOfBlock,infos, nil
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database

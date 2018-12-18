@@ -35,7 +35,12 @@ type Validator interface {
 	// gas used.
 	ValidateState(block, parent types.BlockIntf, state *state.StateDB, receipts types.Receipts, usedGas uint64) error
 }
-
+type ShardTxsStat struct {
+	ShardId uint16
+	BlkNo  uint64
+	Difficulty uint64
+	TxCounts   uint64
+}
 // Processor is an interface for processing blocks using a given initial state.
 //
 // Process takes the block to be processed and the statedb upon which the
@@ -43,5 +48,5 @@ type Validator interface {
 // of gas used in the process and return an error if any of the internal rules
 // failed.
 type Processor interface {
-	Process(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error)
+	Process(block types.BlockIntf, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, []ShardTxsStat, error)
 }
