@@ -49,9 +49,9 @@ func main() {
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
 
-	shardNumber := 1
+	shardNumber := 2
 
-	senders, receivers, alloc := initAccount(20)
+	senders, receivers, alloc := initAccount(100)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
@@ -78,6 +78,7 @@ func main() {
 		}
 		cfg.Eth.ShardId = shardId
 		cfg.Eth.Ethash.PowMode = ethash.ModeFake
+
 		cfg.Eth.SyncMode = downloader.FullSync
 		cfg.Eth.NetworkId = genesis.Config.ChainID.Uint64()
 		cfg.Eth.Genesis = genesis
@@ -122,7 +123,7 @@ func main() {
 			publicKey := server.PrivateKey.Public()
 			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 			//bootString := stacks[0].Server().NodeInfo().Enode
-			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@192.168.31.9" + cfgs[0].Node.P2P.ListenAddr
+			bootString := "enode://" + hexutil.Encode(crypto.FromECDSAPub(publicKeyECDSA))[4:] + "@127.0.0.1" + cfgs[0].Node.P2P.ListenAddr
 			node, err := enode.ParseV4(bootString)
 			if err == nil {
 				stack.Server().AddPeer(node)
@@ -258,7 +259,7 @@ func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount
 				log.Error("")
 			}
 
-			fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
+			//fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
 		}
 
 	}
