@@ -835,11 +835,11 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		return false, fmt.Errorf("known transaction: %x", hash)
 	}
 	// If the transaction fails basic validation, discard it
-	if err := pool.validateTx(tx, local); err != nil {
+	/*if err := pool.validateTx(tx, local); err != nil {
 		log.Trace("Discarding invalid transaction", "hash", hash, "err", err)
 		invalidTxCounter.Inc(1)
 		return false, err
-	}
+	}*/
 	pool.all.Add(tx)
 	go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
 	return false,err
@@ -1044,27 +1044,28 @@ func (pool *TxPool) addShardInfoLocked(shards types.ShardBlockInfos) error {
 // whilst assuming the transaction pool lock is already held.
 func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 	// Add the batch of transaction, tracking the accepted ones
-	dirty := make(map[common.Address]struct{})
+	//dirty := make(map[common.Address]struct{})
 	errs := make([]error, len(txs))
 
 	for i, tx := range txs {
-		var replace bool
+		_, errs[i] = pool.add(tx, local)
+		/*var replace bool
 		if replace, errs[i] = pool.add(tx, local); errs[i] == nil && !replace {
 			from, _ := types.Sender(pool.signer, tx) // already validated
 			dirty[from] = struct{}{}
-		}
+		}*/
 		//fmt.Println("add tx:",tx.Hash())
 	}
 
 	// Only reprocess the internal state if something was actually added
-	if len(dirty) > 0 {
+/*	if len(dirty) > 0 {
 		addrs := make([]common.Address, 0, len(dirty))
 		for addr := range dirty {
 			addrs = append(addrs, addr)
 
 		}
 		pool.promoteExecutables(addrs)
-	}
+	}*/
 	return errs
 }
 

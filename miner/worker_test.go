@@ -249,7 +249,7 @@ func TestSingleTransaction(t *testing.T) {
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	}*/
-	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(2*time.Second)) //ethash.New(cfg,nil,false))
+	testSingleTransaction(t, ethashChainConfig, ethash.NewFakeDelayer(15*time.Second)) //ethash.New(cfg,nil,false))
 }
 
 type Account struct {
@@ -357,11 +357,15 @@ func testSingleTransaction(t *testing.T, chainConfig *params.ChainConfig, engine
 }
 
 func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shards []*TestWorker) {
-	//txcnts := 0
+	txcnts := 0
 	for i := 0; i < len_accounts; i++ {
 		//fmt.Println("Adding txs:", "index",i," count:", len_accounts)
 		if len(sender[i].txs) > 0 {
+//			cur := time.Now()
+
+
 			master.backend.txPool.AddLocals(sender[i].txs)
+//			fmt.Println(" distribute master msec:", (time.Now().Sub(cur)))
 			shardTxs := make(map[uint16][]*types.Transaction)
 			for j := 0; j < len_accounts; j++ {
 				tx := sender[i].txs[j]
@@ -373,6 +377,7 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 				shardTxs[shard] = append(shardTxs[shard], tx)
 
 			}
+
 			for shardId, txs := range shardTxs {
 				if shardTxs[shardId] == nil {
 					fmt.Println("error!")
@@ -381,14 +386,15 @@ func DistributeTxs(len_accounts int, master *TestWorker, sender []Account, shard
 				}
 
 			}
-			//txcnts += len(sender[i].txs)
+
+			txcnts += len(sender[i].txs)
 			sender[i].txs = nil
 
 		}
 
 
 	}
-	//fmt.Println("Added txs:", " count:", txcnts)
+	fmt.Println("Added txs:", " count:", txcnts)
 }
 
 func createTxs(len_accounts int, receiver []Account, sender []Account) {
