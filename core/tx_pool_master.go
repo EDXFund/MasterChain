@@ -297,6 +297,8 @@ func NewTxPoolMaster(config TxPoolConfig, chainconfig *params.ChainConfig, chain
 // loop is the transaction pool's main event loop, waiting for and reacting to
 // outside blockchain events as well as for various reporting and transaction
 // eviction events.
+var count = 0
+
 func (pool *TxPool) loop() {
 	defer pool.wg.Done()
 
@@ -388,9 +390,13 @@ func (pool *TxPool) loop() {
 				pool.mu.Unlock()
 			}
 		case txs := <-pool.txsCh:
+			count++
 			//curTime := time.Now()
 			pool.txFeed.Send(NewTxsEvent{txs})
-			//		fmt.Println("tx time end:  ", time.Now().Sub(curTime))
+			if count&0xFF == 0 {
+				fmt.Println("tx time end:  ", "count:", count, " time:", time.Now())
+			}
+
 		}
 
 	}
@@ -852,7 +858,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		return false, err
 	}*/
 	pool.all.Add(tx)
-	pool.txsCh <- types.Transactions{tx}
+	//pool.txsCh <- types.Transactions{tx}
 	//go pool.txFeed.Send(NewTxsEvent{types.Transactions{tx}})
 	return false, nil
 	// If the transaction pool is full, discard underpriced transactions

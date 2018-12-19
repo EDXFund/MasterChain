@@ -598,6 +598,16 @@ func (w *worker) enterState(newState uint8) {
 		w.enterFuncs[w.state]()
 	}
 }
+func (w *worker) handleTxsLoop() {
+	for {
+		select {
+		case newTxs := <-w.txsCh:
+			log.Trace("Event Transition", "evt_newtx:", w.shardId)
+			w.handleNewTxs(newTxs.Txs)
+		}
+	}
+
+}
 func (w *worker) mainStateLoop() {
 	minRecommit := time.Duration(10 * time.Second)
 
@@ -643,6 +653,7 @@ func (w *worker) mainStateLoop() {
 
 	w.stopEngineSeal()
 	<-w.timer.C
+	go w.handleTxsLoop()
 	for {
 		select {
 		case <-w.startCh:
@@ -670,9 +681,6 @@ func (w *worker) mainStateLoop() {
 		case newShards := <-w.chainShardCh:
 			log.Trace("Event Transition", "evt_shard:", w.shardId, "block shard:", newShards.Block[0].ShardId(), " number:", newShards.Block[0].NumberU64(), " hash:", newShards.Block[0].Hash())
 			w.handleShardChain(newShards.Block)
-		case newTxs := <-w.txsCh:
-			log.Trace("Event Transition", "evt_newtx:", w.shardId)
-			w.handleNewTxs(newTxs.Txs)
 		case newBlock := <-w.resultCh:
 			log.Trace("Event Transition", "evt_newblock:", w.shardId, "number:", newBlock.NumberU64(), "hash", newBlock.Hash(), " stateRoot:", newBlock.Root())
 			w.handleNewBlock(newBlock)

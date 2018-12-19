@@ -51,7 +51,7 @@ func main() {
 
 	shardNumber := 2
 
-	senders, receivers, alloc := initAccount(100)
+	senders, receivers, alloc := initAccount(140)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil

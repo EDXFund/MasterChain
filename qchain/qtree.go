@@ -18,7 +18,6 @@ package qchain
 
 import (
 	"container/list"
-	"fmt"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/rawdb"
 	"github.com/EDXFund/MasterChain/core/types"
@@ -99,7 +98,7 @@ func (t *HeaderTree) addHeader(node types.HeaderIntf) bool {
 		}
 		if !exist {
 
-			rawdb.WriteTd(t.owner.db,node.ShardId(),node.Hash(),node.NumberU64(),big.NewInt(0).Add(big.NewInt(int64(t.owner.GetTd(parent.self))),node.Difficulty()))
+			rawdb.WriteTd(t.owner.db, node.ShardId(), node.Hash(), node.NumberU64(), big.NewInt(0).Add(big.NewInt(int64(t.owner.GetTd(parent.self))), node.Difficulty()))
 			parent.children.PushBack(&HeaderTree{self: node, children: list.New(), parent: parent, owner: t.owner})
 		}
 
@@ -432,7 +431,7 @@ func (t *HeaderTreeManager) GetMaxTd() (*types.ShardBlockInfo, error) {
 	if (t.rootHash != common.Hash{}) {
 		head := t.maxTd
 		if head != nil {
-			fmt.Println(" max td of shard:",t.shardId, " number:",head.NumberU64(), " td:",t.GetTd(head), " hash:", head.Hash());
+			log.Trace(" max td of shard:", t.shardId, " number:", head.NumberU64(), " td:", t.GetTd(head), " hash:", head.Hash())
 			return &types.ShardBlockInfo{head.ShardId(), head.NumberU64(), head.Hash(), head.ParentHash(), head.Coinbase(), t.GetTd(head)}, nil
 		} else {
 			return nil, errors.New("no max td node found")
@@ -456,10 +455,10 @@ func (t *HeaderTreeManager) AddNewHead(node types.HeaderIntf) {
 	}
 	if found == nil {
 		if node.NumberU64() == 1 {
-			hash := rawdb.ReadCanonicalHash(t.db,types.ShardMaster,0)
-			head := rawdb.ReadHeader(t.db,hash,0)
+			hash := rawdb.ReadCanonicalHash(t.db, types.ShardMaster, 0)
+			head := rawdb.ReadHeader(t.db, hash, 0)
 			if head != nil {
-				rawdb.WriteTd(t.db,node.ShardId(),node.Hash(),1,big.NewInt(0).Add(head.Difficulty(),node.Difficulty()))
+				rawdb.WriteTd(t.db, node.ShardId(), node.Hash(), 1, big.NewInt(0).Add(head.Difficulty(), node.Difficulty()))
 			}
 
 		}
@@ -526,7 +525,6 @@ func (t *HeaderTreeManager) ReduceTo(node types.HeaderIntf) error {
 
 func (t *HeaderTreeManager) SetConfirmed(head types.HeaderIntf) []types.HeaderIntf {
 
-
 	val := head.NumberU64()
 
 	reduceIndex := 0
@@ -550,7 +548,7 @@ func (t *HeaderTreeManager) Pending() []types.HeaderIntf {
 	if len(t.confirmed) > 0 {
 		result := make([]types.HeaderIntf, 0, len(t.confirmed))
 		for _, val := range t.confirmed {
-			if  val.Hash() != t.confirmedHash {
+			if val.Hash() != t.confirmedHash {
 				result = append(result, val)
 			}
 
