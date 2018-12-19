@@ -177,8 +177,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if shardId == types.ShardMaster {
 		eth.txPool = core.NewTxPoolMaster(config.TxPool, eth.chainConfig, eth.blockchain, shardId)
 		eth.shardPool = qchain.NewShardChainPool(eth.blockchain, eth.chainDb)
-		eth.blockchain.CurrentHeader().ToHeader().SetShardExp(1)
-		eth.blockchain.CurrentHeader().ToHeader().SetShardEnabled([32]byte{0x03})
 
 	} else {
 		eth.txPool = core.NewTxPoolShard(*config.TxPool.ToShardConfig(), eth.chainConfig, eth.blockchain, shardId)
@@ -190,7 +188,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
-
 	eth.APIBackend = &EthAPIBackend{eth, nil}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {

@@ -40,7 +40,7 @@ type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() core.TxPoolIntf
 	ShardPool() *qchain.ShardChainPool
-	ChainDb()        ethdb.Database
+	ChainDb() ethdb.Database
 }
 
 // Miner creates blocks and searches for proof-of-work values.
@@ -62,7 +62,7 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		mux:      mux,
 		engine:   engine,
 		exitCh:   make(chan struct{}),
-		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock,eth.BlockChain().ShardId()),
+		worker:   newWorker(config, engine, eth, mux, recommit, gasFloor, gasCeil, isLocalBlock, eth.BlockChain().ShardId()),
 		canStart: 1,
 	}
 	go miner.update()
@@ -140,7 +140,9 @@ func (self *Miner) HashRate() uint64 {
 	}
 	return 0
 }
-
+func (self *Miner) SetupShardExps(exp uint16, enabled [32]byte) {
+	self.worker.SetupShardExps(exp, enabled)
+}
 func (self *Miner) SetExtra(extra []byte) error {
 	if uint64(len(extra)) > params.MaximumExtraDataSize {
 		return fmt.Errorf("Extra exceeds max length. %d > %v", len(extra), params.MaximumExtraDataSize)

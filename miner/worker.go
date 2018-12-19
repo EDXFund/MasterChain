@@ -209,13 +209,15 @@ type worker struct {
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
-	state      uint8
-	exitFuncs  []E_EFuncs
-	enterFuncs []E_EFuncs
-	timer      *time.Timer
-	txsCache   *lru.Cache //cache for recent caculated txs
-	recommit   time.Duration
-	timedelay  time.Duration
+	state       uint8
+	exitFuncs   []E_EFuncs
+	enterFuncs  []E_EFuncs
+	timer       *time.Timer
+	txsCache    *lru.Cache //cache for recent caculated txs
+	recommit    time.Duration
+	timedelay   time.Duration
+	nextExp     uint16
+	nextEnabled [32]byte
 }
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(types.BlockIntf) bool, shardId uint16) *worker {
@@ -249,6 +251,8 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend,
 		timer:              time.NewTimer(0),
 		recommit:           10000000,
 		timedelay:          10000000,
+		nextExp:            0,
+		nextEnabled:        [32]byte{1},
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -439,7 +443,10 @@ func (w *worker) shardBuildEnvironment() types.BlockIntf {
 		return block
 	}
 }
-
+func (self *worker) SetupShardExps(exp uint16, enabled [32]byte) {
+	self.nextExp = exp
+	self.nextEnabled = enabled
+}
 func (w *worker) masterBuildEnvironment() types.BlockIntf {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -476,8 +483,13 @@ func (w *worker) masterBuildEnvironment() types.BlockIntf {
 	header = header_
 
 	shardExp := parent.ShardExp()
+	if w.nextExp > shardExp {
+		shardExp = w.nextExp
+	}
 	shardEnabled := parent.ShardEnabled()
-	shardEnabled[0] |= 1
+	for i := 0; i < 32; i++ {
+		shardEnabled[i] |= w.nextEnabled[i]
+	}
 
 	type SHARD struct {
 		shardId uint16
@@ -487,10 +499,10 @@ func (w *worker) masterBuildEnvironment() types.BlockIntf {
 
 	//build shard enabled
 	for shardId, _ := range shardInfo {
-		seg := (shardId >> 3)
+		seg := shardId >> 3
 		offset := shardId % 8
 		//if shardBlock
-		shardEnabled[seg] |= (0x01 << offset)
+		shardEnabled[seg] |= 0x01 << offset
 		if shardId > uint16(math.Pow(2, float64(shardExp))) {
 			shardExp = shardExp + 1
 		}

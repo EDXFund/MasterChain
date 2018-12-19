@@ -44,18 +44,20 @@ func init() {
 func main() {
 
 	log.PrintOrigins(true)
-	glogger.Verbosity(log.Lvl(4))
+	glogger.Verbosity(log.Lvl(3))
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
 
-	shardNumber := 2
+	shardNumber := 4
 
-	senders, receivers, alloc := initAccount(140)
+	senders, receivers, alloc := initAccount(200)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
 	genesis.Alloc = alloc
+	genesis.ShardExp = 2
+	genesis.ShardEnabled = [32]byte{0x0f}
 	cfgs := make([]*gethConfig, 0)
 
 	for i := 0; i < shardNumber+1; i++ {

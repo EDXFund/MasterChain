@@ -57,9 +57,11 @@ type Genesis struct {
 
 	// These fields are used for consensus tests. Please don't use them
 	// in actual genesis blocks.
-	Number     uint64      `json:"number"`
-	GasUsed    uint64      `json:"gasUsed"`
-	ParentHash common.Hash `json:"parentHash"`
+	Number       uint64      `json:"number"`
+	GasUsed      uint64      `json:"gasUsed"`
+	ParentHash   common.Hash `json:"parentHash"`
+	ShardExp     uint16      `json:"shardExp"`
+	ShardEnabled [32]byte    `json:"shardEnabled"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -260,17 +262,19 @@ func (g *Genesis) ToBlock(db ethdb.Database) types.BlockIntf {
 	root := statedb.IntermediateRoot(false)
 	head := new(types.Header)
 	head_ := &types.HeaderStruct{
-		Number:     new(big.Int).SetUint64(g.Number),
-		Nonce:      types.EncodeNonce(g.Nonce),
-		Time:       new(big.Int).SetUint64(g.Timestamp),
-		ParentHash: g.ParentHash,
-		Extra:      g.ExtraData,
-		GasLimit:   g.GasLimit,
-		GasUsed:    g.GasUsed,
-		Difficulty: g.Difficulty,
-		MixDigest:  g.Mixhash,
-		Coinbase:   g.Coinbase,
-		Root:       root,
+		Number:       new(big.Int).SetUint64(g.Number),
+		Nonce:        types.EncodeNonce(g.Nonce),
+		Time:         new(big.Int).SetUint64(g.Timestamp),
+		ParentHash:   g.ParentHash,
+		Extra:        g.ExtraData,
+		GasLimit:     g.GasLimit,
+		GasUsed:      g.GasUsed,
+		Difficulty:   g.Difficulty,
+		MixDigest:    g.Mixhash,
+		Coinbase:     g.Coinbase,
+		Root:         root,
+		ShardMaskEp:  g.ShardExp,
+		ShardEnabled: g.ShardEnabled,
 	}
 	head.FillBy(head_)
 
