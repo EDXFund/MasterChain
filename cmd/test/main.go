@@ -11,12 +11,14 @@ import (
 	"github.com/EDXFund/MasterChain/core"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/crypto"
+	"github.com/EDXFund/MasterChain/dashboard"
 	"github.com/EDXFund/MasterChain/eth"
 	"github.com/EDXFund/MasterChain/eth/downloader"
 	"github.com/EDXFund/MasterChain/ethclient"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
 	"github.com/EDXFund/MasterChain/p2p/enode"
+	"github.com/EDXFund/hdwallet"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"io"
@@ -41,30 +43,35 @@ func init() {
 	glogger = log.NewGlogHandler(ostream)
 }
 
+const mnemonic string = "whip matter defense behave advance boat belt purse oil hamster stable clump"
+
 func main() {
 
 	log.PrintOrigins(true)
-	glogger.Verbosity(log.Lvl(3))
+	glogger.Verbosity(log.Lvl(4))
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
 	//glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 	log.Root().SetHandler(glogger)
 
 	shardNumber := 4
 
-	senders, receivers, alloc := initAccount(200)
+	wallet, err := hdwallet.NewFromMnemonic(mnemonic)
+
+	senders, alloc := initAccount(wallet, 2)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
 	genesis.Alloc = alloc
 	genesis.ShardExp = 2
-	genesis.ShardEnabled = [32]byte{0x0f}
+	genesis.ShardEnabled = [32]byte{0x03}
 	cfgs := make([]*gethConfig, 0)
 
 	for i := 0; i < shardNumber+1; i++ {
 
 		cfg := &gethConfig{
-			Eth:  eth.DefaultConfig,
-			Node: defaultNodeConfig(),
+			Eth:       eth.DefaultConfig,
+			Node:      defaultNodeConfig(),
+			Dashboard: dashboard.DefaultConfig,
 		}
 		add := i + 1
 		var shardId uint16
@@ -75,6 +82,7 @@ func main() {
 			cfg.Node.WSOrigins = []string{"*"}
 			cfg.Node.WSHost = "0.0.0.0"
 			cfg.Node.WSPort = 8546 + add*2
+
 		} else {
 			shardId = uint16(i - 1)
 		}
@@ -90,6 +98,8 @@ func main() {
 		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(int(shardId))
 		cfg.Node.P2P.NoDiscovery = true
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
+		cfg.Dashboard.Host = "0.0.0.0"
+		cfg.Dashboard.Port = 8081 + add
 
 		cfgs = append(cfgs, cfg)
 	}
@@ -111,6 +121,10 @@ func main() {
 			//	fullNode.AddLesServer(ls)
 			//}
 			return fullNode, err
+		})
+
+		stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
+			return dashboard.New(&cfg.Dashboard, strconv.Itoa(int(cfg.Eth.ShardId)), ctx.ResolvePath("logs")), nil
 		})
 
 		if err != nil {
@@ -177,15 +191,18 @@ func main() {
 
 	client := ethclient.NewClient(rpcClient)
 
-	go sendTx(client, senders, receivers)
+	time.Sleep(time.Second * 10)
+
+	go sendTx(client, senders)
 
 	stacks[0].Wait()
 
 }
 
 type gethConfig struct {
-	Eth  eth.Config
-	Node node.Config
+	Eth       eth.Config
+	Node      node.Config
+	Dashboard dashboard.Config
 }
 
 type TAccount struct {
@@ -195,35 +212,27 @@ type TAccount struct {
 	txs   []*types.Transaction
 }
 
-func initAccount(len int) (senders []*TAccount, receivers []*TAccount, alloc map[common.Address]core.GenesisAccount) {
+func initAccount(wallet *hdwallet.Wallet, len int) (senders []*TAccount, alloc map[common.Address]core.GenesisAccount) {
+
 	alloc = make(map[common.Address]core.GenesisAccount)
 	for i := 0; i < len; i++ {
 
-		senderKey, _ := crypto.GenerateKey()
-		senderAddress := crypto.PubkeyToAddress(senderKey.PublicKey)
+		path := hdwallet.MustParseDerivationPath("m/44'/60'/0'/0/" + strconv.Itoa(i))
+		account, _ := wallet.Derive(path, true)
+
+		pvKey, _ := wallet.PrivateKey(account)
 
 		senders = append(senders, &TAccount{
-			pvKey: senderKey,
+			pvKey: pvKey,
 			nonce: uint64(0),
-			addr:  senderAddress,
+			addr:  account.Address,
 		})
 
-		alloc[senderAddress] = core.GenesisAccount{Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))}
+		alloc[account.Address] = core.GenesisAccount{Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))}
 
 	}
 
-	for i := 0; i < len; i++ {
-		receiversKey, _ := crypto.GenerateKey()
-		senderAddress := crypto.PubkeyToAddress(receiversKey.PublicKey)
-
-		receivers = append(receivers, &TAccount{
-			pvKey: receiversKey,
-			nonce: uint64(0),
-			addr:  senderAddress,
-		})
-	}
-
-	return senders, receivers, alloc
+	return senders, alloc
 }
 
 func defaultNodeConfig() node.Config {
@@ -236,7 +245,7 @@ func defaultNodeConfig() node.Config {
 	return cfg
 }
 
-func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount) {
+func sendTx(client *ethclient.Client, senders []*TAccount) {
 	gasPrice, _ := client.SuggestGasPrice(context.Background())
 	chainID, _ := client.NetworkID(context.Background())
 
@@ -249,7 +258,7 @@ func sendTx(client *ethclient.Client, senders []*TAccount, receivers []*TAccount
 
 		var data []byte
 
-		for _, receiver := range receivers {
+		for _, receiver := range senders {
 
 			tx := types.NewTransaction(sender.nonce, receiver.addr, value, gasLimit, gasPrice, data, 0)
 
