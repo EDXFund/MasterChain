@@ -55,9 +55,9 @@ func main() {
 
 	shardNumber := 4
 
-	wallet, err := hdwallet.NewFromMnemonic(mnemonic)
+	wallet, _ := hdwallet.NewFromMnemonic(mnemonic)
 
-	senders, alloc := initAccount(wallet, 2)
+	senders, alloc := initAccount(wallet, 100)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
@@ -95,13 +95,15 @@ func main() {
 		//cfg.Eth.Etherbase = addr
 		cfg.Eth.Ethash.CacheDir = "ethash" + strconv.Itoa(int(shardId))
 		cfg.Eth.Ethash.DatasetDir = ".ethash" + strconv.Itoa(int(shardId))
-		cfg.Node.DataDir = ".etherrum" + strconv.Itoa(int(shardId))
+		cfg.Node.DataDir = ".edxchain" + strconv.Itoa(int(shardId))
 		cfg.Node.P2P.NoDiscovery = true
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
 		cfg.Dashboard.Host = "0.0.0.0"
 		cfg.Dashboard.Port = 8081 + add
 
 		cfgs = append(cfgs, cfg)
+
+		os.RemoveAll(cfg.Node.ResolvePath(""))
 	}
 
 	stacks := make([]*node.Node, shardNumber+1)
@@ -191,10 +193,12 @@ func main() {
 
 	client := ethclient.NewClient(rpcClient)
 
-	time.Sleep(time.Second * 10)
+	go func() {
+		for {
+			sendTx(client, senders)
+		}
 
-	go sendTx(client, senders)
-
+	}()
 	stacks[0].Wait()
 
 }
@@ -279,18 +283,6 @@ func sendTx(client *ethclient.Client, senders []*TAccount) {
 
 	}
 	fmt.Printf("tx sent end: %v ----  %v ", count, time.Now())
-
-	//
-	//publicKey := privateKey.Public()
-	//publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	//if !ok {
-	//	log.Debug("error casting public key to ECDSA")
-	//}
-	//
-	//fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
-	//nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-	//if err != nil {
-	//	log.Debug("")
-	//}
+	time.Sleep(time.Minute)
 
 }
