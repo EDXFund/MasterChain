@@ -57,7 +57,7 @@ func main() {
 
 	wallet, _ := hdwallet.NewFromMnemonic(mnemonic)
 
-	senders, alloc := initAccount(wallet, 100)
+	senders, alloc := initAccount(wallet, 120)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
