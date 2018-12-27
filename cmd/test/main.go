@@ -98,6 +98,7 @@ func main() {
 		cfg.Node.DataDir = ".edxchain" + strconv.Itoa(int(shardId))
 		cfg.Node.P2P.NoDiscovery = true
 		cfg.Node.P2P.ListenAddr = ":" + strconv.Itoa(30303+add)
+		cfg.Node.IPCPath = cfg.Node.IPCPath + strconv.Itoa(int(shardId))
 		cfg.Dashboard.Host = "0.0.0.0"
 		cfg.Dashboard.Port = 8081 + add
 
@@ -134,6 +135,11 @@ func main() {
 		}
 
 		err = stack.Start()
+
+		if err != nil {
+			fmt.Errorf("start error :%d", i)
+		}
+
 		if i > 0 {
 
 			//cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
