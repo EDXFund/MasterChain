@@ -163,12 +163,12 @@ func (txc txStateChanges) getLists() (mined []common.Hash, rollback []common.Has
 // checkMinedTxs checks newly added blocks for the currently pending transactions
 // and marks them as mined if necessary. It also stores block position in the db
 // and adds them to the received txStateChanges map.
-func (pool *TxPool) checkMinedTxs(ctx context.Context, shardId uint16,hash common.Hash, number uint64, txc txStateChanges) error {
+func (pool *TxPool) checkMinedTxs(ctx context.Context, shardId uint16, hash common.Hash, number uint64, txc txStateChanges) error {
 	// If no transactions are pending, we don't care about anything
 	if len(pool.pending) == 0 {
 		return nil
 	}
-	block, err := GetBlock(ctx, pool.odr,shardId, hash, number)
+	block, err := GetBlock(ctx, pool.odr, shardId, hash, number)
 	if err != nil {
 		return err
 	}
@@ -182,10 +182,11 @@ func (pool *TxPool) checkMinedTxs(ctx context.Context, shardId uint16,hash commo
 	// If some transactions have been mined, write the needed data to disk and update
 	if list != nil {
 		// Retrieve all the receipts belonging to this block and write the loopup table
-		if _, err := GetBlockReceipts(ctx, pool.odr, hash, number); err != nil { // ODR caches, ignore results
+		receipts, err := GetBlockReceipts(ctx, pool.odr, hash, number)
+		if err != nil { // ODR caches, ignore results
 			return err
 		}
-		rawdb.WriteTxLookupEntries(pool.chainDb, block.ToSBlock())
+		rawdb.WriteTxLookupEntries(pool.chainDb, block, receipts)
 
 		// Update the transaction pool's state
 		for _, tx := range list {
@@ -250,7 +251,7 @@ func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader types.HeaderIn
 	// check mined txs of new blocks (array is in reversed order)
 	for i := len(newHashes) - 1; i >= 0; i-- {
 		hash := newHashes[i]
-		if err := pool.checkMinedTxs(ctx, newHeader.ShardId(),hash, newHeader.NumberU64()-uint64(i), txc); err != nil {
+		if err := pool.checkMinedTxs(ctx, newHeader.ShardId(), hash, newHeader.NumberU64()-uint64(i), txc); err != nil {
 			return txc, err
 		}
 		pool.head = hash
@@ -261,7 +262,7 @@ func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader types.HeaderIn
 		idx2 := idx - txPermanent
 		if len(pool.mined) > 0 {
 			for i := pool.clearIdx; i < idx2; i++ {
-				hash := rawdb.ReadCanonicalHash(pool.chainDb, newHeader.ShardId(),i)
+				hash := rawdb.ReadCanonicalHash(pool.chainDb, newHeader.ShardId(), i)
 				if list, ok := pool.mined[hash]; ok {
 					hashes := make([]common.Hash, len(list))
 					for i, tx := range list {

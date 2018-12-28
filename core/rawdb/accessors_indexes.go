@@ -18,13 +18,12 @@ package rawdb
 
 import (
 	"fmt"
-	"reflect"
 	"github.com/EDXFund/MasterChain/common"
 	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/rlp"
+	"reflect"
 )
-
 
 // WriteShardBlockEntries stores a positional metadata for every shardBlock from
 // a master block, enabling hash based transaction and receipt lookups.
@@ -57,7 +56,7 @@ func DeleteShardBlockEntry(db DatabaseDeleter, hash common.Hash) {
 // ReadTxLookupEntry retrieves the positional metadata associated with a transaction
 // hash to allow retrieving the transaction or receipt by hash.
 func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash, uint64, uint64) {
-	fmt.Println("read tx:",txLookupKey(hash))
+	fmt.Println("read tx:", txLookupKey(hash))
 	data, _ := db.Get(txLookupKey(hash))
 	if len(data) == 0 {
 		return 0, common.Hash{}, 0, 0
@@ -72,12 +71,11 @@ func ReadTxLookupEntry(db DatabaseReader, hash common.Hash) (uint16, common.Hash
 
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.
-func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf) {
+func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf, receipts types.Receipts) {
 
-	if block != nil && !reflect.ValueOf(block).IsNil() {
-		for i, tx := range block.Transactions() {
+	if receipts != nil && block != nil && !reflect.ValueOf(block).IsNil() {
+		for i, tx := range receipts {
 			entry := TxLookupEntry{
-				ShardId:    block.ShardId(),
 				BlockHash:  block.Header().Hash(),
 				BlockIndex: block.NumberU64(),
 				Index:      uint64(i),
@@ -87,7 +85,7 @@ func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf) {
 				log.Crit("Failed to encode transaction lookup entry", "err", err)
 			}
 
-			if err := db.Put(txLookupKey(tx.Hash()), data); err != nil {
+			if err := db.Put(txLookupKey(tx.TxHash), data); err != nil {
 				log.Crit("Failed to store transaction lookup entry", "err", err)
 			}
 		}
@@ -99,85 +97,86 @@ func WriteTxLookupEntries(db DatabaseWriter, block types.BlockIntf) {
 func DeleteTxLookupEntry(db DatabaseDeleter, hash common.Hash) {
 	db.Delete(txLookupKey(hash))
 }
-func GetTxOfAccountNonce(db DatabaseReader, account common.Address,nonce uint64) (common.Hash,bool){
-	data, _ := db.Get(txAccountNonceKey(account,nonce))
+func GetTxOfAccountNonce(db DatabaseReader, account common.Address, nonce uint64) (common.Hash, bool) {
+	data, _ := db.Get(txAccountNonceKey(account, nonce))
 	if len(data) == 0 {
-		return  common.Hash{},false
-	}else {
-		var txHash  common.Hash
-		rlp.DecodeBytes(data,txHash)
-		return txHash,true
+		return common.Hash{}, false
+	} else {
+		var txHash common.Hash
+		rlp.DecodeBytes(data, txHash)
+		return txHash, true
 	}
 }
-func WriteTxOfAccountNonce(db DatabaseWriter, account common.Address,nonce uint64,hash common.Hash) error{
-	err := db.Put(txAccountNonceKey(account,nonce),hash.Bytes())
+func WriteTxOfAccountNonce(db DatabaseWriter, account common.Address, nonce uint64, hash common.Hash) error {
+	err := db.Put(txAccountNonceKey(account, nonce), hash.Bytes())
 	if err != nil {
-		log.Crit("error in put txHash",err)
+		log.Crit("error in put txHash", err)
 	}
 	return err
 }
-func WritePendingTransactions(db DatabaseWriter, txHashes []*common.Hash) error{
-	if(len(txHashes) > 0){
-		data,err := rlp.EncodeToBytes(txHashes)
+func WritePendingTransactions(db DatabaseWriter, txHashes []*common.Hash) error {
+	if len(txHashes) > 0 {
+		data, err := rlp.EncodeToBytes(txHashes)
 		if err != nil {
-			log.Error("error in writing pending transactions:","err is :",err)
+			log.Error("error in writing pending transactions:", "err is :", err)
 			return err
 		}
-		db.Put(txPendingPrefix,data)
+		db.Put(txPendingPrefix, data)
 		if err != nil {
-			log.Error("error in saving pending transactions:","err is :",err)
+			log.Error("error in saving pending transactions:", "err is :", err)
 
 		}
 		return err
-	}else {
+	} else {
 		return nil
 	}
 
 }
-func ReadPendingTransactions(db DatabaseReader) ([]*common.Hash,error) {
-	data,err := db.Get(txPendingPrefix)
+func ReadPendingTransactions(db DatabaseReader) ([]*common.Hash, error) {
+	data, err := db.Get(txPendingPrefix)
 	if err != nil {
-	//	log.Error("error in reading pending transactions:","err is :",err)
-		return nil,err
+		//	log.Error("error in reading pending transactions:","err is :",err)
+		return nil, err
 	}
 	hashes := []*common.Hash{}
-	err = rlp.DecodeBytes(data,hashes)
+	err = rlp.DecodeBytes(data, hashes)
 	if err != nil {
-		log.Error("error in saving pending transactions:","err is :",err)
+		log.Error("error in saving pending transactions:", "err is :", err)
 
 	}
-	return hashes,err
+	return hashes, err
 }
-func WriteRawTransaction(db DatabaseWriter, hash common.Hash, tx *types.Transaction) error{
-	data,err := rlp.EncodeToBytes(tx)
+func WriteRawTransaction(db DatabaseWriter, hash common.Hash, tx *types.Transaction) error {
+	data, err := rlp.EncodeToBytes(tx)
 	if err != nil {
-		log.Crit("error in encode transaction",err)
+		log.Crit("error in encode transaction", err)
 		return err
 	}
-	err = db.Put(txKey(hash),data)
+	err = db.Put(txKey(hash), data)
 	if err != nil {
-		log.Crit("error in put transaction",err)
+		log.Crit("error in put transaction", err)
 	}
 	return err
 }
-func ReadRawTransaction(db DatabaseReader, hash common.Hash) ( *types.Transaction,error){
+func ReadRawTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, error) {
 
-	data,err := db.Get(txKey(hash))
+	data, err := db.Get(txKey(hash))
 	if err != nil {
 		//log.Info("error in read raw transaction","err:",err)
-		return nil,err
+		return nil, err
 	}
 	tx := new(types.Transaction)
-	err = rlp.DecodeBytes(data,tx)
+	err = rlp.DecodeBytes(data, tx)
 	if err != nil {
-		log.Error("error in get transaction","err:",err)
+		log.Error("error in get transaction", "err:", err)
 	}
-	return tx,err
+	return tx, err
 }
+
 // ReadTransaction retrieves a specific transaction from the database, along with
 // its added positional metadata.
 func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
-	_,blockHash, blockNumber, txIndex:= ReadTxLookupEntry(db,hash)
+	_, blockHash, blockNumber, txIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
@@ -192,7 +191,7 @@ func ReadTransaction(db DatabaseReader, hash common.Hash) (*types.Transaction, c
 // ReadReceipt retrieves a specific transaction receipt from the database, along with
 // its added positional metadata.
 func ReadReceipt(db DatabaseReader, hash common.Hash) (*types.Receipt, common.Hash, uint64, uint64) {
-	_ ,blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
+	_, blockHash, blockNumber, receiptIndex := ReadTxLookupEntry(db, hash)
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
@@ -217,6 +216,7 @@ func WriteBloomBits(db DatabaseWriter, bit uint, section uint64, head common.Has
 		log.Crit("Failed to store bloom bits", "err", err)
 	}
 }
+
 // ReadBloomBits retrieves the compressed bloom bit vector belonging to the given
 // section and bit index from the.
 func ReadRejectedBloomBits(db DatabaseReader, bit uint, section uint64, head common.Hash) ([]byte, error) {
@@ -230,6 +230,7 @@ func WriteRejectedBloomBits(db DatabaseWriter, bit uint, section uint64, head co
 		log.Crit("Failed to store bloom bits", "err", err)
 	}
 }
+
 /*
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.

@@ -1108,7 +1108,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.BlockIntfs, receiptCha
 		if bc.shardId == types.ShardMaster {
 			rawdb.WriteShardBlockEntries(batch, block)
 		} else {
-			rawdb.WriteTxLookupEntries(batch, block.ToSBlock())
+			rawdb.WriteTxLookupEntries(batch, block, receipts)
 		}
 
 		stats.processed++
@@ -1282,9 +1282,10 @@ func (bc *BlockChain) WriteBlockWithState(block types.BlockIntf, receipts []*typ
 		if block.ShardId() == types.ShardMaster {
 
 			rawdb.WriteShardBlockEntries(batch, block)
+			rawdb.WriteTxLookupEntries(batch, block, receipts)
 		} else {
 			////MUST TODO  write TX lookup entries for all shard blocks
-			rawdb.WriteTxLookupEntries(batch, block)
+
 		}
 
 		rawdb.WritePreimages(batch, block.ShardId(), block.NumberU64(), state.Preimages())
@@ -1803,7 +1804,7 @@ func (bc *BlockChain) reorgTxs(newChain types.BlockIntfs, deletedTxs types.Trans
 		bc.insert(newChain[i])
 		// write lookup entries for hash based transaction/receipt searches
 		fmt.Println(" Hash:", newChain[i].Hash(), " newHash:", newChain[i].ToSBlock().Hash())
-		rawdb.WriteTxLookupEntries(bc.db, newChain[i].ToSBlock())
+		//	rawdb.WriteTxLookupEntries(bc.db, newChain[i],receiptsCacheLimit)
 		addedTxs = append(addedTxs, newChain[i].Transactions()...)
 	}
 	// calculate the difference between deleted and added transactions
