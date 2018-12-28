@@ -34,12 +34,12 @@ import (
 
 	"io"
 
-	"github.com/elastic/gosigar"
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/metrics"
 	"github.com/EDXFund/MasterChain/p2p"
 	"github.com/EDXFund/MasterChain/params"
 	"github.com/EDXFund/MasterChain/rpc"
+	"github.com/elastic/gosigar"
 	"github.com/mohae/deepcopy"
 	"golang.org/x/net/websocket"
 )
@@ -136,8 +136,11 @@ func (db *Dashboard) Start(server *p2p.Server) error {
 	go db.collectData()
 	go db.streamLogs()
 
-	http.HandleFunc("/", db.webHandler)
-	http.Handle("/api", websocket.Handler(db.apiHandler))
+	if db.history.General.Commit == "65535" {
+		http.HandleFunc("/", db.webHandler)
+	}
+
+	http.Handle("/api/"+db.history.General.Commit, websocket.Handler(db.apiHandler))
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", db.config.Host, db.config.Port))
 	if err != nil {

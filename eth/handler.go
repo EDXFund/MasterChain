@@ -887,7 +887,9 @@ func ExtractBlockIntf(request newBlockData) (types.BlockIntf, error) {
 }
 func (pm *ProtocolManager) BroadcastBlock(block types.BlockIntf, propagate bool) {
 	if block.ShardId() == types.ShardMaster {
-		pm.broadcastMasterBlock(block.ToBlock(), propagate)
+		if pm.blockchain.ShardId() == types.ShardMaster {
+			pm.broadcastMasterBlock(block.ToBlock(), propagate)
+		}
 	} else {
 		pm.broadcastShardBlock(block.ToSBlock(), propagate)
 	}
