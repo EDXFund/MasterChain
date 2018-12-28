@@ -341,7 +341,7 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 			return etherbase, nil
 		}
 	}
-	return common.BytesToAddress([]byte{1}), nil //fmt.Errorf("etherbase must be explicitly specified")
+	return common.HexToAddress("0xEa3a1E0735507dBd305555A48411457D03AD4e88"), nil //fmt.Errorf("etherbase must be explicitly specified")
 }
 
 // isLocalBlock checks whether the specified block is mined
