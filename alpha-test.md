@@ -76,6 +76,6 @@ edx.main.sendSignedTransaction();
 #### 查看交易打包情况
 ```
 /*发送交易详情*/
-edx.main.getTransaction
+edx.main.getTransaction(transactionHash)
 ```
 
