@@ -13,7 +13,7 @@ Anyone can test high throughout of EDX, this article shows how to test yourself 
 
 ## 下载可执行文件 
 
-PreAlpha版本的代码还没有完全开源，您可以到[此处](https://github.com/EDXFund/MasterChain/releases)下载可执行文件，或者发送邮件给[我们](mailto://pluto.shu@gmail.com)，请求获得完整代码和编译步骤
+PreAlpha版本的代码还没有完全开源，您可以到[此处](https://github.com/EDXFund/MasterChain/releases)下载liunx与windows可执行文件，或者发送邮件给[我们](mailto://pluto.shu@gmail.com)，请求获得完整代码和编译步骤
 
 
 ## 运行
@@ -27,15 +27,17 @@ PreAlpha版本的代码还没有完全开源，您可以到[此处](https://gith
    
 
 ### 下载Edx-Prealpha版本
-
+   现提供linux与windows的64位编译测试版本。文件包括测试执行文件main与区块浏览器web目录。
 
 
 ### 编写配置文件
-
+   该测试程序需要暂用系统端口：8082(区块浏览器http服务), 8547~8567（节点状态dashboard服务） ,3035～3050（p2p服务）
+   钱包默认mnemonic："whip matter defense behave advance boat belt purse oil hamster stable clump"
 
 
 
 ### 启动节点
+   直接运行可执行文件main或mian.exe
 
 
 ### 区块浏览器
