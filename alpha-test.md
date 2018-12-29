@@ -40,18 +40,21 @@ PreAlpha版本的代码还没有完全开源，您可以到[此处](https://gith
 
 #### 3) 启动节点
 ```
-   直接运行可执行文件main或mian.exe
+直接运行可执行文件main或mian.exe
 ```
 
 
 #### 4) 区块浏览器 
 
 ```
- 打开浏览器，在地址栏中输入http://localhost:8082/
+打开浏览器，在地址栏中输入http://localhost:8082/
 ```
 * 区块浏览器
+
 ![QQ20181227-170432@2x.png](https://upload-images.jianshu.io/upload_images/764896-ee2d037c4e590a9f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
+
 * 主网监控
+
 ![QQ20181227-170454@2x.png](https://upload-images.jianshu.io/upload_images/764896-028a0e2f3bf02998.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
 
 使用进阶
