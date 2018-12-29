@@ -64,7 +64,7 @@ PreAlpha版本的代码还没有完全开源，您可以到[此处](https://gith
 使用[edx.js](https://github.com/EDXFund/edx.js)库向主网发送交易请求，服务提供器地址：ws://127.0.0.1:8548。
 ```
 /*获取最新区块信息*/
-edx.mainsubscribe('newBlockHeaders');
+edx.main.subscribe('newBlockHeaders');
 /*获取区块信息*/
 edx.main.getBlock(blockHashOrNumber);
 /*获取分片信息*/
