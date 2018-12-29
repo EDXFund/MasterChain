@@ -51,7 +51,7 @@ func main() {
 
 	shardNumber := 4
 
-	senders, alloc, _ := ethclient.InitAccount(mnemonic, 100)
+	_, alloc, _ := ethclient.InitAccount(mnemonic, 200)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
@@ -186,14 +186,14 @@ func main() {
 		}
 	}
 
-	rpcClient, err := stacks[0].Attach()
-	if err != nil {
-		log.Error("rpcClient error")
-	}
+	//rpcClient, err := stacks[0].Attach()
+	//if err != nil {
+	//	log.Error("rpcClient error")
+	//}
 
-	client := ethclient.NewClient(rpcClient)
+	//client := ethclient.NewClient(rpcClient)
 
-	go ethclient.SendTx(client, senders)
+	//go ethclient.SendTx(client, senders)
 	stacks[0].Wait()
 
 }
