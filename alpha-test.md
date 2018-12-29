@@ -11,43 +11,52 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 
 Anyone can test high throughout of EDX, this article shows how to test yourself step by step.
 
-## 下载可执行文件 
+说明
+====
 
-PreAlpha版本的代码还没有完全开源，您可以到[此处](https://github.com/EDXFund/MasterChain/releases)下载liunx与windows可执行文件，或者发送邮件给[我们](mailto://pluto.shu@gmail.com)，请求获得完整代码和编译步骤
+PreAlpha版本的代码还没有完全开源，您可以到[此处](https://github.com/EDXFund/MasterChain/releases)下载可执行文件，或者发送邮件给[我们](mailto://pluto.shu@gmail.com)，请求获得完整代码和编译步骤。
 
 
-## 运行
+运行
+====
 
-   在运行之前 ，首先需要明确以下几项：
+   **在运行之前 ，首先需要明确以下几项：**
+> * *TPS能力和分片数量有关系，每个分片为2900笔交易，以15秒为出块单位，单片的TPS能力为195TPS*
+> * *测试文件里，目前默认设置为4个分片，约合800TPS的能力*
+ > * *TPS能力受到网络带宽，主链节点CPU运算能力的约束，在性能低的TPS上，设置较大的分片数可能会导致系统无法处理*
+ > * *目前在prealpha中，峰值TPS已经达到2400*
    
-   1) TPS能力和分片数量有关系，每个分片为2900笔交易，以15秒为出块单位，单片的TPS能力为195TPS
-   2) 测试文件里，目前默认设置为4个分片，约合800TPS的能力
-   3) TPS能力受到网络带宽，主链节点CPU运算能力的约束，在性能低的TPS上，设置较大的分片数可能会导致系统无法处理
-   4) 目前在prealpha中，峰值TPS已经达到2400
-   
 
-### 下载Edx-Prealpha版本
-   现提供linux与windows的64位编译测试版本。文件包括测试执行文件main与区块浏览器web目录。
+#### 1) 下载Edx-PreAlpha版本
+* [window版本下载](https://github.com/EDXFund/MasterChain/releases/download/v1.0.0-alpha/edx-windows64-v1.0.0-alpha.zip)
+* [linux版本下载](https://github.com/EDXFund/MasterChain/releases/download/v1.0.0-alpha/edx-linux64-v1.0.0-alpha.zip)
 
 
-### 编写配置文件
+#### 2) 编写配置文件
    该测试程序需要暂用系统端口：8082(区块浏览器http服务), 8547~8567（节点状态dashboard服务） ,3035～3050（p2p服务）
    钱包默认mnemonic："whip matter defense behave advance boat belt purse oil hamster stable clump"
 
 
 
-### 启动节点
+#### 3) 启动节点
+```
    直接运行可执行文件main或mian.exe
-
-
-### 区块浏览器
-
- 点击[这里](http://localhost:8082/)打开EDX的区块浏览器
-```
- 或者在浏览器地址栏中输入(http://localhost:8082/)
 ```
 
-### 使用进阶
+
+#### 4) 区块浏览器 
+
+```
+ 打开浏览器，在地址栏中输入http://localhost:8082/
+```
+* 区块浏览器
+![QQ20181227-170432@2x.png](https://upload-images.jianshu.io/upload_images/764896-ee2d037c4e590a9f.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
+* 主网监控
+![QQ20181227-170454@2x.png](https://upload-images.jianshu.io/upload_images/764896-028a0e2f3bf02998.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/700)
+
+使用进阶
+====
+
 #### 生成交易
 #### 查看交易打包情况
 
