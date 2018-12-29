@@ -21,7 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/EDXFund/MasterChain/ethclient"
 	"math/big"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -1342,6 +1344,51 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 		return common.Hash{}, err
 	}
 	return submitTransaction(ctx, s.b, tx)
+}
+
+func (s *PublicEthereumAPI) SendTestTxs(ctx context.Context, mnemonic string, number int) error {
+	if number > 200 {
+		return errors.New("The number cannot be greater than 200")
+	}
+
+	if mnemonic == "" {
+		mnemonic = "whip matter defense behave advance boat belt purse oil hamster stable clump"
+	}
+
+	senders, _, err := ethclient.InitAccount(mnemonic, number)
+
+	if err != nil {
+		return err
+	}
+
+	gasPrice, _ := s.b.SuggestPrice(ctx)
+	chainID := s.b.ChainConfig().ChainID
+	for _, sender := range senders {
+		privateKey := sender.PvKey
+		value := big.NewInt(1)    // in wei (1 eth)
+		gasLimit := uint64(21000) // in units
+
+		var data []byte
+
+		for _, receiver := range senders {
+
+			tx := types.NewTransaction(rand.Uint64(), receiver.Addr, value, gasLimit, gasPrice, data, 0)
+
+			signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+			if err != nil {
+				return err
+			}
+
+			_, err = submitTransaction(ctx, s.b, signedTx)
+			if err != nil {
+				return err
+			}
+
+		}
+
+	}
+
+	return nil
 }
 
 // Sign calculates an ECDSA signature for:

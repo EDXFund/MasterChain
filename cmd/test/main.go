@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/EDXFund/MasterChain/cmd/utils"
@@ -9,7 +8,6 @@ import (
 	"github.com/EDXFund/MasterChain/common/hexutil"
 	"github.com/EDXFund/MasterChain/consensus/ethash"
 	"github.com/EDXFund/MasterChain/core"
-	"github.com/EDXFund/MasterChain/core/types"
 	"github.com/EDXFund/MasterChain/crypto"
 	"github.com/EDXFund/MasterChain/dashboard"
 	"github.com/EDXFund/MasterChain/eth"
@@ -18,11 +16,9 @@ import (
 	"github.com/EDXFund/MasterChain/log"
 	"github.com/EDXFund/MasterChain/node"
 	"github.com/EDXFund/MasterChain/p2p/enode"
-	"github.com/EDXFund/hdwallet"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"io"
-	"math/big"
 	"os"
 	"strconv"
 	"time"
@@ -55,9 +51,7 @@ func main() {
 
 	shardNumber := 4
 
-	wallet, _ := hdwallet.NewFromMnemonic(mnemonic)
-
-	senders, alloc := initAccount(wallet, 120)
+	senders, alloc, _ := ethclient.InitAccount(mnemonic, 100)
 
 	genesis := core.DeveloperGenesisBlock(0, common.Address{})
 	genesis.Config.Clique = nil
@@ -199,12 +193,7 @@ func main() {
 
 	client := ethclient.NewClient(rpcClient)
 
-	go func() {
-		for {
-			sendTx(client, senders)
-		}
-
-	}()
+	go ethclient.SendTx(client, senders)
 	stacks[0].Wait()
 
 }
@@ -215,36 +204,6 @@ type gethConfig struct {
 	Dashboard dashboard.Config
 }
 
-type TAccount struct {
-	pvKey *ecdsa.PrivateKey
-	addr  common.Address
-	nonce uint64
-	txs   []*types.Transaction
-}
-
-func initAccount(wallet *hdwallet.Wallet, len int) (senders []*TAccount, alloc map[common.Address]core.GenesisAccount) {
-
-	alloc = make(map[common.Address]core.GenesisAccount)
-	for i := 0; i < len; i++ {
-
-		path := hdwallet.MustParseDerivationPath("m/44'/60'/0'/0/" + strconv.Itoa(i))
-		account, _ := wallet.Derive(path, true)
-
-		pvKey, _ := wallet.PrivateKey(account)
-
-		senders = append(senders, &TAccount{
-			pvKey: pvKey,
-			nonce: uint64(0),
-			addr:  account.Address,
-		})
-
-		alloc[account.Address] = core.GenesisAccount{Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))}
-
-	}
-
-	return senders, alloc
-}
-
 func defaultNodeConfig() node.Config {
 	cfg := node.DefaultConfig
 	cfg.Name = "edx"
@@ -253,42 +212,4 @@ func defaultNodeConfig() node.Config {
 	cfg.WSModules = append(cfg.WSModules, "eth")
 	cfg.IPCPath = "edx.ipc"
 	return cfg
-}
-
-func sendTx(client *ethclient.Client, senders []*TAccount) {
-	gasPrice, _ := client.SuggestGasPrice(context.Background())
-	chainID, _ := client.NetworkID(context.Background())
-
-	var count = 0
-
-	for _, sender := range senders {
-		privateKey := sender.pvKey
-		value := big.NewInt(1)    // in wei (1 eth)
-		gasLimit := uint64(21000) // in units
-
-		var data []byte
-
-		for _, receiver := range senders {
-
-			tx := types.NewTransaction(sender.nonce, receiver.addr, value, gasLimit, gasPrice, data, 0)
-
-			signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-			if err != nil {
-				log.Error("")
-			}
-			sender.nonce += 1
-			err = client.SendTransaction(context.Background(), signedTx)
-			if err != nil {
-
-				log.Error("")
-			}
-			count += 1
-
-			//fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
-		}
-
-	}
-	fmt.Printf("tx sent end: %v ----  %v ", count, time.Now())
-	time.Sleep(time.Minute)
-
 }
