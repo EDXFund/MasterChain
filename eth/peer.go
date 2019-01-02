@@ -186,7 +186,7 @@ func (p *peer) Head(shardId uint16) (hash common.Hash, td *big.Int) {
 			return hash, new(big.Int).Set(shard.Td)
 		}
 	}
-	return common.Hash{}, nil
+	return common.Hash{}, big.NewInt(0)
 
 }
 
