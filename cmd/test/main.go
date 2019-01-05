@@ -42,7 +42,7 @@ func init() {
 const mnemonic string = "whip matter defense behave advance boat belt purse oil hamster stable clump"
 
 func main() {
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 3)
 	log.PrintOrigins(true)
 	glogger.Verbosity(log.Lvl(4))
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
@@ -132,12 +132,16 @@ func main() {
 
 		if err != nil {
 			fmt.Errorf("start error :%d", i)
+			return
 		}
 
 		if i > 0 {
 
 			//cfg.Node.P2P.BootstrapNodes = make([]*enode.Node, 0, 1)
 			server := stacks[0].Server()
+			if server == nil {
+				return
+			}
 			publicKey := server.PrivateKey.Public()
 			publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
 			//bootString := stacks[0].Server().NodeInfo().Enode
