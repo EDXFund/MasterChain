@@ -198,11 +198,22 @@ func main() {
 	//client := ethclient.NewClient(rpcClient)
 
 	//go ethclient.SendTx(client, senders)
-	timer1 := time.NewTicker(50 * time.Minute)
+	timer1 := time.NewTicker(1 * time.Minute)
 	for {
 		select {
 		case <-timer1.C:
-			return
+			for id, node := range stacks {
+
+				if id == 0 {
+
+				}
+				var ethereum *eth.Ethereum
+				if err := node.Service(&ethereum); err != nil {
+					log.Crit("Ethereum service not running: %v", err)
+				}
+				ethereum.StopMining()
+				node.Stop()
+			}
 		}
 	}
 
