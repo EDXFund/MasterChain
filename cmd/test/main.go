@@ -198,7 +198,7 @@ func main() {
 	//client := ethclient.NewClient(rpcClient)
 
 	//go ethclient.SendTx(client, senders)
-	timer1 := time.NewTicker(1 * time.Minute)
+	timer1 := time.NewTicker(50 * time.Minute)
 	for {
 		select {
 		case <-timer1.C:
