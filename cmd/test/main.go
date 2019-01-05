@@ -42,7 +42,7 @@ func init() {
 const mnemonic string = "whip matter defense behave advance boat belt purse oil hamster stable clump"
 
 func main() {
-
+	time.Sleep(time.Second * 2)
 	log.PrintOrigins(true)
 	glogger.Verbosity(log.Lvl(4))
 	//glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
@@ -194,7 +194,13 @@ func main() {
 	//client := ethclient.NewClient(rpcClient)
 
 	//go ethclient.SendTx(client, senders)
-	stacks[0].Wait()
+	timer1 := time.NewTicker(50 * time.Minute)
+	for {
+		select {
+		case <-timer1.C:
+			return
+		}
+	}
 
 }
 
