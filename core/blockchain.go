@@ -1367,6 +1367,8 @@ func (bc *BlockChain) switchTo(hash common.Hash, number uint64) {
 	} else if number < header.NumberU64() {
 		block := bc.GetBlockByNumber(number)
 		if block.Hash() != hash { //in different fork
+			fmt.Println("switchTo func", "hash", hash, "number", number, "blockhash", block.Hash(), "headerNumber", header.NumberU64())
+
 			bc.reorg(bc.CurrentBlock(), newBlock)
 		} // else in same fork continue working
 
